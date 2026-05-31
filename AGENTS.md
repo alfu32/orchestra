@@ -2,37 +2,33 @@
 
 ## Project Structure & Module Organization
 
-This repository currently contains product and architecture specifications for Orchestra. Source code has not been added yet.
+This repository contains the Kotlin implementation of the Orchestra/InFlow rewrite plus the source specifications.
 
-- `README.md`: project entry point; currently empty.
+- `README.md`: project overview and local commands.
 - `spec/`: Markdown specifications that define system behavior and architecture.
-- `spec/system.spec.md`: system-level behavior and model description.
-- `spec/object-model.spec.md`: single-node object model details.
-- `spec/techincal.spec.md` and `spec/technical.addendum.spec.md`: technical notes and addenda. Preserve existing filenames unless a coordinated rename is requested.
-
-When adding implementation code, keep it outside `spec/` and document the new layout here.
+- `core/`: serializable node document model, diagnostics, and validation.
+- `storage-json/`: in-memory repository and JSON persistence.
+- `completion-core/`: model-derived completion service.
+- `compiler-api/`: compiler interfaces and generated-project contracts.
+- `compiler-naive-kotlin/`: deterministic Kotlin/JVM project generator.
+- `app-desktop/`: current CLI entry point; future Compose desktop shell.
 
 ## Build, Test, and Development Commands
 
-No build system, package manager, or test runner is configured yet. Useful repository checks are:
+Use Gradle with a workspace-local cache:
 
-- `rg --files`: list tracked working files quickly.
-- `git status --short`: inspect local changes before committing.
-- `sed -n '1,120p' spec/system.spec.md`: preview a spec section from the terminal.
-
-If a runtime stack is introduced, add its canonical commands here, for example `npm test`, `cargo test`, or `make build`.
+- `GRADLE_USER_HOME=.gradle-user gradle test`: compile all modules and run tests.
+- `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='new build/sample.inflow.json'`: create a sample document.
+- `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='validate build/sample.inflow.json'`: validate document references.
+- `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='compile build/sample.inflow.json build/generated-sample'`: export a generated Kotlin project.
 
 ## Coding Style & Naming Conventions
 
-Current files are Markdown. Use concise headings, short paragraphs, and fenced code blocks for schemas or examples. Prefer ASCII punctuation and plain technical language. Keep spec filenames lowercase and descriptive, using `.spec.md` for primary specifications and `.addendum.spec.md` for supplementary material.
-
-For future code, follow the formatter and naming conventions of the chosen language, and commit the formatter configuration with the code.
+Kotlin code uses 4-space indentation, trailing commas in multiline declarations, and package names under `com.orchestra`. Keep model types in `core`; do not add UI, filesystem, or compiler implementation dependencies there. Markdown specs should keep concise headings and fenced code blocks.
 
 ## Testing Guidelines
 
-There are no automated tests yet. For specification changes, verify consistency manually across related files in `spec/`, especially duplicated model concepts such as `Node`, `children`, `metadata`, ports, and link data.
-
-When implementation begins, place tests near the relevant source or in a clearly named `test/` or `tests/` directory. Use names that describe behavior, such as `node_serialization_test` or `NodeLayoutSpec`.
+Tests use `kotlin.test` under each module's `src/test/kotlin`. Add tests beside the module whose behavior changes. Prefer behavior names such as `create link synchronizes endpoints` or `generates kotlin project files`. Run `gradle test` before handing off changes.
 
 ## Commit & Pull Request Guidelines
 
@@ -42,8 +38,8 @@ This repository has no commit history yet, so use a simple imperative style for 
 - `Clarify node link semantics`
 - `Document initial test strategy`
 
-Pull requests should include a short summary, the affected spec files, and any unresolved design questions. Link related issues when available. For UI or generated-output changes added later, include screenshots or before/after examples.
+Pull requests should include a short summary, affected modules/spec files, and test results. Link related issues when available. For future UI changes, include screenshots or before/after examples.
 
 ## Agent-Specific Instructions
 
-Keep edits scoped and preserve user-authored content. Do not rename files, reorganize specs, or introduce tooling unless the task explicitly requires it.
+Keep edits scoped and preserve user-authored content. Do not rename spec files or reorganize modules unless the task explicitly requires it.
