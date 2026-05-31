@@ -199,6 +199,8 @@ link_data
 - source_port_name
 - target_node_id
 - target_port_name
+- transport_kind
+- payload_definition
 ```
 
 A link node still has:
@@ -213,6 +215,11 @@ A link node still has:
 Even if most compilers ignore some of those fields for links.
 
 This keeps the model uniform.
+
+`payload_definition` stores the user-defined shape of the data transported by
+the link. Its syntax is technology/compiler-specific. Examples include a C
+struct, Kotlin data class, JSON schema, CSV header, protobuf message, or any
+other textual contract that a compiler plugin knows how to interpret.
 
 ---
 

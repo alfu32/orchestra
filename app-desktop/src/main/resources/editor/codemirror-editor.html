@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Orchestra CodeMirror Editor</title>
+  <style>
+    html, body, #editor { height: 100%; margin: 0; }
+    body { background: #ffffff; color: #222222; font: 13px monospace; }
+  </style>
+</head>
+<body>
+<div id="editor"></div>
+<script type="module">
+  /*
+   * Bridge contract:
+   * Kotlin -> WebView: window.orchestraEditor.setText, setLanguage,
+   * setDiagnostics, setTheme, focus.
+   * WebView -> Kotlin: post JSON messages named textChanged, cursorChanged,
+   * completionRequested, editorReady.
+   *
+   * This asset intentionally contains the protocol surface without pinning the
+   * host to a specific JVM WebView. The JavaFX/JCEF adapter can load this page
+   * and inject CodeMirror 6 modules.
+   */
+  const state = { text: "", language: "text", readOnly: false };
+  const target = document.getElementById("editor");
+  const textarea = document.createElement("textarea");
+  textarea.style.width = "100%";
+  textarea.style.height = "100%";
+  textarea.style.boxSizing = "border-box";
+  textarea.style.border = "0";
+  textarea.style.outline = "0";
+  textarea.style.resize = "none";
+  textarea.style.font = "13px monospace";
+  target.appendChild(textarea);
+
+  function post(type, payload = {}) {
+    const message = JSON.stringify({ type, payload });
+    if (window.orchestraBridge && window.orchestraBridge.postMessage) {
+      window.orchestraBridge.postMessage(message);
+    } else {
+      console.debug("orchestraBridge", message);
+    }
+  }
+
+  textarea.addEventListener("input", () => {
+    state.text = textarea.value;
+    post("textChanged", { text: state.text });
+  });
+
+  textarea.addEventListener("keyup", () => {
+    post("cursorChanged", { offset: textarea.selectionStart });
+  });
+
+  window.orchestraEditor = {
+    setText(text) {
+      state.text = text ?? "";
+      textarea.value = state.text;
+    },
+    getText() {
+      return textarea.value;
+    },
+    setLanguage(language) {
+      state.language = language ?? "text";
+    },
+    setReadOnly(readOnly) {
+      state.readOnly = !!readOnly;
+      textarea.readOnly = state.readOnly;
+    },
+    setDiagnostics(diagnostics) {
+      textarea.title = (diagnostics ?? []).map(d => `${d.severity}: ${d.message}`).join("\n");
+    },
+    setTheme(_theme) {},
+    focus() {
+      textarea.focus();
+    }
+  };
+
+  post("editorReady");
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@ This repository contains the Kotlin implementation of the Orchestra/InFlow rewri
 - `completion-core/`: model-derived completion service.
 - `compiler-api/`: compiler interfaces and generated-project contracts.
 - `compiler-naive-kotlin/`: deterministic Kotlin/JVM project generator.
-- `app-desktop/`: current CLI entry point; future Compose desktop shell.
+- `app-desktop/`: Swing desktop shell, CLI entry point, editor adapter, and CodeMirror bridge asset.
 
 ## Build, Test, and Development Commands
 
@@ -21,6 +21,7 @@ Use Gradle with a workspace-local cache:
 - `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='new build/sample.inflow.json'`: create a sample document.
 - `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='validate build/sample.inflow.json'`: validate document references.
 - `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='compile build/sample.inflow.json build/generated-sample'`: export a generated Kotlin project.
+- `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='desktop'`: open the graphical editor.
 
 ## Coding Style & Naming Conventions
 

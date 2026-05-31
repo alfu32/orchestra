@@ -9,6 +9,7 @@ import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.core.validation.DocumentValidator
+import com.orchestra.app.ui.launchDesktopApp
 import com.orchestra.storage.InMemoryDocumentRepository
 import com.orchestra.storage.KotlinxJsonDocumentStore
 import com.orchestra.storage.newDocument
@@ -18,6 +19,7 @@ import kotlin.io.path.createDirectories
 fun main(args: Array<String>) {
     when (args.firstOrNull()) {
         null, "help", "--help", "-h" -> printHelp()
+        "desktop" -> launchDesktopApp()
         "new" -> createSample(args)
         "validate" -> validate(args)
         "compile" -> compile(args)
@@ -37,6 +39,7 @@ private fun printHelp() {
           new <file.inflow.json>              Create a sample document
           validate <file.inflow.json>         Validate document references
           compile <file.inflow.json> <dir>    Export a naive Kotlin/JVM project
+          desktop                             Open the graphical desktop editor
         """.trimIndent(),
     )
 }

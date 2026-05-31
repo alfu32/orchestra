@@ -73,6 +73,7 @@ data class LinkData(
     var targetNodeId: NodeId,
     var targetPortName: String,
     var transportKind: String = "packet",
+    var payloadDefinition: String = "",
 )
 
 @Serializable

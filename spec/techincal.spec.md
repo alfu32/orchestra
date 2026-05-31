@@ -526,11 +526,16 @@ data class LinkData(
     var sourcePortName: String,
     var targetNodeId: NodeId,
     var targetPortName: String,
-    var transportKind: String = "packet"
+    var transportKind: String = "packet",
+    var payloadDefinition: String = ""
 )
 ```
 
 Each link connects exactly one output to one input.
+
+`payloadDefinition` is the user-controlled schema/contract for the transported
+data. The compiler decides whether it is a C struct, Kotlin class, JSON schema,
+CSV header, or another technology-specific declaration.
 
 ---
 
@@ -821,12 +826,28 @@ Required operations:
 - drag node
 - resize node
 - pan viewport
-- zoom viewport
+- zoom viewport about the cursor/model point
 - create link between ports
+- redirect link source or target
+- create child node inside a selected or clicked parent
+- reparent nodes by command mode or dragging into/out of parent bounds
+- copy/paste selected nodes
+- select by click or window selection
 - show selected state
+- show node stereotype using shared core classification
+- color nodes by stereotype, including libraries, tests, errors, and composites
+- route links with readable port separation and labels
 ```
 
 The canvas should use the `NodeLayout` stored in the document.
+
+Composite nodes are visual containers. Their displayed geometry shall expand to
+the bounding box that envelopes their visible children, with padding. Composite
+containers should use a distinct line type from terminal processing nodes.
+
+The drawing surface should support technical drawing output. The MVP may expose
+an ISO sheet preview with grid, drawing frame, cartouche/title block, and a
+parts/list table; later versions may export SVG/PDF/print-ready documents.
 
 ---
 

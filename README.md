@@ -22,6 +22,7 @@ GRADLE_USER_HOME=.gradle-user gradle test
 GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='new build/sample.inflow.json'
 GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='validate build/sample.inflow.json'
 GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='compile build/sample.inflow.json build/generated-sample'
+GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='desktop'
 ```
 
-The Compose desktop shell and CodeMirror adapter are not implemented yet.
+The current desktop shell is Swing-based because Compose/WebView dependencies are not present in the local build cache yet. The editor adapter boundary and CodeMirror bridge asset are in place for a future JavaFX/JCEF-backed adapter.
