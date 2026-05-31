@@ -234,6 +234,7 @@ class GraphCanvas(
 ) : JPanel() {
     var mode: CanvasMode = CanvasMode.Select
     private var dragStart: Point? = null
+    private var dragAllowsReparent = false
     private var panDragStart: Point? = null
     private var selectionRect: Rectangle? = null
     private var linkSource: NodeId? = null
@@ -348,8 +349,10 @@ class GraphCanvas(
         if (showSheet) drawIsoSheet(g2)
         drawGrid(g2)
         val document = repository.getDocument()
-        document.nodes.values.filter { it.isLink }.forEach { drawLink(g2, it) }
+        val links = document.nodes.values.filter { it.isLink }
+        links.filterNot(::isDependencyAnnotation).forEach { drawLink(g2, it) }
         document.nodes.values.filter { !it.isLink && it.id != document.rootNodeId }.sortedBy { it.children.isEmpty() }.forEach { drawNode(g2, it) }
+        drawDependencyAnnotations(g2, links.filter(::isDependencyAnnotation))
         selectionRect?.let {
             g2.color = Color(0x3366cc55, true)
             g2.fill(it)
@@ -426,6 +429,7 @@ class GraphCanvas(
         g2.drawString(node.name, r.x + 12, r.y + 22)
         g2.color = Color(0x555555)
         g2.drawString(stereotype.name, r.x + 12, r.y + 42)
+        drawNodePorts(g2, node)
         drawStateDot(g2, node, r)
         g2.stroke = previousStroke
     }
@@ -439,16 +443,177 @@ class GraphCanvas(
         g2.color = linkColor(stereotype, selected)
         g2.stroke = linkStroke(stereotype, selected)
         route.points.zipWithNext().forEach { (a, b) -> g2.drawLine(a.x, a.y, b.x, b.y) }
-        g2.fillRect(route.target.x - 5, route.target.y - 5, 10, 10)
+        drawArrowAlongRoute(g2, route.points)
         drawPortLabel(g2, link.sourcePortName.ifBlank { "out" }, route.source, true)
         drawPortLabel(g2, link.targetPortName.ifBlank { "in" }, route.target, false)
         if (selected) {
             g2.color = Color(0x1565c0)
-            g2.fillRect(route.source.x - 5, route.source.y - 5, 10, 10)
-            g2.fillRect(route.target.x - 5, route.target.y - 5, 10, 10)
+            drawPortMarker(g2, route.source, sourceDirection(route.source, route.points.getOrNull(1)), outgoing = true)
+            drawPortMarker(g2, route.target, targetDirection(route.target, route.points.getOrNull(route.points.lastIndex - 1)), outgoing = false)
         }
         g2.stroke = previousStroke
     }
+
+    private fun drawNodePorts(g2: Graphics2D, node: Node) {
+        normalConnectedLinks(node, outgoing = true).forEach { linkNode ->
+            val anchor = portAnchor(node, linkNode, outgoing = true) ?: return@forEach
+            g2.color = linkColor(LinkClassifier.classify(repository.getDocument(), linkNode), linkNode.id in selection)
+            drawPortMarker(g2, anchor.point, anchor.xDirection, outgoing = true)
+        }
+        normalConnectedLinks(node, outgoing = false).forEach { linkNode ->
+            val anchor = portAnchor(node, linkNode, outgoing = false) ?: return@forEach
+            g2.color = linkColor(LinkClassifier.classify(repository.getDocument(), linkNode), linkNode.id in selection)
+            drawPortMarker(g2, anchor.point, anchor.xDirection, outgoing = false)
+        }
+    }
+
+    private fun drawPortMarker(g2: Graphics2D, point: Point, side: Int, outgoing: Boolean) {
+        val x = point.x
+        val y = point.y
+        if (outgoing) {
+            g2.fillRect(x - 4, y - 7, 8, 14)
+            g2.drawLine(x, y, x + side * 18, y)
+            val tip = Point(x + side * 18, y)
+            fillTriangle(g2, tip, side, 7)
+        } else {
+            val tip = Point(x, y)
+            fillTriangle(g2, tip, -side, 8)
+            g2.drawLine(x - side * 18, y, x, y)
+        }
+    }
+
+    private fun drawArrowAlongRoute(g2: Graphics2D, points: List<Point>) {
+        val total = points.zipWithNext().sumOf { (a, b) -> a.distance(b) }
+        if (total <= 0.0) return
+        val target = total * 0.75
+        var travelled = 0.0
+        points.zipWithNext().forEach { (a, b) ->
+            val segment = a.distance(b)
+            if (segment > 0.0 && travelled + segment >= target) {
+                val ratio = ((target - travelled) / segment).coerceIn(0.0, 1.0)
+                val x = (a.x + (b.x - a.x) * ratio).toInt()
+                val y = (a.y + (b.y - a.y) * ratio).toInt()
+                drawDirectionalArrow(g2, Point(x, y), b.x - a.x, b.y - a.y)
+                return
+            }
+            travelled += segment
+        }
+    }
+
+    private fun drawDirectionalArrow(g2: Graphics2D, point: Point, dx: Int, dy: Int) {
+        if (dx == 0 && dy == 0) return
+        val length = hypot(dx.toDouble(), dy.toDouble())
+        val ux = dx / length
+        val uy = dy / length
+        val size = 10.0
+        val wing = 5.0
+        val tipX = point.x + ux * size
+        val tipY = point.y + uy * size
+        val baseX = point.x - ux * size
+        val baseY = point.y - uy * size
+        val px = -uy
+        val py = ux
+        g2.fillPolygon(
+            intArrayOf(tipX.toInt(), (baseX + px * wing).toInt(), (baseX - px * wing).toInt()),
+            intArrayOf(tipY.toInt(), (baseY + py * wing).toInt(), (baseY - py * wing).toInt()),
+            3,
+        )
+    }
+
+    private fun fillTriangle(g2: Graphics2D, tip: Point, horizontalDirection: Int, size: Int) {
+        val baseX = tip.x - horizontalDirection * size
+        g2.fillPolygon(
+            intArrayOf(tip.x, baseX, baseX),
+            intArrayOf(tip.y, tip.y - size, tip.y + size),
+            3,
+        )
+    }
+
+    private fun sourceDirection(source: Point, next: Point?): Int =
+        next?.let { if (it.x >= source.x) 1 else -1 } ?: 1
+
+    private fun targetDirection(target: Point, previous: Point?): Int =
+        previous?.let { if (it.x >= target.x) 1 else -1 } ?: -1
+
+    private fun drawDependencyAnnotations(g2: Graphics2D, links: List<Node>) {
+        links.groupBy { it.link?.sourceNodeId }.forEach { (sourceId, sourceLinks) ->
+            val source = sourceId?.let(repository::getNode) ?: return@forEach
+            drawLibraryDependents(g2, source, sourceLinks)
+        }
+        links.groupBy { it.link?.targetNodeId }.forEach { (targetId, targetLinks) ->
+            val target = targetId?.let(repository::getNode) ?: return@forEach
+            drawDependencyList(g2, target, targetLinks)
+        }
+    }
+
+    private fun drawLibraryDependents(g2: Graphics2D, library: Node, links: List<Node>) {
+        val r = library.layout.rect()
+        val previousStroke = g2.stroke
+        links.forEachIndexed { index, linkNode ->
+            val link = linkNode.link ?: return@forEachIndexed
+            val dependent = repository.getNode(link.targetNodeId) ?: return@forEachIndexed
+            val selected = linkNode.id in selection
+            val label = dependent.name.take(28)
+            val metrics = g2.fontMetrics
+            val labelWidth = max(96, metrics.stringWidth(label) + 22)
+            val labelHeight = 24
+            val y = r.y + 10 + index * (labelHeight + 8)
+            val x = r.x + r.width + 34
+            val anchor = Point(r.x + r.width, y + labelHeight / 2)
+            val color = if (selected) Color(0x1565c0) else Color(0x3333cc)
+            g2.color = color
+            g2.stroke = BasicStroke(if (selected) 2.4f else 1.5f)
+            g2.drawLine(anchor.x, anchor.y, x, anchor.y)
+            g2.fillOval(anchor.x - 4, anchor.y - 4, 8, 8)
+            g2.color = Color(0xf8f9ff)
+            g2.fillRect(x, y, labelWidth, labelHeight)
+            g2.color = color
+            g2.drawRect(x, y, labelWidth, labelHeight)
+            g2.drawString(label, x + 10, y + 17)
+        }
+        g2.stroke = previousStroke
+    }
+
+    private fun drawDependencyList(g2: Graphics2D, dependent: Node, links: List<Node>) {
+        val r = dependent.layout.rect()
+        val previousStroke = g2.stroke
+        val rows = links.mapNotNull { linkNode ->
+            val link = linkNode.link ?: return@mapNotNull null
+            val source = repository.getNode(link.sourceNodeId) ?: return@mapNotNull null
+            linkNode to source.name.take(28)
+        }
+        if (rows.isEmpty()) return
+
+        val x = r.x + 36
+        val rowHeight = 24
+        val startY = r.y - rows.size * rowHeight - 16
+        val stemBottom = r.y + 16
+        val selected = rows.any { it.first.id in selection }
+        val color = if (selected) Color(0x1565c0) else Color(0x1037ff)
+        g2.color = color
+        g2.stroke = BasicStroke(if (selected) 2.2f else 1.5f)
+        g2.drawLine(x, startY, x, stemBottom)
+        rows.forEachIndexed { index, (linkNode, label) ->
+            val y = startY + index * rowHeight + 8
+            val width = max(110, g2.fontMetrics.stringWidth(label) + 36)
+            g2.fillOval(x - 5, y - 5, 10, 10)
+            g2.drawLine(x, y, x + width, y)
+            if (linkNode.id in selection) {
+                g2.stroke = BasicStroke(2.4f)
+                g2.drawLine(x, y + 2, x + width, y + 2)
+                g2.stroke = BasicStroke(1.5f)
+            }
+            g2.drawString(label, x + 14, y - 4)
+        }
+        g2.stroke = previousStroke
+    }
+
+    private fun isDependencyAnnotation(linkNode: Node): Boolean =
+        when (LinkClassifier.classify(repository.getDocument(), linkNode)) {
+            LinkStereotype.UsageImport,
+            LinkStereotype.DependencyInjection -> true
+            else -> false
+        }
 
     private fun routeLink(linkNode: Node): LinkRoute? {
         val link = linkNode.link ?: return null
@@ -473,22 +638,43 @@ class GraphCanvas(
     }
 
     private fun portAnchor(node: Node, linkNode: Node, outgoing: Boolean): PortAnchor? {
-        val link = linkNode.link ?: return null
-        val document = repository.getDocument()
+        linkNode.link ?: return null
         val r = node.layout.rect()
         val center = node.layout.center()
-        val linkIds = if (outgoing) node.outgoingLinks else node.incomingLinks
-        val sorted = linkIds
-            .mapNotNull(document.nodes::get)
-            .sortedBy { connectedAngle(center, it, outgoing) }
+        val side = linkSide(node, linkNode, outgoing)
+        val sorted = normalLinksOnSide(node, side)
+            .sortedBy { connectedAngle(center, it, it.link?.sourceNodeId == node.id) }
         val index = sorted.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 } ?: 0
         val count = max(1, sorted.size)
-        val otherId = if (outgoing) link.targetNodeId else link.sourceNodeId
-        val otherCenter = document.nodes[otherId]?.layout?.center() ?: center
-        val side = if (otherCenter.x >= center.x) 1 else -1
         val x = if (side > 0) r.x + r.width else r.x
         val y = r.y + ((index + 1) * r.height / (count + 1))
         return PortAnchor(Point(x, y), side)
+    }
+
+    private fun normalConnectedLinks(node: Node, outgoing: Boolean): List<Node> {
+        val document = repository.getDocument()
+        val ids = if (outgoing) node.outgoingLinks else node.incomingLinks
+        return ids.mapNotNull(document.nodes::get).filterNot(::isDependencyAnnotation)
+    }
+
+    private fun normalLinksOnSide(node: Node, side: Int): List<Node> {
+        val document = repository.getDocument()
+        val ids = node.outgoingLinks + node.incomingLinks
+        return ids.mapNotNull(document.nodes::get)
+            .filterNot(::isDependencyAnnotation)
+            .filter { linkNode ->
+                val link = linkNode.link ?: return@filter false
+                val outgoing = link.sourceNodeId == node.id
+                linkSide(node, linkNode, outgoing) == side
+            }
+    }
+
+    private fun linkSide(node: Node, linkNode: Node, outgoing: Boolean): Int {
+        val link = linkNode.link ?: return 1
+        val otherId = if (outgoing) link.targetNodeId else link.sourceNodeId
+        val center = node.layout.center()
+        val otherCenter = repository.getNode(otherId)?.layout?.center() ?: center
+        return if (otherCenter.x >= center.x) 1 else -1
     }
 
     private fun connectedAngle(center: Point, linkNode: Node, outgoing: Boolean): Double {
@@ -550,7 +736,12 @@ class GraphCanvas(
         val hitLink = if (hit == null) hitLink(point) else null
         when (mode) {
             CanvasMode.CreateNode -> {
-                val parent = hit?.takeIf { repository.getNode(it)?.isLink != true }
+                val parent = selection.firstOrNull()
+                    ?.let(repository::getNode)
+                    ?.takeIf { !it.isLink }
+                    ?.id
+                    ?: hit?.takeIf { repository.getNode(it)?.isLink != true }
+                    ?: repository.getDocument().rootNodeId
                 val node = repository.createNode(parent, "New Node", NodeKind.Processor)
                 repository.updateNodeLayout(node.id, NodeLayout(point.x.toDouble(), point.y.toDouble(), 180.0, 90.0))
                 selection.clear()
@@ -574,16 +765,21 @@ class GraphCanvas(
             }
             CanvasMode.Select -> {
                 if (hit != null) {
-                    if (!e.isShiftDown) selection.clear()
-                    selection += hit
+                    if (hit !in selection) {
+                        if (!e.isShiftDown) selection.clear()
+                        selection += hit
+                    }
+                    dragAllowsReparent = e.isControlDown
                     onSelectionChanged()
                 } else if (hitLink != null) {
                     if (!e.isShiftDown) selection.clear()
                     selection += hitLink
+                    dragAllowsReparent = false
                     onSelectionChanged()
                 } else {
                     selection.clear()
                     selectionRect = Rectangle(point)
+                    dragAllowsReparent = false
                     onSelectionChanged()
                 }
             }
@@ -620,10 +816,7 @@ class GraphCanvas(
         } else if (selection.isNotEmpty() && mode == CanvasMode.Select) {
             val dx = point.x - start.x
             val dy = point.y - start.y
-            selection.mapNotNull(repository::getNode).filter { !it.isLink }.forEach {
-                it.layout.x += dx
-                it.layout.y += dy
-            }
+            selectedMoveRoots().forEach { moveNodeAndDescendants(it, dx.toDouble(), dy.toDouble()) }
             repository.markDirty()
             dragStart = point
         }
@@ -643,7 +836,8 @@ class GraphCanvas(
                 .forEach { selection += it.id }
             selectionRect = null
         }
-        if (selection.isNotEmpty()) updateParentAfterDrag()
+        if (selection.isNotEmpty() && dragAllowsReparent) updateParentAfterDrag(modelPoint(e.point))
+        dragAllowsReparent = false
         dragStart = null
         refreshAll()
     }
@@ -671,15 +865,31 @@ class GraphCanvas(
         }
     }
 
-    private fun updateParentAfterDrag() {
-        selection.mapNotNull(repository::getNode).filter { !it.isLink }.forEach { moved ->
-            val center = moved.layout.center()
-            val newParent = repository.getDocument().nodes.values
-                .filter { it.id != moved.id && it.id != repository.getDocument().rootNodeId && !it.isLink && it.layout.rect().contains(center) }
-                .minByOrNull { it.layout.width * it.layout.height }
-                ?.id
-                ?: repository.getDocument().rootNodeId
-            if (moved.parentId != newParent && moved.id != repository.getDocument().rootNodeId) {
+    private fun selectedMoveRoots(): List<Node> {
+        val selectedNodes = selection.mapNotNull(repository::getNode).filter { !it.isLink }
+        return selectedNodes.filter { candidate ->
+            selectedNodes.none { other -> other.id != candidate.id && isAncestor(other.id, candidate.id) }
+        }
+    }
+
+    private fun moveNodeAndDescendants(node: Node, dx: Double, dy: Double) {
+        node.layout.x += dx
+        node.layout.y += dy
+        node.children.mapNotNull(repository::getNode).filter { !it.isLink }.forEach {
+            moveNodeAndDescendants(it, dx, dy)
+        }
+    }
+
+    private fun updateParentAfterDrag(dropPoint: Point) {
+        val root = repository.getDocument().rootNodeId
+        val newParent = repository.getDocument().nodes.values
+            .filter { it.id != root && !it.isLink && it.layout.rect().contains(dropPoint) && it.id !in selection }
+            .filter { candidate -> selection.none { selectedId -> isAncestor(selectedId, candidate.id) } }
+            .minByOrNull { it.layout.width * it.layout.height }
+            ?.id
+            ?: root
+        selectedMoveRoots().filter { it.id != root }.forEach { moved ->
+            if (moved.parentId != newParent) {
                 runCatching { repository.moveNode(moved.id, newParent) }
             }
         }
@@ -693,6 +903,15 @@ class GraphCanvas(
         }
     }
 
+    private fun isAncestor(candidateAncestor: NodeId, nodeId: NodeId): Boolean {
+        var current = repository.getNode(nodeId)?.parentId
+        while (current != null) {
+            if (current == candidateAncestor) return true
+            current = repository.getNode(current)?.parentId
+        }
+        return false
+    }
+
     private fun hitNode(point: Point): NodeId? =
         repository.getDocument().nodes.values
             .filter { !it.isLink && it.id != repository.getDocument().rootNodeId && it.layout.rect().contains(point) }
@@ -703,9 +922,39 @@ class GraphCanvas(
         repository.getDocument().nodes.values
             .filter { it.isLink }
             .firstOrNull { link ->
-                routeLink(link)?.points?.zipWithNext()?.any { (a, b) -> distanceToSegment(point, a, b) <= 8.0 } == true
+                if (isDependencyAnnotation(link)) {
+                    dependencyAnnotationBounds(link).any { it.contains(point) }
+                } else {
+                    routeLink(link)?.points?.zipWithNext()?.any { (a, b) -> distanceToSegment(point, a, b) <= 8.0 } == true
+                }
             }
             ?.id
+
+    private fun dependencyAnnotationBounds(linkNode: Node): List<Rectangle> {
+        val link = linkNode.link ?: return emptyList()
+        val source = repository.getNode(link.sourceNodeId) ?: return emptyList()
+        val target = repository.getNode(link.targetNodeId) ?: return emptyList()
+        val sourceLinks = source.outgoingLinks.mapNotNull(repository::getNode).filter(::isDependencyAnnotation)
+        val targetLinks = target.incomingLinks.mapNotNull(repository::getNode).filter(::isDependencyAnnotation)
+        val sourceIndex = sourceLinks.indexOfFirst { it.id == linkNode.id }.coerceAtLeast(0)
+        val targetIndex = targetLinks.indexOfFirst { it.id == linkNode.id }.coerceAtLeast(0)
+        val sourceRect = source.layout.rect()
+        val targetRect = target.layout.rect()
+        val labelWidth = max(96, target.name.length * 8 + 22)
+        val sourceBounds = Rectangle(
+            sourceRect.x + sourceRect.width,
+            sourceRect.y + 10 + sourceIndex * 32,
+            labelWidth + 36,
+            24,
+        )
+        val dependencyBounds = Rectangle(
+            targetRect.x + 24,
+            targetRect.y - targetLinks.size * 24 - 20 + targetIndex * 24,
+            max(120, source.name.length * 8 + 52),
+            24,
+        )
+        return listOf(sourceBounds, dependencyBounds)
+    }
 
     private fun distanceToSegment(point: Point, a: Point, b: Point): Double {
         val dx = (b.x - a.x).toDouble()

@@ -841,9 +841,32 @@ Required operations:
 
 The canvas should use the `NodeLayout` stored in the document.
 
+Node placement and parenting rules:
+
+```text
+- if a node is selected when creating a node, the selected node is the parent
+- otherwise the new node is parented to the node under the placement cursor
+- if the placement cursor is not inside a node, the new node is parented to the root
+- dragging a node normally keeps its current parent
+- dragging a composite moves the composite and all visible descendants
+- Ctrl-drag is the explicit reparent/unparent gesture
+- on Ctrl-drop, the drop cursor position, not the grabbed node center, determines the new parent
+- Ctrl-drop on empty canvas reparents the moved node(s) to the root
+```
+
 Composite nodes are visual containers. Their displayed geometry shall expand to
 the bounding box that envelopes their visible children, with padding. Composite
 containers should use a distinct line type from terminal processing nodes.
+
+Transport and error links are materialized as routed polylines between node
+ports. Input and output ports must be distributed vertically on the left or right
+edge of the node with readable spacing. Link routes should include directional
+arrow markers at readable intervals, at least near the last quarter of the route.
+
+Usage/dependency links are annotations, not data-flow lines. They should not draw
+a direct line between the library and the dependent node. Instead, the service
+library shows dependent flyouts on its right side, and each dependent processing
+unit shows a top-anchored vertical dependency list.
 
 The drawing surface should support technical drawing output. The MVP may expose
 an ISO sheet preview with grid, drawing frame, cartouche/title block, and a
