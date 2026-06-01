@@ -2129,13 +2129,14 @@ private class InspectorPanel(
 
     private fun bindTransportKind(transportKind: String) {
         val value = transportKind.trim()
+        val canonical = LinkTransportKinds.canonicalId(value)
         when {
             value.isBlank() -> {
-                linkTransportKind.selectedItem = LinkTransportKinds.Default
+                linkTransportKind.selectedItem = transportDisplayById.getValue(LinkTransportKinds.Default)
                 customTransportKind.text = ""
             }
-            value in knownTransportKindIds -> {
-                linkTransportKind.selectedItem = transportDisplayById.getValue(value)
+            canonical in knownTransportKindIds -> {
+                linkTransportKind.selectedItem = transportDisplayById.getValue(canonical)
                 customTransportKind.text = ""
             }
             else -> {

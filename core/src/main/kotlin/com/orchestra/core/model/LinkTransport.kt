@@ -14,10 +14,7 @@ data class LinkTransportKindDescriptor(
 )
 
 object LinkTransportKinds {
-    const val InProcessQueue = "in-process.queue"
-    const val InProcessMemory = "in-process.memory"
-    const val InProcessLocalVariable = "in-process.local-variable"
-    const val InProcessMethodArgument = "in-process.method-argument"
+    const val InProcess = "in-process"
     const val InterProcessIpc = "inter-process.ipc"
     const val InterProcessPipe = "inter-process.pipe"
     const val InterProcessFile = "inter-process.file"
@@ -30,13 +27,10 @@ object LinkTransportKinds {
     const val MachineToMachineMqtt = "m2m.mqtt"
     const val MachineToMachineGrpc = "m2m.grpc"
 
-    const val Default = InProcessQueue
+    const val Default = InProcess
 
     val catalog: List<LinkTransportKindDescriptor> = listOf(
-        LinkTransportKindDescriptor(InProcessQueue, LinkTransportScope.InProcess, "In-process: queue"),
-        LinkTransportKindDescriptor(InProcessMemory, LinkTransportScope.InProcess, "In-process: shared memory"),
-        LinkTransportKindDescriptor(InProcessLocalVariable, LinkTransportScope.InProcess, "In-process: local variable"),
-        LinkTransportKindDescriptor(InProcessMethodArgument, LinkTransportScope.InProcess, "In-process: method argument"),
+        LinkTransportKindDescriptor(InProcess, LinkTransportScope.InProcess, "In-process"),
         LinkTransportKindDescriptor(InterProcessIpc, LinkTransportScope.InterProcess, "Inter-process: IPC"),
         LinkTransportKindDescriptor(InterProcessPipe, LinkTransportScope.InterProcess, "Inter-process: pipe"),
         LinkTransportKindDescriptor(InterProcessFile, LinkTransportScope.InterProcess, "Inter-process: file"),
@@ -51,8 +45,16 @@ object LinkTransportKinds {
     )
 
     private val byId: Map<String, LinkTransportKindDescriptor> = catalog.associateBy { it.id }
+    private val aliases: Map<String, String> = mapOf(
+        "in-process.queue" to InProcess,
+        "in-process.memory" to InProcess,
+        "in-process.local-variable" to InProcess,
+        "in-process.method-argument" to InProcess,
+    )
 
-    fun isKnown(id: String): Boolean = id.trim() in byId
+    fun canonicalId(id: String): String = aliases[id.trim()] ?: id.trim()
 
-    fun descriptor(id: String): LinkTransportKindDescriptor? = byId[id.trim()]
+    fun isKnown(id: String): Boolean = canonicalId(id) in byId
+
+    fun descriptor(id: String): LinkTransportKindDescriptor? = byId[canonicalId(id)]
 }
