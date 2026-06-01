@@ -1975,7 +1975,9 @@ private class InspectorPanel(
         .sorted()
     private val languageOptions = listOf(NoneLanguageChoice) + knownLanguageIds + OtherLanguageChoice
     private val knownTransportKindIds = LinkTransportKinds.catalog.map { it.id }
-    private val transportKindOptions = knownTransportKindIds + OtherTransportChoice
+    private val transportDisplayById = LinkTransportKinds.catalog.associate { it.id to "${it.label} (${it.id})" }
+    private val transportIdByDisplay = transportDisplayById.entries.associate { (id, display) -> display to id }
+    private val transportKindOptions = LinkTransportKinds.catalog.map { transportDisplayById.getValue(it.id) } + OtherTransportChoice
     private var nodeId: NodeId? = null
     private var binding = false
     private val nameField = JTextField()
@@ -2103,7 +2105,7 @@ private class InspectorPanel(
     private fun selectedTransportKind(): String =
         when (val selected = linkTransportKind.selectedItem?.toString().orEmpty()) {
             OtherTransportChoice -> customTransportKind.text.trim()
-            else -> selected.trim()
+            else -> transportIdByDisplay[selected].orEmpty()
         }
 
     private fun bindLanguage(languageId: String) {
@@ -2133,7 +2135,7 @@ private class InspectorPanel(
                 customTransportKind.text = ""
             }
             value in knownTransportKindIds -> {
-                linkTransportKind.selectedItem = value
+                linkTransportKind.selectedItem = transportDisplayById.getValue(value)
                 customTransportKind.text = ""
             }
             else -> {

@@ -33,21 +33,21 @@ object LinkTransportKinds {
     const val Default = InProcessQueue
 
     val catalog: List<LinkTransportKindDescriptor> = listOf(
-        LinkTransportKindDescriptor(InProcessQueue, LinkTransportScope.InProcess, "in-process / queue"),
-        LinkTransportKindDescriptor(InProcessMemory, LinkTransportScope.InProcess, "in-process / shared memory"),
-        LinkTransportKindDescriptor(InProcessLocalVariable, LinkTransportScope.InProcess, "in-process / local variable"),
-        LinkTransportKindDescriptor(InProcessMethodArgument, LinkTransportScope.InProcess, "in-process / method argument"),
-        LinkTransportKindDescriptor(InterProcessIpc, LinkTransportScope.InterProcess, "inter-process / IPC"),
-        LinkTransportKindDescriptor(InterProcessPipe, LinkTransportScope.InterProcess, "inter-process / pipe"),
-        LinkTransportKindDescriptor(InterProcessFile, LinkTransportScope.InterProcess, "inter-process / file"),
-        LinkTransportKindDescriptor(MachineToMachineRpc, LinkTransportScope.MachineToMachine, "m2m / RPC"),
-        LinkTransportKindDescriptor(MachineToMachineHttp, LinkTransportScope.MachineToMachine, "m2m / HTTP"),
-        LinkTransportKindDescriptor(MachineToMachineTcp, LinkTransportScope.MachineToMachine, "m2m / TCP"),
-        LinkTransportKindDescriptor(MachineToMachineUdp, LinkTransportScope.MachineToMachine, "m2m / UDP"),
-        LinkTransportKindDescriptor(MachineToMachineWebSocket, LinkTransportScope.MachineToMachine, "m2m / WebSocket"),
-        LinkTransportKindDescriptor(MachineToMachineMessageBus, LinkTransportScope.MachineToMachine, "m2m / message bus"),
-        LinkTransportKindDescriptor(MachineToMachineMqtt, LinkTransportScope.MachineToMachine, "m2m / MQTT"),
-        LinkTransportKindDescriptor(MachineToMachineGrpc, LinkTransportScope.MachineToMachine, "m2m / gRPC"),
+        LinkTransportKindDescriptor(InProcessQueue, LinkTransportScope.InProcess, "In-process: queue"),
+        LinkTransportKindDescriptor(InProcessMemory, LinkTransportScope.InProcess, "In-process: shared memory"),
+        LinkTransportKindDescriptor(InProcessLocalVariable, LinkTransportScope.InProcess, "In-process: local variable"),
+        LinkTransportKindDescriptor(InProcessMethodArgument, LinkTransportScope.InProcess, "In-process: method argument"),
+        LinkTransportKindDescriptor(InterProcessIpc, LinkTransportScope.InterProcess, "Inter-process: IPC"),
+        LinkTransportKindDescriptor(InterProcessPipe, LinkTransportScope.InterProcess, "Inter-process: pipe"),
+        LinkTransportKindDescriptor(InterProcessFile, LinkTransportScope.InterProcess, "Inter-process: file"),
+        LinkTransportKindDescriptor(MachineToMachineRpc, LinkTransportScope.MachineToMachine, "M2M: RPC"),
+        LinkTransportKindDescriptor(MachineToMachineHttp, LinkTransportScope.MachineToMachine, "M2M: HTTP"),
+        LinkTransportKindDescriptor(MachineToMachineTcp, LinkTransportScope.MachineToMachine, "M2M: TCP"),
+        LinkTransportKindDescriptor(MachineToMachineUdp, LinkTransportScope.MachineToMachine, "M2M: UDP"),
+        LinkTransportKindDescriptor(MachineToMachineWebSocket, LinkTransportScope.MachineToMachine, "M2M: WebSocket"),
+        LinkTransportKindDescriptor(MachineToMachineMessageBus, LinkTransportScope.MachineToMachine, "M2M: message bus"),
+        LinkTransportKindDescriptor(MachineToMachineMqtt, LinkTransportScope.MachineToMachine, "M2M: MQTT"),
+        LinkTransportKindDescriptor(MachineToMachineGrpc, LinkTransportScope.MachineToMachine, "M2M: gRPC"),
     )
 
     private val byId: Map<String, LinkTransportKindDescriptor> = catalog.associateBy { it.id }
