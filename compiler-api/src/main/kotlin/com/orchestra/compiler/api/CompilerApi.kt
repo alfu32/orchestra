@@ -9,6 +9,8 @@ import java.nio.file.Path
 interface CompilerPlugin {
     val id: String
     val displayName: String
+    val supportedLanguageIds: Set<String> get() = emptySet()
+    val supportedTechnologyIds: Set<String> get() = emptySet()
 
     fun supports(document: InflowDocument): Boolean
     fun validate(document: InflowDocument): List<Diagnostic>

@@ -607,10 +607,14 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         if (completionItems.isEmpty()) return
         val row = (caret.line - scrollLine + 1).coerceIn(0, visibleRows - 1)
         val col = (caret.column - scrollColumn).coerceAtLeast(0)
-        val x = (gutterWidth + col * charWidth).coerceAtMost(width - 260)
-        val y = (row * lineHeight).coerceAtMost(height - lineHeight * (completionItems.size + 1))
-        val popupWidth = min(380, max(180, completionItems.maxOf { it.label.length + it.detail.length } * charWidth / 2))
+        val labelColumnWidth = completionItems.maxOf { metrics.stringWidth(it.label.take(40)) }.coerceIn(120, 260)
+        val detailColumnWidth = completionItems.maxOf { metrics.stringWidth(it.detail.take(52)) }.coerceIn(120, 320)
+        val desiredWidth = labelColumnWidth + detailColumnWidth + 36
+        val popupWidth = min(max(320, desiredWidth), max(320, width - gutterWidth - 16))
         val popupHeight = completionItems.size * lineHeight + 6
+        val x = (gutterWidth + col * charWidth).coerceIn(0, max(0, width - popupWidth - 4))
+        val y = (row * lineHeight).coerceIn(0, max(0, height - popupHeight - 4))
+        val detailX = x + 14 + labelColumnWidth + 16
         g2.color = Color(0x252526)
         g2.fillRect(x, y, popupWidth, popupHeight)
         g2.color = Color(0x5f5f5f)
@@ -622,10 +626,10 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                 g2.fillRect(x + 1, rowY, popupWidth - 2, lineHeight)
             }
             g2.color = Color(0xd4d4d4)
-            g2.drawString(item.label.take(32), x + 8, rowY + metrics.ascent)
+            g2.drawString(item.label.take(40), x + 8, rowY + metrics.ascent)
             if (item.detail.isNotBlank()) {
                 g2.color = Color(0x9cdcfe)
-                g2.drawString(item.detail.take(28), x + popupWidth / 2, rowY + metrics.ascent)
+                g2.drawString(item.detail.take(52), detailX, rowY + metrics.ascent)
             }
         }
     }

@@ -7,6 +7,7 @@ import com.orchestra.core.model.PortDirection
 import com.orchestra.storage.InMemoryDocumentRepository
 import com.orchestra.storage.newDocument
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ModelAwareCompletionServiceTest {
@@ -35,5 +36,41 @@ class ModelAwareCompletionServiceTest {
         assertTrue("payload" in labels)
         assertTrue("sibling" in labels)
         assertTrue(repository.requireNode(sibling.id).name in labels)
+    }
+
+    @Test
+    fun `prioritizes incoming outgoing and dependency link names`() {
+        val repository = InMemoryDocumentRepository(newDocument("completion"))
+        val root = repository.getDocument().rootNodeId
+        val library = repository.createNode(root, "lib_logging", NodeKind.Processor)
+        val source = repository.createNode(root, "read_config", NodeKind.Processor)
+        val worker = repository.createNode(root, "process_config", NodeKind.Processor)
+        val target = repository.createNode(root, "write_config", NodeKind.Processor)
+        val sibling = repository.createNode(root, "side_task", NodeKind.Processor)
+        repository.addPort(worker.id, NodePort("input", "payload", PortDirection.Input))
+        val usage = repository.createLink(root, "lib_logging", library.id, "out", worker.id, "in")
+        usage.link?.transportKind = "usage"
+        repository.createLink(root, "config_in", source.id, "out", worker.id, "in")
+        repository.createLink(root, "config_out", worker.id, "out", target.id, "in")
+
+        val service = ModelAwareCompletionService(repository::getDocument)
+        val suggestions = service.getSuggestions(
+            CompletionRequest(
+                nodeId = worker.id,
+                textSection = NodeTextSection.Source,
+                languageId = "kotlin",
+                technologyId = "kotlin-jvm",
+                cursorOffset = 0,
+                fullText = "",
+                currentLine = "",
+                prefix = "",
+            ),
+        )
+
+        assertEquals(
+            listOf("lib_logging", "config_in", "config_out"),
+            suggestions.take(3).map { it.label },
+        )
+        assertTrue(suggestions.indexOfFirst { it.label == "payload" } < suggestions.indexOfFirst { it.label == sibling.name })
     }
 }

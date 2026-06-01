@@ -16,6 +16,8 @@ import com.orchestra.core.validation.DocumentValidator
 class NaiveKotlinCompiler : CompilerPlugin {
     override val id: String = "naive-kotlin"
     override val displayName: String = "Naive Kotlin/JVM Compiler"
+    override val supportedLanguageIds: Set<String> = setOf("kotlin")
+    override val supportedTechnologyIds: Set<String> = setOf("kotlin-jvm")
 
     override fun supports(document: InflowDocument): Boolean = true
 

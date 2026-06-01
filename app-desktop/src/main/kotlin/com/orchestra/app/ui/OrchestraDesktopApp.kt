@@ -2,7 +2,10 @@ package com.orchestra.app.ui
 
 import com.orchestra.app.editor.EditorCompletionContext
 import com.orchestra.app.editor.GridCodeEditorAdapter
+import com.orchestra.app.editor.RegexSyntaxHighlighter
 import com.orchestra.Version
+import com.orchestra.compiler.api.CompilerPlugin
+import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
 import com.orchestra.completion.ModelAwareCompletionService
 import com.orchestra.core.classification.LinkClassifier
 import com.orchestra.core.classification.LinkStereotype
@@ -29,6 +32,7 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
+import java.awt.FileDialog
 import java.awt.FlowLayout
 import java.awt.Graphics
 import java.awt.Graphics2D
@@ -50,11 +54,13 @@ import java.awt.event.MouseWheelEvent
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FilenameFilter
 import java.nio.file.Path
 import java.nio.file.Files
 import javax.imageio.ImageIO
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
+import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
 import javax.swing.JButton
 import javax.swing.JComponent
@@ -63,6 +69,7 @@ import javax.swing.Icon
 import javax.swing.JFileChooser
 import javax.swing.JFrame
 import javax.swing.JLabel
+import javax.swing.JComboBox
 import javax.swing.JMenu
 import javax.swing.JMenuBar
 import javax.swing.JMenuItem
@@ -105,7 +112,9 @@ class OrchestraDesktopApp(
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
     private val selectedEntitiesTree = JTree()
-    private val inspector = InspectorPanel(repository, ::refreshAll)
+    private val compilerPlugins: List<CompilerPlugin> = listOf(NaiveKotlinCompiler())
+    private val languageIds = availableLanguageIds()
+    private val inspector = InspectorPanel(repository, ::refreshAll, languageIds)
     private val editorTabs = NodeEditorTabs(repository)
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
@@ -262,8 +271,15 @@ class OrchestraDesktopApp(
         JOptionPane.showMessageDialog(frame, details, "About orchestra", JOptionPane.INFORMATION_MESSAGE)
     }
 
+    private fun availableLanguageIds(): List<String> =
+        (RegexSyntaxHighlighter.availableLanguageIds() + compilerPlugins.flatMap { it.supportedLanguageIds })
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+
     private fun openFile() {
-        val path = askPath("Open .inflow.json") ?: return
+        val path = chooseDocumentPath("Open .inflow.json", FileDialog.LOAD) ?: return
         repository.replaceDocument(store.load(path))
         currentFile = path
         selection.clear()
@@ -272,7 +288,7 @@ class OrchestraDesktopApp(
     }
 
     private fun saveFile() {
-        val path = currentFile ?: askPath("Save .inflow.json") ?: return
+        val path = currentFile ?: chooseDocumentPath("Save .inflow.json", FileDialog.SAVE) ?: return
         store.save(repository.getDocument(), path)
         currentFile = path
         repository.clearDirty()
@@ -280,16 +296,25 @@ class OrchestraDesktopApp(
     }
 
     private fun saveAsFile() {
-        val path = askPath("Save .inflow.json") ?: return
+        val path = chooseDocumentPath("Save As .inflow.json", FileDialog.SAVE) ?: return
         store.save(repository.getDocument(), path)
         currentFile = path
         repository.clearDirty()
         updateWindowTitle()
     }
 
-    private fun askPath(title: String): Path? {
-        val value = JOptionPane.showInputDialog(frame, title, currentFile?.toString() ?: "build/document.inflow.json")
-        return value?.takeIf { it.isNotBlank() }?.let(Path::of)
+    private fun chooseDocumentPath(title: String, mode: Int): Path? {
+        val dialog = FileDialog(frame, title, mode).apply {
+            currentFile?.parent?.let { directory = it.toString() }
+            file = currentFile?.fileName?.toString() ?: if (mode == FileDialog.SAVE) "document.inflow.json" else "*.inflow.json"
+            filenameFilter = FilenameFilter { _, name -> name.endsWith(".inflow.json") || name.endsWith(".json") }
+        }
+        dialog.isVisible = true
+        val fileName = dialog.file ?: return null
+        val directory = dialog.directory?.let(Path::of) ?: Path.of(".")
+        val chosen = directory.resolve(fileName)
+        if (mode != FileDialog.SAVE || fileName.endsWith(".json")) return chosen
+        return chosen.resolveSibling("${chosen.fileName}.inflow.json")
     }
 
     private fun deleteSelection() {
@@ -1944,11 +1969,24 @@ class GraphCanvas(
 private class InspectorPanel(
     private val repository: DocumentRepository,
     private val refreshAll: () -> Unit,
+    languageIds: List<String>,
 ) : JPanel(BorderLayout()) {
+    private val knownLanguageIds = languageIds
+        .map { it.trim() }
+        .filter { it.isNotBlank() && !it.equals(NoneLanguageChoice, ignoreCase = true) && !it.equals(OtherLanguageChoice, ignoreCase = true) }
+        .distinct()
+        .sorted()
+    private val languageOptions = listOf(NoneLanguageChoice) + knownLanguageIds + OtherLanguageChoice
     private var nodeId: NodeId? = null
     private var binding = false
     private val nameField = JTextField()
-    private val language = JTextField()
+    private val language = JComboBox(languageOptions.toTypedArray()).apply { isEditable = false }
+    private val customLanguage = JTextField()
+    private val customLanguagePanel = JPanel(BorderLayout(0, 4)).apply {
+        add(JLabel("Custom language identifier"), BorderLayout.NORTH)
+        add(customLanguage, BorderLayout.CENTER)
+        isVisible = false
+    }
     private val technology = JTextField()
     private val state = JTextField()
     private val linkTransportKind = JTextField()
@@ -1956,17 +1994,20 @@ private class InspectorPanel(
     private val metadata = JTextArea(5, 24)
 
     init {
-        listOf(nameField, language, technology, state, linkTransportKind).forEach(::applyOnCommit)
+        listOf(nameField, customLanguage, technology, state, linkTransportKind).forEach(::applyOnCommit)
+        applyOnCommit(language)
         listOf(metadata, payloadDefinition).forEach(::applyOnFocusLost)
-        val form = JPanel(java.awt.GridLayout(0, 1, 4, 4)).apply {
+        val form = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
-            add(JLabel("Name")); add(nameField)
-            add(JLabel("Language")); add(language)
-            add(JLabel("Technology")); add(technology)
-            add(JLabel("State")); add(state)
-            add(JLabel("Link transport kind")); add(linkTransportKind)
-            add(JLabel("Link payload definition")); add(JScrollPane(payloadDefinition))
-            add(JLabel("Metadata key=value")); add(JScrollPane(metadata))
+            addField("Name", nameField)
+            addField("Language", language)
+            add(customLanguagePanel)
+            addField("Technology", technology)
+            addField("State", state)
+            addField("Link transport kind", linkTransportKind)
+            addField("Link payload definition", JScrollPane(payloadDefinition))
+            addField("Metadata key=value", JScrollPane(metadata))
             add(JButton("Apply").apply { addActionListener { apply() } })
         }
         add(form, BorderLayout.NORTH)
@@ -1978,7 +2019,7 @@ private class InspectorPanel(
         nodeId = id
         val node = id?.let(repository::getNode)
         nameField.text = node?.name.orEmpty()
-        language.text = node?.technology?.languageId.orEmpty()
+        bindLanguage(node?.technology?.languageId.orEmpty())
         technology.text = node?.technology?.technologyId.orEmpty()
         state.text = node?.metadata?.get("state").orEmpty()
         linkTransportKind.text = node?.link?.transportKind.orEmpty()
@@ -1994,6 +2035,16 @@ private class InspectorPanel(
         })
     }
 
+    private fun applyOnCommit(field: JComboBox<String>) {
+        field.addActionListener {
+            updateCustomLanguageVisibility()
+            if (!binding && field.selectedItem != OtherLanguageChoice) apply()
+        }
+        field.addFocusListener(object : FocusAdapter() {
+            override fun focusLost(e: FocusEvent) = apply()
+        })
+    }
+
     private fun applyOnFocusLost(area: JTextArea) {
         area.addFocusListener(object : FocusAdapter() {
             override fun focusLost(e: FocusEvent) = apply()
@@ -2003,6 +2054,7 @@ private class InspectorPanel(
     private fun isEditing(): Boolean =
         nameField.hasFocus() ||
             language.hasFocus() ||
+            customLanguage.hasFocus() ||
             technology.hasFocus() ||
             state.hasFocus() ||
             linkTransportKind.hasFocus() ||
@@ -2025,7 +2077,7 @@ private class InspectorPanel(
         val id = nodeId ?: return
         val node = repository.requireNode(id)
         repository.renameNode(id, nameField.text)
-        repository.updateNodeTechnology(id, node.technology.copy(languageId = language.text, technologyId = technology.text))
+        repository.updateNodeTechnology(id, node.technology.copy(languageId = selectedLanguage(), technologyId = technology.text))
         node.metadata.clear()
         node.metadata.putAll(parseMetadata())
         node.link?.let {
@@ -2034,6 +2086,53 @@ private class InspectorPanel(
         }
         repository.markDirty()
         refreshAll()
+    }
+
+    private fun selectedLanguage(): String =
+        when (val selected = language.selectedItem?.toString().orEmpty()) {
+            NoneLanguageChoice -> ""
+            OtherLanguageChoice -> customLanguage.text.trim()
+            else -> selected.trim()
+        }
+
+    private fun bindLanguage(languageId: String) {
+        val value = languageId.trim()
+        when {
+            value.isBlank() -> {
+                language.selectedItem = NoneLanguageChoice
+                customLanguage.text = ""
+            }
+            value in knownLanguageIds -> {
+                language.selectedItem = value
+                customLanguage.text = ""
+            }
+            else -> {
+                language.selectedItem = OtherLanguageChoice
+                customLanguage.text = value
+            }
+        }
+        updateCustomLanguageVisibility()
+    }
+
+    private fun updateCustomLanguageVisibility() {
+        customLanguagePanel.isVisible = language.selectedItem == OtherLanguageChoice
+        customLanguage.isEnabled = customLanguagePanel.isVisible
+        revalidate()
+        repaint()
+    }
+
+    private fun JPanel.addField(label: String, component: JComponent) {
+        JLabel(label).also {
+            it.alignmentX = Component.LEFT_ALIGNMENT
+            add(it)
+        }
+        component.alignmentX = Component.LEFT_ALIGNMENT
+        add(component)
+    }
+
+    private companion object {
+        private const val NoneLanguageChoice = "None"
+        private const val OtherLanguageChoice = "Other"
     }
 }
 
