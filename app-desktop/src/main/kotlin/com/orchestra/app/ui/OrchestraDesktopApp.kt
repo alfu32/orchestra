@@ -625,7 +625,7 @@ class GraphCanvas(
         const val SHEET_UNITS_PER_MM = 4.0
         const val SHEET_MARGIN_MM = 10.0
         const val DRAWING_PAD_MM = 12.0
-        const val TITLE_BLOCK_WIDTH_MM = 170.0
+        const val TITLE_BLOCK_WIDTH_MM = 180.0
         const val TITLE_BLOCK_HEIGHT_MM = 36.0
         const val PARTS_LIST_WIDTH_MM = 72.0
         const val PARTS_ROW_HEIGHT = 20
@@ -1009,15 +1009,13 @@ class GraphCanvas(
         g2.color = Color(0x9a9a9a)
         listOf(mm(210.0), mm(420.0), mm(630.0), mm(840.0), mm(1050.0)).forEach { offset ->
             if (offset < sheet.width) {
-                val x = sheet.x + offset
-                g2.drawLine(x, sheet.y, x, sheet.y + marker)
+                val x = sheet.x + sheet.width - offset
                 g2.drawLine(x, sheet.y + sheet.height, x, sheet.y + sheet.height - marker)
             }
         }
         listOf(mm(297.0), mm(594.0), mm(891.0), mm(1188.0), mm(1485.0)).forEach { offset ->
             if (offset < sheet.height) {
-                val y = sheet.y + offset
-                g2.drawLine(sheet.x, y, sheet.x + marker, y)
+                val y = sheet.y + sheet.height - offset
                 g2.drawLine(sheet.x + sheet.width, y, sheet.x + sheet.width - marker, y)
             }
         }
@@ -1114,15 +1112,13 @@ class GraphCanvas(
         val marker = mm(5.0)
         listOf(mm(210.0), mm(420.0), mm(630.0), mm(840.0), mm(1050.0)).forEach { offset ->
             if (offset < sheet.width) {
-                val x = sheet.x + offset
-                svgLine(svg, x, sheet.y, x, sheet.y + marker, "#9a9a9a")
+                val x = sheet.x + sheet.width - offset
                 svgLine(svg, x, sheet.y + sheet.height, x, sheet.y + sheet.height - marker, "#9a9a9a")
             }
         }
         listOf(mm(297.0), mm(594.0), mm(891.0), mm(1188.0), mm(1485.0)).forEach { offset ->
             if (offset < sheet.height) {
-                val y = sheet.y + offset
-                svgLine(svg, sheet.x, y, sheet.x + marker, y, "#9a9a9a")
+                val y = sheet.y + sheet.height - offset
                 svgLine(svg, sheet.x + sheet.width, y, sheet.x + sheet.width - marker, y, "#9a9a9a")
             }
         }
