@@ -25,17 +25,22 @@ import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Graphics
 import java.awt.Graphics2D
+import java.awt.KeyboardFocusManager
 import java.awt.Point
 import java.awt.Rectangle
 import java.awt.RenderingHints
 import java.awt.Stroke
+import java.awt.Toolkit
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
+import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseWheelEvent
 import java.nio.file.Path
+import javax.swing.AbstractAction
 import javax.swing.BorderFactory
+import javax.swing.ButtonGroup
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JFrame
@@ -51,9 +56,12 @@ import javax.swing.JTabbedPane
 import javax.swing.JTextArea
 import javax.swing.JTextField
 import javax.swing.JTree
+import javax.swing.JToggleButton
+import javax.swing.KeyStroke
 import javax.swing.SwingUtilities
 import javax.swing.Timer
 import javax.swing.WindowConstants
+import javax.swing.text.JTextComponent
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import kotlin.math.atan2
@@ -69,16 +77,18 @@ class OrchestraDesktopApp(
 ) {
     private val frame = JFrame("Orchestra")
     private val selection = linkedSetOf<NodeId>()
-    private val canvas = GraphCanvas(repository, selection, ::onSelectionChanged, ::refreshAll)
+    private val canvas = GraphCanvas(repository, selection, ::onSelectionChanged, ::refreshAll, ::onCanvasModeChanged)
     private val tree = JTree()
     private val inspector = InspectorPanel(repository, ::refreshAll)
     private val editorTabs = NodeEditorTabs(repository, ::refreshAll)
+    private val modeButtons = mutableMapOf<CanvasMode, JToggleButton>()
     private var currentFile: Path? = null
 
     fun show() {
         frame.defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
         frame.jMenuBar = menuBar()
         frame.contentPane = layout()
+        installKeyBindings(frame.rootPane)
         frame.minimumSize = Dimension(1100, 720)
         frame.setSize(1400, 900)
         frame.setLocationRelativeTo(null)
@@ -88,16 +98,17 @@ class OrchestraDesktopApp(
 
     private fun layout(): JComponent {
         val toolbar = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
-            add(button("Node") { canvas.mode = CanvasMode.CreateNode })
-            add(button("Child") { canvas.createChildNodeInSelection() })
-            add(button("Link") { canvas.mode = CanvasMode.CreateLink })
-            add(button("Reparent") { canvas.mode = CanvasMode.Reparent })
-            add(button("Pan") { canvas.mode = CanvasMode.Pan })
-            add(button("Select") { canvas.mode = CanvasMode.Select })
+            val modes = ButtonGroup()
+            listOf(
+                modeButton("Select", CanvasMode.Select),
+                modeButton("Node", CanvasMode.CreateNode),
+                modeButton("Link", CanvasMode.CreateLink),
+            ).forEach {
+                modes.add(it)
+                add(it)
+            }
             add(button("Sheet") { canvas.toggleSheet() })
-            add(button("Delete") { deleteSelection() })
-            add(button("Copy") { canvas.copySelection() })
-            add(button("Paste") { canvas.pasteSelection() })
+            modeButtons[canvas.mode]?.isSelected = true
         }
 
         tree.addTreeSelectionListener {
@@ -143,14 +154,47 @@ class OrchestraDesktopApp(
             add(item("Save As...") { saveAsFile() })
         })
         add(JMenu("Graph").apply {
-            add(item("Create Node") { canvas.mode = CanvasMode.CreateNode })
-            add(item("Create Child Node") { canvas.createChildNodeInSelection() })
-            add(item("Create Link") { canvas.mode = CanvasMode.CreateLink })
-            add(item("Reparent Selection") { canvas.mode = CanvasMode.Reparent })
-            add(item("Pan") { canvas.mode = CanvasMode.Pan })
+            add(item("Select Mode") { canvas.setMode(CanvasMode.Select) })
+            add(item("Node Mode") { canvas.setMode(CanvasMode.CreateNode) })
+            add(item("Link Mode") { canvas.setMode(CanvasMode.CreateLink) })
             add(item("Delete Selection") { deleteSelection() })
         })
     }
+
+    private fun installKeyBindings(component: JComponent) {
+        val inputMap = component.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+        val actionMap = component.actionMap
+        val shortcutMask = Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx
+
+        fun bind(name: String, key: KeyStroke, action: () -> Unit) {
+            inputMap.put(key, name)
+            actionMap.put(name, object : AbstractAction() {
+                override fun actionPerformed(e: java.awt.event.ActionEvent?) = action()
+            })
+        }
+
+        bind("select-mode", KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0)) {
+            canvas.setMode(CanvasMode.Select)
+        }
+        bind("delete-selection", KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0)) {
+            if (graphShortcutEnabled()) deleteSelection()
+        }
+        bind("copy-selection", KeyStroke.getKeyStroke(KeyEvent.VK_C, shortcutMask)) {
+            if (graphShortcutEnabled()) canvas.copySelection()
+        }
+        bind("cut-selection", KeyStroke.getKeyStroke(KeyEvent.VK_X, shortcutMask)) {
+            if (graphShortcutEnabled()) {
+                canvas.copySelection()
+                deleteSelection()
+            }
+        }
+        bind("paste-selection", KeyStroke.getKeyStroke(KeyEvent.VK_V, shortcutMask)) {
+            if (graphShortcutEnabled()) canvas.pasteSelection()
+        }
+    }
+
+    private fun graphShortcutEnabled(): Boolean =
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner !is JTextComponent
 
     private fun openFile() {
         val path = askPath("Open .inflow.json") ?: return
@@ -203,11 +247,20 @@ class OrchestraDesktopApp(
         tree.model = DefaultTreeModel(treeNode(document, document.rootNodeId))
     }
 
+    private fun onCanvasModeChanged(mode: CanvasMode) {
+        modeButtons[mode]?.isSelected = true
+    }
+
     private fun treeNode(document: InflowDocument, id: NodeId): TreeNodeRef {
         val node = repository.requireNode(id)
         return TreeNodeRef(id, node.name).apply {
             node.children.filter { document.nodes[it]?.isLink != true }.forEach { add(treeNode(document, it)) }
         }
+    }
+
+    private fun modeButton(label: String, mode: CanvasMode) = JToggleButton(label).apply {
+        modeButtons[mode] = this
+        addActionListener { canvas.setMode(mode) }
     }
 
     private fun button(label: String, action: () -> Unit) = JButton(label).apply { addActionListener { action() } }
@@ -222,8 +275,6 @@ enum class CanvasMode {
     Select,
     CreateNode,
     CreateLink,
-    Reparent,
-    Pan,
 }
 
 class GraphCanvas(
@@ -231,8 +282,10 @@ class GraphCanvas(
     private val selection: LinkedHashSet<NodeId>,
     private val onSelectionChanged: () -> Unit,
     private val refreshAll: () -> Unit,
+    private val onModeChanged: (CanvasMode) -> Unit,
 ) : JPanel() {
     var mode: CanvasMode = CanvasMode.Select
+        private set
     private var dragStart: Point? = null
     private var dragAllowsReparent = false
     private var panDragStart: Point? = null
@@ -245,7 +298,22 @@ class GraphCanvas(
     private var showSheet = false
 
     private data class PortAnchor(val point: Point, val xDirection: Int)
-    private data class LinkRoute(val source: Point, val target: Point, val points: List<Point>)
+    private data class LinkRoute(
+        val source: Point,
+        val target: Point,
+        val sourceDirection: Int,
+        val targetDirection: Int,
+        val points: List<Point>,
+    )
+
+    private companion object {
+        const val PORT_TOP_SPACING = 28
+        const val PORT_SPACING = 30
+        const val PORT_BOTTOM_SPACING = 20
+        const val PORT_STUB_LENGTH = 28
+        const val SHORT_LINK_MAX_DISTANCE = 360.0
+        const val SHORT_LINK_MAX_VERTICAL_DELTA = 120
+    }
 
     init {
         background = Color(0xf7f7f7)
@@ -267,31 +335,19 @@ class GraphCanvas(
         addMouseWheelListener(mouse)
     }
 
-    fun toggleSheet() {
-        showSheet = !showSheet
+    fun setMode(nextMode: CanvasMode) {
+        if (mode != nextMode) {
+            linkSource = null
+            selectionRect = null
+        }
+        mode = nextMode
+        onModeChanged(mode)
         repaint()
     }
 
-    fun createChildNodeInSelection() {
-        val root = repository.getDocument().rootNodeId
-        val parentId = selection.firstOrNull()
-            ?.let(repository::getNode)
-            ?.takeIf { !it.isLink }
-            ?.id
-            ?: root
-        val parent = repository.requireNode(parentId)
-        val offset = parent.children.size * 28
-        val layout = if (parentId == root) {
-            NodeLayout(120.0 + offset, 120.0 + offset, 180.0, 90.0)
-        } else {
-            NodeLayout(parent.layout.x + 48 + offset, parent.layout.y + 72 + offset, 180.0, 90.0)
-        }
-        val node = repository.createNode(parentId, "New Child", NodeKind.Processor)
-        repository.updateNodeLayout(node.id, layout)
-        selection.clear()
-        selection += node.id
-        mode = CanvasMode.Select
-        refreshAll()
+    fun toggleSheet() {
+        showSheet = !showSheet
+        repaint()
     }
 
     fun copySelection() {
@@ -316,17 +372,31 @@ class GraphCanvas(
 
     fun refreshBoundsFromChildren() {
         val document = repository.getDocument()
+        document.nodes.values
+            .filter { !it.isLink && it.id != document.rootNodeId }
+            .forEach(::ensureLayoutCanHoldPorts)
         document.nodes.values.filter { it.children.isNotEmpty() }.sortedByDescending { depthOf(it) }.forEach { parent ->
             val boxes = parent.children.mapNotNull(document.nodes::get).filter { !it.isLink }.map { it.layout }
             if (boxes.isNotEmpty()) {
+                val childHeight = boxes.maxOf { it.y + it.height } - boxes.minOf { it.y } + 96
                 parent.layout = NodeLayout(
                     x = boxes.minOf { it.x } - 32,
                     y = boxes.minOf { it.y } - 48,
                     width = boxes.maxOf { it.x + it.width } - boxes.minOf { it.x } + 64,
-                    height = boxes.maxOf { it.y + it.height } - boxes.minOf { it.y } + 96,
+                    height = max(childHeight, requiredPortHeight(parent)),
                 )
             }
         }
+    }
+
+    private fun ensureLayoutCanHoldPorts(node: Node) {
+        node.layout.height = max(node.layout.height, requiredPortHeight(node))
+    }
+
+    private fun requiredPortHeight(node: Node): Double {
+        val portCount = max(normalLinksOnSide(node, -1).size, normalLinksOnSide(node, 1).size)
+        if (portCount == 0) return 0.0
+        return (PORT_TOP_SPACING + portCount * PORT_SPACING + PORT_BOTTOM_SPACING).toDouble()
     }
 
     private fun depthOf(node: Node): Int {
@@ -350,8 +420,8 @@ class GraphCanvas(
         drawGrid(g2)
         val document = repository.getDocument()
         val links = document.nodes.values.filter { it.isLink }
-        links.filterNot(::isDependencyAnnotation).forEach { drawLink(g2, it) }
         document.nodes.values.filter { !it.isLink && it.id != document.rootNodeId }.sortedBy { it.children.isEmpty() }.forEach { drawNode(g2, it) }
+        links.filterNot(::isDependencyAnnotation).forEach { drawLink(g2, it) }
         drawDependencyAnnotations(g2, links.filter(::isDependencyAnnotation))
         selectionRect?.let {
             g2.color = Color(0x3366cc55, true)
@@ -417,7 +487,7 @@ class GraphCanvas(
     private fun drawNode(g2: Graphics2D, node: Node) {
         val r = node.layout.rect()
         val selected = node.id in selection
-        val stereotype = node.stereotype()
+        val stereotype = nodeStereotype(node)
         val previousStroke = g2.stroke
         g2.color = fillFor(node)
         g2.fillRect(r.x, r.y, r.width, r.height)
@@ -429,42 +499,27 @@ class GraphCanvas(
         g2.drawString(node.name, r.x + 12, r.y + 22)
         g2.color = Color(0x555555)
         g2.drawString(stereotype.name, r.x + 12, r.y + 42)
-        drawNodePorts(g2, node)
-        drawStateDot(g2, node, r)
         g2.stroke = previousStroke
     }
 
     private fun drawLink(g2: Graphics2D, node: Node) {
-        val link = node.link ?: return
+        node.link ?: return
         val route = routeLink(node) ?: return
         val previousStroke = g2.stroke
+        val previousFont = g2.font
         val selected = node.id in selection
         val stereotype = LinkClassifier.classify(repository.getDocument(), node)
-        g2.color = linkColor(stereotype, selected)
+        val color = linkColor(stereotype, selected)
+        g2.color = color
         g2.stroke = linkStroke(stereotype, selected)
         route.points.zipWithNext().forEach { (a, b) -> g2.drawLine(a.x, a.y, b.x, b.y) }
         drawArrowAlongRoute(g2, route.points)
-        drawPortLabel(g2, link.sourcePortName.ifBlank { "out" }, route.source, true)
-        drawPortLabel(g2, link.targetPortName.ifBlank { "in" }, route.target, false)
-        if (selected) {
-            g2.color = Color(0x1565c0)
-            drawPortMarker(g2, route.source, sourceDirection(route.source, route.points.getOrNull(1)), outgoing = true)
-            drawPortMarker(g2, route.target, targetDirection(route.target, route.points.getOrNull(route.points.lastIndex - 1)), outgoing = false)
-        }
+        g2.color = color
+        drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
+        drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
+        drawLinkLabel(g2, node.name, route.points, color)
+        g2.font = previousFont
         g2.stroke = previousStroke
-    }
-
-    private fun drawNodePorts(g2: Graphics2D, node: Node) {
-        normalConnectedLinks(node, outgoing = true).forEach { linkNode ->
-            val anchor = portAnchor(node, linkNode, outgoing = true) ?: return@forEach
-            g2.color = linkColor(LinkClassifier.classify(repository.getDocument(), linkNode), linkNode.id in selection)
-            drawPortMarker(g2, anchor.point, anchor.xDirection, outgoing = true)
-        }
-        normalConnectedLinks(node, outgoing = false).forEach { linkNode ->
-            val anchor = portAnchor(node, linkNode, outgoing = false) ?: return@forEach
-            g2.color = linkColor(LinkClassifier.classify(repository.getDocument(), linkNode), linkNode.id in selection)
-            drawPortMarker(g2, anchor.point, anchor.xDirection, outgoing = false)
-        }
     }
 
     private fun drawPortMarker(g2: Graphics2D, point: Point, side: Int, outgoing: Boolean) {
@@ -528,12 +583,6 @@ class GraphCanvas(
             3,
         )
     }
-
-    private fun sourceDirection(source: Point, next: Point?): Int =
-        next?.let { if (it.x >= source.x) 1 else -1 } ?: 1
-
-    private fun targetDirection(target: Point, previous: Point?): Int =
-        previous?.let { if (it.x >= target.x) 1 else -1 } ?: -1
 
     private fun drawDependencyAnnotations(g2: Graphics2D, links: List<Node>) {
         links.groupBy { it.link?.sourceNodeId }.forEach { (sourceId, sourceLinks) ->
@@ -621,46 +670,51 @@ class GraphCanvas(
         val targetNode = repository.getNode(link.targetNodeId) ?: return null
         val source = portAnchor(sourceNode, linkNode, outgoing = true) ?: return null
         val target = portAnchor(targetNode, linkNode, outgoing = false) ?: return null
-        val sourceStub = Point(source.point.x + 28 * source.xDirection, source.point.y)
-        val targetStub = Point(target.point.x + 28 * target.xDirection, target.point.y)
-        val midX = (sourceStub.x + targetStub.x) / 2
-        val points = compact(
-            listOf(
-                source.point,
-                sourceStub,
-                Point(midX, sourceStub.y),
-                Point(midX, targetStub.y),
-                targetStub,
-                target.point,
-            ),
-        )
-        return LinkRoute(source.point, target.point, points)
+        val points = if (isShortFacingLink(source, target)) {
+            listOf(source.point, target.point)
+        } else {
+            val sourceStub = Point(source.point.x + PORT_STUB_LENGTH * source.xDirection, source.point.y)
+            val targetStub = Point(target.point.x + PORT_STUB_LENGTH * target.xDirection, target.point.y)
+            val midX = (sourceStub.x + targetStub.x) / 2
+            compact(
+                listOf(
+                    source.point,
+                    sourceStub,
+                    Point(midX, sourceStub.y),
+                    Point(midX, targetStub.y),
+                    targetStub,
+                    target.point,
+                ),
+            )
+        }
+        return LinkRoute(source.point, target.point, source.xDirection, target.xDirection, points)
+    }
+
+    private fun isShortFacingLink(source: PortAnchor, target: PortAnchor): Boolean {
+        val dx = target.point.x - source.point.x
+        val dy = kotlin.math.abs(target.point.y - source.point.y)
+        val portsFaceEachOther = source.xDirection == -target.xDirection && dx.sign() == source.xDirection
+        return portsFaceEachOther &&
+            source.point.distance(target.point) <= SHORT_LINK_MAX_DISTANCE &&
+            dy <= SHORT_LINK_MAX_VERTICAL_DELTA
     }
 
     private fun portAnchor(node: Node, linkNode: Node, outgoing: Boolean): PortAnchor? {
         linkNode.link ?: return null
         val r = node.layout.rect()
-        val center = node.layout.center()
         val side = linkSide(node, linkNode, outgoing)
         val sorted = normalLinksOnSide(node, side)
-            .sortedBy { connectedAngle(center, it, it.link?.sourceNodeId == node.id) }
+            .sortedWith(compareBy<Node> { portOrderValue(node, it, side) }.thenBy { it.id.value })
         val index = sorted.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 } ?: 0
-        val count = max(1, sorted.size)
         val x = if (side > 0) r.x + r.width else r.x
-        val y = r.y + ((index + 1) * r.height / (count + 1))
+        val y = r.y + PORT_TOP_SPACING + index * PORT_SPACING
         return PortAnchor(Point(x, y), side)
-    }
-
-    private fun normalConnectedLinks(node: Node, outgoing: Boolean): List<Node> {
-        val document = repository.getDocument()
-        val ids = if (outgoing) node.outgoingLinks else node.incomingLinks
-        return ids.mapNotNull(document.nodes::get).filterNot(::isDependencyAnnotation)
     }
 
     private fun normalLinksOnSide(node: Node, side: Int): List<Node> {
         val document = repository.getDocument()
         val ids = node.outgoingLinks + node.incomingLinks
-        return ids.mapNotNull(document.nodes::get)
+        return ids.distinct().mapNotNull(document.nodes::get)
             .filterNot(::isDependencyAnnotation)
             .filter { linkNode ->
                 val link = linkNode.link ?: return@filter false
@@ -677,11 +731,14 @@ class GraphCanvas(
         return if (otherCenter.x >= center.x) 1 else -1
     }
 
-    private fun connectedAngle(center: Point, linkNode: Node, outgoing: Boolean): Double {
+    private fun portOrderValue(node: Node, linkNode: Node, side: Int): Double {
+        val center = node.layout.center()
         val link = linkNode.link ?: return 0.0
+        val outgoing = link.sourceNodeId == node.id
         val otherId = if (outgoing) link.targetNodeId else link.sourceNodeId
         val otherCenter = repository.getNode(otherId)?.layout?.center() ?: center
-        return atan2((otherCenter.y - center.y).toDouble(), (otherCenter.x - center.x).toDouble())
+        val sideRelativeX = ((otherCenter.x - center.x) * side).toDouble().coerceAtLeast(1.0)
+        return atan2((otherCenter.y - center.y).toDouble(), sideRelativeX)
     }
 
     private fun compact(points: List<Point>): List<Point> =
@@ -690,43 +747,48 @@ class GraphCanvas(
             acc
         }
 
-    private fun drawPortLabel(g2: Graphics2D, label: String, anchor: Point, outgoing: Boolean) {
+    private fun drawLinkLabel(g2: Graphics2D, label: String, points: List<Point>, color: Color) {
         val text = label.take(24)
+        if (text.isBlank()) return
+        val anchor = pointAlongRoute(points, 0.5) ?: return
+        g2.font = g2.font.deriveFont(10f)
         val metrics = g2.fontMetrics
-        val width = metrics.stringWidth(text) + 8
-        val height = metrics.height + 2
-        val x = if (outgoing) anchor.x + 8 else anchor.x - width - 8
-        val y = anchor.y - height / 2
+        val width = metrics.stringWidth(text)
+        val x = anchor.x - width / 2
+        val y = anchor.y - metrics.height - 2
         g2.color = Color(0xfdfdfd)
-        g2.fillRect(x, y, width, height)
-        g2.color = Color(0x3344cc)
-        g2.stroke = BasicStroke(1f)
-        g2.drawRect(x, y, width, height)
-        g2.color = Color(0x222222)
-        g2.font = g2.font.deriveFont(9f)
-        g2.drawString(text, x + 4, y + height - 5)
+        g2.fillRect(x - 3, y, width + 6, metrics.height + 2)
+        g2.color = color
+        g2.drawString(text, x, y + metrics.ascent)
     }
 
-    private fun drawStateDot(g2: Graphics2D, node: Node, r: Rectangle) {
-        val state = node.metadata["state"]?.trim()?.lowercase()
-        val color = when (state) {
-            "done", "complete", "completed" -> Color(0x1db954)
-            "blocked", "error", "failed" -> Color(0xff0000)
-            "todo", "pending" -> Color(0xffd800)
-            "active", "doing", "in-progress", "running" -> Color(0x00a6d6)
-            else -> when (node.stereotype()) {
-                NodeStereotype.ErrorHandler,
-                NodeStereotype.CompositeErrorHandler -> Color(0xffd800)
-                NodeStereotype.ServiceLibrary -> Color(0x3333cc)
-                else -> Color(0xff0000)
+    private fun pointAlongRoute(points: List<Point>, fraction: Double): Point? {
+        val total = points.zipWithNext().sumOf { (a, b) -> a.distance(b) }
+        if (total <= 0.0) return null
+        val target = total * fraction.coerceIn(0.0, 1.0)
+        var travelled = 0.0
+        points.zipWithNext().forEach { (a, b) ->
+            val segment = a.distance(b)
+            if (segment > 0.0 && travelled + segment >= target) {
+                val ratio = ((target - travelled) / segment).coerceIn(0.0, 1.0)
+                return Point(
+                    (a.x + (b.x - a.x) * ratio).toInt(),
+                    (a.y + (b.y - a.y) * ratio).toInt(),
+                )
             }
+            travelled += segment
         }
-        g2.color = color
-        g2.fillOval(r.x - 8, r.y - 8, 18, 18)
+        return points.lastOrNull()
+    }
+
+    private fun Int.sign(): Int = when {
+        this > 0 -> 1
+        this < 0 -> -1
+        else -> 0
     }
 
     private fun handlePressed(e: MouseEvent) {
-        if (mode == CanvasMode.Pan || SwingUtilities.isMiddleMouseButton(e) || SwingUtilities.isRightMouseButton(e)) {
+        if (SwingUtilities.isMiddleMouseButton(e) || SwingUtilities.isRightMouseButton(e)) {
             panDragStart = e.point
             return
         }
@@ -746,7 +808,6 @@ class GraphCanvas(
                 repository.updateNodeLayout(node.id, NodeLayout(point.x.toDouble(), point.y.toDouble(), 180.0, 90.0))
                 selection.clear()
                 selection += node.id
-                mode = CanvasMode.Select
                 refreshAll()
             }
             CanvasMode.CreateLink -> {
@@ -758,7 +819,6 @@ class GraphCanvas(
                     } else if (linkSource != hit) {
                         createLink(linkSource!!, hit)
                         linkSource = null
-                        mode = CanvasMode.Select
                     }
                     onSelectionChanged()
                 }
@@ -783,21 +843,6 @@ class GraphCanvas(
                     onSelectionChanged()
                 }
             }
-            CanvasMode.Reparent -> {
-                if (selection.isEmpty()) {
-                    hit?.let {
-                        selection.clear()
-                        selection += it
-                        onSelectionChanged()
-                    }
-                } else {
-                    val targetParent = hit?.takeUnless { it in selection } ?: repository.getDocument().rootNodeId
-                    reparentSelection(targetParent)
-                    mode = CanvasMode.Select
-                    refreshAll()
-                }
-            }
-            CanvasMode.Pan -> Unit
         }
     }
 
@@ -826,7 +871,6 @@ class GraphCanvas(
     private fun handleReleased(e: MouseEvent) {
         if (panDragStart != null) {
             panDragStart = null
-            if (mode == CanvasMode.Pan) mode = CanvasMode.Select
             return
         }
         selectionRect?.let { rect ->
@@ -849,8 +893,8 @@ class GraphCanvas(
         val target = repository.requireNode(targetId)
         val link = repository.createLink(repository.getDocument().rootNodeId, "${source.name} -> ${target.name}", sourceId, "out", targetId, "in")
         link.link?.transportKind = when {
-            source.stereotype() == NodeStereotype.ServiceLibrary -> "usage"
-            target.stereotype() in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> "error"
+            nodeStereotype(source) == NodeStereotype.ServiceLibrary -> "usage"
+            nodeStereotype(target) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> "error"
             else -> "packet"
         }
         selection.clear()
@@ -892,14 +936,6 @@ class GraphCanvas(
             if (moved.parentId != newParent) {
                 runCatching { repository.moveNode(moved.id, newParent) }
             }
-        }
-    }
-
-    private fun reparentSelection(targetParent: NodeId) {
-        val root = repository.getDocument().rootNodeId
-        val parent = targetParent.takeIf { it !in selection } ?: root
-        selection.mapNotNull(repository::getNode).filter { !it.isLink && it.id != root }.forEach {
-            runCatching { repository.moveNode(it.id, parent) }
         }
     }
 
@@ -971,28 +1007,30 @@ class GraphCanvas(
 
     private fun fillFor(node: Node): Color = when {
         node.children.isNotEmpty() -> Color(0xfafafa)
-        node.stereotype() == NodeStereotype.ServiceLibrary -> Color(0xf6f7ff)
-        node.stereotype() in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> Color(0xfffbfb)
-        node.stereotype() in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> Color(0xf8fff8)
+        nodeStereotype(node) == NodeStereotype.ServiceLibrary -> Color(0xf6f7ff)
+        nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> Color(0xfffbfb)
+        nodeStereotype(node) in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> Color(0xf8fff8)
         else -> Color.WHITE
     }
 
     private fun strokeFor(node: Node, selected: Boolean): Color = when {
         selected -> Color(0x3366cc)
-        node.stereotype() in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> Color(0xcc3333)
-        node.stereotype() in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> Color(0x33aa33)
-        node.stereotype() == NodeStereotype.ServiceLibrary -> Color(0x3333cc)
+        nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> Color(0xcc3333)
+        nodeStereotype(node) in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> Color(0x33aa33)
+        nodeStereotype(node) == NodeStereotype.ServiceLibrary -> Color(0x3333cc)
         else -> Color(0x222222)
     }
 
     private fun nodeStroke(node: Node, selected: Boolean): Stroke = when {
         selected -> BasicStroke(3f, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER)
         node.children.isNotEmpty() -> BasicStroke(2.2f, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10f, floatArrayOf(24f, 8f, 4f, 8f), 0f)
-        node.stereotype() == NodeStereotype.ServiceLibrary -> BasicStroke(2.2f)
-        node.stereotype() in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> BasicStroke(2.2f)
-        node.stereotype() in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> BasicStroke(2.2f)
+        nodeStereotype(node) == NodeStereotype.ServiceLibrary -> BasicStroke(2.2f)
+        nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> BasicStroke(2.2f)
+        nodeStereotype(node) in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> BasicStroke(2.2f)
         else -> BasicStroke(2f)
     }
+
+    private fun nodeStereotype(node: Node): NodeStereotype = node.stereotype(repository.getDocument())
 
     private fun linkColor(stereotype: LinkStereotype, selected: Boolean): Color = when {
         selected -> Color(0x1565c0)

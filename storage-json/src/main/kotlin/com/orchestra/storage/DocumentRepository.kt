@@ -9,6 +9,7 @@ import com.orchestra.core.model.NodeLayout
 import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.NodeText
 import com.orchestra.core.model.TechnologyMetadata
+import java.util.UUID
 
 interface DocumentRepository {
     fun getDocument(): InflowDocument
@@ -46,7 +47,7 @@ interface DocumentRepository {
 
 class InMemoryDocumentRepository(
     private var document: InflowDocument = newDocument("Untitled"),
-    private val idGenerator: IdGenerator = SequentialIdGenerator(document.nodes.keys.map { it.value }),
+    private val idGenerator: IdGenerator = UuidIdGenerator(),
 ) : DocumentRepository {
     private var dirty = false
 
@@ -64,9 +65,12 @@ class InMemoryDocumentRepository(
 
     override fun createNode(parentId: NodeId?, name: String, kind: NodeKind): Node {
         parentId?.let(::requireNode)
-        val node = Node(id = NodeId(idGenerator.next("node")), name = name, kind = kind, parentId = parentId)
+        val node = Node(id = nextNodeId("node"), name = name, kind = kind, parentId = parentId)
         document.nodes[node.id] = node
-        parentId?.let { requireNode(it).children += node.id }
+        parentId?.let {
+            val parent = requireNode(it)
+            if (node.id !in parent.children) parent.children += node.id
+        }
         markDirty()
         return node
     }
@@ -78,7 +82,7 @@ class InMemoryDocumentRepository(
         if (node.isLink) unlink(node)
         node.incomingLinks.toList().forEach(::deleteNode)
         node.outgoingLinks.toList().forEach(::deleteNode)
-        node.parentId?.let { document.nodes[it]?.children?.remove(id) }
+        node.parentId?.let { document.nodes[it]?.children?.removeAll { childId -> childId == id } }
         document.nodes.remove(id)
         markDirty()
     }
@@ -127,16 +131,21 @@ class InMemoryDocumentRepository(
         requireNode(sourceNodeId)
         requireNode(targetNodeId)
         val node = Node(
-            id = NodeId(idGenerator.next("link")),
+            id = nextNodeId("link"),
             name = name,
             kind = NodeKind.Link,
             parentId = parentId,
             link = LinkData(sourceNodeId, sourcePortName, targetNodeId, targetPortName),
         )
         document.nodes[node.id] = node
-        parentId?.let { requireNode(it).children += node.id }
-        requireNode(sourceNodeId).outgoingLinks += node.id
-        requireNode(targetNodeId).incomingLinks += node.id
+        parentId?.let {
+            val parent = requireNode(it)
+            if (node.id !in parent.children) parent.children += node.id
+        }
+        val source = requireNode(sourceNodeId)
+        val target = requireNode(targetNodeId)
+        if (node.id !in source.outgoingLinks) source.outgoingLinks += node.id
+        if (node.id !in target.incomingLinks) target.incomingLinks += node.id
         markDirty()
         return node
     }
@@ -146,9 +155,12 @@ class InMemoryDocumentRepository(
         newParentId?.let(::requireNode)
         val node = requireNode(id)
         require(!isDescendant(newParentId, id)) { "Cannot move a node under its descendant" }
-        node.parentId?.let { document.nodes[it]?.children?.remove(id) }
+        node.parentId?.let { document.nodes[it]?.children?.removeAll { childId -> childId == id } }
         node.parentId = newParentId
-        newParentId?.let { requireNode(it).children += id }
+        newParentId?.let {
+            val parent = requireNode(it)
+            if (id !in parent.children) parent.children += id
+        }
         markDirty()
     }
 
@@ -162,10 +174,17 @@ class InMemoryDocumentRepository(
 
     override fun isDirty(): Boolean = dirty
 
+    private fun nextNodeId(prefix: String): NodeId {
+        while (true) {
+            val id = NodeId(idGenerator.next(prefix))
+            if (id !in document.nodes) return id
+        }
+    }
+
     private fun unlink(linkNode: Node) {
         val link = linkNode.link ?: return
-        document.nodes[link.sourceNodeId]?.outgoingLinks?.remove(linkNode.id)
-        document.nodes[link.targetNodeId]?.incomingLinks?.remove(linkNode.id)
+        document.nodes[link.sourceNodeId]?.outgoingLinks?.removeAll { it == linkNode.id }
+        document.nodes[link.targetNodeId]?.incomingLinks?.removeAll { it == linkNode.id }
     }
 
     private fun isDescendant(candidateId: NodeId?, ancestorId: NodeId): Boolean {
@@ -186,6 +205,10 @@ class SequentialIdGenerator(existingIds: Iterable<String> = emptyList()) : IdGen
     private var nextValue = existingIds.mapNotNull { it.substringAfterLast("_").toIntOrNull() }.maxOrNull()?.plus(1) ?: 1
 
     override fun next(prefix: String): String = "${prefix}_${nextValue++}"
+}
+
+class UuidIdGenerator : IdGenerator {
+    override fun next(prefix: String): String = "${prefix}_${UUID.randomUUID()}"
 }
 
 fun newDocument(name: String): InflowDocument {

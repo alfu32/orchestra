@@ -1,0 +1,1196 @@
+{
+    "id": "document_1780271837861",
+    "name": "Untitled Orchestra",
+    "rootNodeId": "root",
+    "nodes": {
+        "root": {
+            "id": "root",
+            "name": "Untitled Orchestra",
+            "kind": "Group",
+            "parentId": null,
+            "children": [
+                "node_1",
+                "node_2",
+                "node_3",
+                "node_4",
+                "node_5",
+                "node_6",
+                "node_7",
+                "link_8",
+                "link_9",
+                "link_10",
+                "link_11",
+                "link_12",
+                "link_13",
+                "link_14",
+                "node_17",
+                "link_18",
+                "link_19",
+                "link_21",
+                "node_22",
+                "link_23",
+                "link_29",
+                "link_30",
+                "link_31",
+                "link_32"
+            ],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 46.0,
+                "y": -281.0,
+                "width": 2711.0,
+                "height": 1097.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_1": {
+            "id": "node_1",
+            "name": "read_config",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_8",
+                "link_10"
+            ],
+            "outgoingLinks": [
+                "link_14",
+                "link_18"
+            ],
+            "layout": {
+                "x": 78.0,
+                "y": 242.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_2": {
+            "id": "node_2",
+            "name": "process_data",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [
+                "node_27",
+                "node_28"
+            ],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 1467.0,
+                "y": 77.0,
+                "width": 657.0,
+                "height": 282.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_3": {
+            "id": "node_3",
+            "name": "read_infop",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_9",
+                "link_11",
+                "link_14"
+            ],
+            "outgoingLinks": [
+                "link_19",
+                "link_29"
+            ],
+            "layout": {
+                "x": 434.0,
+                "y": 189.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_4": {
+            "id": "node_4",
+            "name": "send_results",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_12",
+                "link_13",
+                "link_31"
+            ],
+            "outgoingLinks": [
+                "link_21"
+            ],
+            "layout": {
+                "x": 2545.0,
+                "y": 436.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_5": {
+            "id": "node_5",
+            "name": "lib_io_file",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_8"
+            ],
+            "layout": {
+                "x": 332.0,
+                "y": -233.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_6": {
+            "id": "node_6",
+            "name": "lib_soap_sm",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_9",
+                "link_13"
+            ],
+            "layout": {
+                "x": 339.0,
+                "y": -118.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_7": {
+            "id": "node_7",
+            "name": "lib_logging",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_10",
+                "link_11",
+                "link_12"
+            ],
+            "layout": {
+                "x": 340.0,
+                "y": -6.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_8": {
+            "id": "link_8",
+            "name": "lib_io_file -> read_config",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_5",
+                "sourcePortName": "out",
+                "targetNodeId": "node_1",
+                "targetPortName": "in",
+                "transportKind": "usage",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_9": {
+            "id": "link_9",
+            "name": "lib_soap_sm -> read_infop",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_6",
+                "sourcePortName": "out",
+                "targetNodeId": "node_3",
+                "targetPortName": "in",
+                "transportKind": "usage",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_10": {
+            "id": "link_10",
+            "name": "lib_logging -> read_config",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_7",
+                "sourcePortName": "out",
+                "targetNodeId": "node_1",
+                "targetPortName": "in",
+                "transportKind": "usage",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_11": {
+            "id": "link_11",
+            "name": "lib_logging -> read_infop",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_7",
+                "sourcePortName": "out",
+                "targetNodeId": "node_3",
+                "targetPortName": "in",
+                "transportKind": "usage",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_12": {
+            "id": "link_12",
+            "name": "lib_logging -> send_results",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_7",
+                "sourcePortName": "out",
+                "targetNodeId": "node_4",
+                "targetPortName": "in",
+                "transportKind": "usage",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_13": {
+            "id": "link_13",
+            "name": "lib_soap_sm -> send_results",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_6",
+                "sourcePortName": "out",
+                "targetNodeId": "node_4",
+                "targetPortName": "in",
+                "transportKind": "usage",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_14": {
+            "id": "link_14",
+            "name": "read_config -> read_infop",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_1",
+                "sourcePortName": "out",
+                "targetNodeId": "node_3",
+                "targetPortName": "in",
+                "transportKind": "packet",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_17": {
+            "id": "node_17",
+            "name": "error_log",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_18",
+                "link_19",
+                "link_21"
+            ],
+            "outgoingLinks": [
+                "link_23"
+            ],
+            "layout": {
+                "x": 692.0,
+                "y": 678.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_18": {
+            "id": "link_18",
+            "name": "read_config -> error_log",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_1",
+                "sourcePortName": "out",
+                "targetNodeId": "node_17",
+                "targetPortName": "in",
+                "transportKind": "error",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_19": {
+            "id": "link_19",
+            "name": "read_infop -> error_log",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_3",
+                "sourcePortName": "out",
+                "targetNodeId": "node_17",
+                "targetPortName": "in",
+                "transportKind": "error",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_21": {
+            "id": "link_21",
+            "name": "send_results -> error_log",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_4",
+                "sourcePortName": "out",
+                "targetNodeId": "node_17",
+                "targetPortName": "in",
+                "transportKind": "error",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_22": {
+            "id": "node_22",
+            "name": "retry_failed",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_23"
+            ],
+            "outgoingLinks": [
+                "link_32"
+            ],
+            "layout": {
+                "x": 1153.0,
+                "y": 503.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_23": {
+            "id": "link_23",
+            "name": "error_log -> retry_failed",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_17",
+                "sourcePortName": "out",
+                "targetNodeId": "node_22",
+                "targetPortName": "in",
+                "transportKind": "packet",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_27": {
+            "id": "node_27",
+            "name": "New Node",
+            "kind": "Processor",
+            "parentId": "node_2",
+            "children": [],
+            "incomingLinks": [
+                "link_29",
+                "link_32"
+            ],
+            "outgoingLinks": [
+                "link_30"
+            ],
+            "layout": {
+                "x": 1499.0,
+                "y": 125.0,
+                "width": 244.0,
+                "height": 186.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "node_28": {
+            "id": "node_28",
+            "name": "New Node",
+            "kind": "Processor",
+            "parentId": "node_2",
+            "children": [],
+            "incomingLinks": [
+                "link_30"
+            ],
+            "outgoingLinks": [
+                "link_31"
+            ],
+            "layout": {
+                "x": 1912.0,
+                "y": 156.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_29": {
+            "id": "link_29",
+            "name": "read_infop -> New Node",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_3",
+                "sourcePortName": "out",
+                "targetNodeId": "node_27",
+                "targetPortName": "in",
+                "transportKind": "packet",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_30": {
+            "id": "link_30",
+            "name": "New Node -> New Node",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_27",
+                "sourcePortName": "out",
+                "targetNodeId": "node_28",
+                "targetPortName": "in",
+                "transportKind": "packet",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_31": {
+            "id": "link_31",
+            "name": "New Node -> send_results",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_28",
+                "sourcePortName": "out",
+                "targetNodeId": "node_4",
+                "targetPortName": "in",
+                "transportKind": "packet",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        "link_32": {
+            "id": "link_32",
+            "name": "retry_failed -> New Node",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_22",
+                "sourcePortName": "out",
+                "targetNodeId": "node_27",
+                "targetPortName": "in",
+                "transportKind": "packet",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        }
+    },
+    "metadata": {}
+}

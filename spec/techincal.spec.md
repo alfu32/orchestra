@@ -376,6 +376,11 @@ Node ids shall be stable across save/load.
 
 Ids should not be derived from names.
 
+Repository-generated node and link ids shall be UUID-backed values, for example
+`node_0187c9cb-b0b3-49bb-89f5-5c72fc0c7b7b` or
+`link_7d1f3142-d480-428a-bf45-cb5998f2a96f`. Counters are not acceptable for
+new ids because opened documents may already contain arbitrary historical ids.
+
 ---
 
 ### 6.3 Node Kind
@@ -571,6 +576,11 @@ node.incomingLinks
 node.outgoingLinks
 ```
 
+When classifying a node as a generator, transformer, sink, or generic
+processing unit, inbound usage/dependency links from service-library nodes do
+not count as data inputs. They express imports or dependencies, not transported
+runtime data.
+
 The repository must keep these references consistent.
 
 ---
@@ -657,8 +667,8 @@ Example structure:
   "id": "document_001",
   "name": "carl_bridge",
   "rootNodeId": "root",
-  "nodes": {
-    "root": {
+  "nodes": [
+    {
       "id": "root",
       "name": "carl_bridge",
       "kind": "Group",
@@ -689,10 +699,15 @@ Example structure:
       "link": null,
       "metadata": {}
     }
-  },
+  ],
   "metadata": {}
 }
 ```
+
+The persisted file format stores `nodes` as a list. Node identity comes only
+from each node's `id` field; the application may rebuild an id-indexed map after
+loading for runtime performance. Legacy map-shaped node files may be read for
+compatibility, but new saves must emit the list format.
 
 ---
 
@@ -825,19 +840,25 @@ Required operations:
 - select node
 - drag node
 - resize node
-- pan viewport
+- pan viewport with middle/right mouse drag
 - zoom viewport about the cursor/model point
 - create link between ports
 - redirect link source or target
 - create child node inside a selected or clicked parent
-- reparent nodes by command mode or dragging into/out of parent bounds
-- copy/paste selected nodes
+- reparent nodes with the Ctrl-drag drop policy
+- cut/copy/paste selected nodes with system keyboard shortcuts
+- delete selected entities with Delete
+- return to select mode with Escape
 - select by click or window selection
 - show selected state
 - show node stereotype using shared core classification
 - color nodes by stereotype, including libraries, tests, errors, and composites
 - route links with readable port separation and labels
 ```
+
+Canvas modes are limited to sticky `Select`, `Node`, and `Link` modes. Their
+toolbar controls are state indicators as well as mode selectors; creation modes
+remain active until the user selects another mode or presses Escape.
 
 The canvas should use the `NodeLayout` stored in the document.
 
@@ -857,11 +878,19 @@ Node placement and parenting rules:
 Composite nodes are visual containers. Their displayed geometry shall expand to
 the bounding box that envelopes their visible children, with padding. Composite
 containers should use a distinct line type from terminal processing nodes.
+The core canvas must not draw readiness or project-management state markers by
+default; such overlays belong to plugins that define their own criteria.
 
 Transport and error links are materialized as routed polylines between node
 ports. Input and output ports must be distributed vertically on the left or right
-edge of the node with readable spacing. Link routes should include directional
-arrow markers at readable intervals, at least near the last quarter of the route.
+edge of the node with readable spacing. Port slots start near the top edge and
+progress downward; the required port stack height contributes to the calculated
+node height. A materialized link displays one label, centered on the route, using
+the link node name rather than generic input or output captions. Short links
+between facing ports should use a direct segment instead of a kinked route. Link
+routes should include directional arrow markers at readable intervals, at least
+near the last quarter of the route. Links and port icons are drawn after node and
+composite bodies so internal composite links remain visible.
 
 Usage/dependency links are annotations, not data-flow lines. They should not draw
 a direct line between the library and the dependent node. Instead, the service

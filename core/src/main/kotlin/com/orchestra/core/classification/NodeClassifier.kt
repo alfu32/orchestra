@@ -34,6 +34,20 @@ enum class LinkStereotype {
 
 object NodeClassifier {
     fun classify(node: Node): NodeStereotype {
+        return classify(node, node.incomingLinks.size, node.outgoingLinks.size)
+    }
+
+    fun classify(document: InflowDocument, node: Node): NodeStereotype {
+        return classify(node, dataIncomingLinks(document, node).size, node.outgoingLinks.size)
+    }
+
+    fun dataIncomingLinks(document: InflowDocument, node: Node): List<Node> {
+        return node.incomingLinks
+            .mapNotNull(document.nodes::get)
+            .filter { linkNode -> countsAsDataInput(document, node, linkNode) }
+    }
+
+    private fun classify(node: Node, incomingCount: Int, outgoingCount: Int): NodeStereotype {
         val name = node.name.trim()
         return when {
             node.kind == NodeKind.Link || node.link != null -> NodeStereotype.Link
@@ -44,13 +58,27 @@ object NodeClassifier {
             name.startsOrEndsWithAnyOf("service", "client", "library", "lib") -> NodeStereotype.ServiceLibrary
             name.startsOrEndsWith("error") -> NodeStereotype.ErrorHandler
             name.startsOrEndsWith("test") -> NodeStereotype.Test
-            node.incomingLinks.isNotEmpty() && node.outgoingLinks.isNotEmpty() -> NodeStereotype.Transformer
-            node.incomingLinks.isEmpty() && node.outgoingLinks.isNotEmpty() -> NodeStereotype.Generator
-            node.incomingLinks.isNotEmpty() && node.outgoingLinks.isEmpty() -> NodeStereotype.Sink
+            incomingCount > 0 && outgoingCount > 0 -> NodeStereotype.Transformer
+            incomingCount == 0 && outgoingCount > 0 -> NodeStereotype.Generator
+            incomingCount > 0 && outgoingCount == 0 -> NodeStereotype.Sink
             node.kind == NodeKind.Processor -> NodeStereotype.ProcessingUnit
             else -> NodeStereotype.Script
         }
     }
+
+    private fun countsAsDataInput(document: InflowDocument, node: Node, linkNode: Node): Boolean {
+        val link = linkNode.link ?: return false
+        if (link.targetNodeId != node.id) return false
+        val source = document.nodes[link.sourceNodeId] ?: return true
+        val sourceIsLibrary = classify(source) == NodeStereotype.ServiceLibrary
+        if (!sourceIsLibrary) return true
+        return LinkClassifier.classify(document, linkNode) !in dependencyLikeLinks
+    }
+
+    private val dependencyLikeLinks = setOf(
+        LinkStereotype.UsageImport,
+        LinkStereotype.DependencyInjection,
+    )
 }
 
 object LinkClassifier {
@@ -88,6 +116,7 @@ object LinkClassifier {
 }
 
 fun Node.stereotype(): NodeStereotype = NodeClassifier.classify(this)
+fun Node.stereotype(document: InflowDocument): NodeStereotype = NodeClassifier.classify(document, this)
 
 private fun String.startsOrEndsWith(token: String): Boolean {
     val normalized = lowercase()

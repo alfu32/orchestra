@@ -41,6 +41,68 @@ class NodeClassifierTest {
     }
 
     @Test
+    fun `ignores inbound library dependencies when classifying data inputs`() {
+        val root = Node(NodeId("root"), "root", NodeKind.Group)
+        val library = Node(NodeId("lib"), "lib_io_file", NodeKind.Processor)
+        val worker = Node(NodeId("worker"), "read_config", NodeKind.Processor)
+        val next = Node(NodeId("next"), "process_data", NodeKind.Processor)
+        val dependency = Node(
+            id = NodeId("dep"),
+            name = "lib_io_file",
+            kind = NodeKind.Link,
+            link = LinkData(library.id, "out", worker.id, "in", transportKind = "usage"),
+        )
+        val output = Node(
+            id = NodeId("out"),
+            name = "items",
+            kind = NodeKind.Link,
+            link = LinkData(worker.id, "out", next.id, "in"),
+        )
+        library.outgoingLinks += dependency.id
+        worker.incomingLinks += dependency.id
+        worker.outgoingLinks += output.id
+        next.incomingLinks += output.id
+        val document = InflowDocument(
+            id = "doc",
+            name = "doc",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(
+                root.id to root,
+                library.id to library,
+                worker.id to worker,
+                next.id to next,
+                dependency.id to dependency,
+                output.id to output,
+            ),
+        )
+
+        assertEquals(NodeStereotype.Generator, NodeClassifier.classify(document, worker))
+    }
+
+    @Test
+    fun `library dependency alone does not make a node a sink`() {
+        val root = Node(NodeId("root"), "root", NodeKind.Group)
+        val library = Node(NodeId("lib"), "lib_logging", NodeKind.Processor)
+        val worker = Node(NodeId("worker"), "write_log", NodeKind.Processor)
+        val dependency = Node(
+            id = NodeId("dep"),
+            name = "lib_logging usage",
+            kind = NodeKind.Link,
+            link = LinkData(library.id, "out", worker.id, "in", transportKind = "usage"),
+        )
+        library.outgoingLinks += dependency.id
+        worker.incomingLinks += dependency.id
+        val document = InflowDocument(
+            id = "doc",
+            name = "doc",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root, library.id to library, worker.id to worker, dependency.id to dependency),
+        )
+
+        assertEquals(NodeStereotype.ProcessingUnit, NodeClassifier.classify(document, worker))
+    }
+
+    @Test
     fun `link kind takes precedence over name`() {
         val node = Node(
             id = NodeId("l1"),

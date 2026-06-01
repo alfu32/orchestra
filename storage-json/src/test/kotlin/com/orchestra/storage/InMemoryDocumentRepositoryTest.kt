@@ -1,5 +1,8 @@
 package com.orchestra.storage
 
+import com.orchestra.core.model.InflowDocument
+import com.orchestra.core.model.Node
+import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.PortDirection
@@ -10,6 +13,37 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class InMemoryDocumentRepositoryTest {
+    @Test
+    fun `generated ids are uuid backed`() {
+        val repository = InMemoryDocumentRepository(newDocument("test"))
+        val node = repository.createNode(repository.getDocument().rootNodeId, "source", NodeKind.Processor)
+
+        assertTrue(uuidBackedId.matches(node.id.value))
+    }
+
+    @Test
+    fun `generated ids do not collide after replacing document`() {
+        val root = NodeId("root")
+        val existing = NodeId("node_1")
+        val document = InflowDocument(
+            id = "doc",
+            name = "opened",
+            rootNodeId = root,
+            nodes = mutableMapOf(
+                root to Node(root, "opened", NodeKind.Group, children = mutableListOf(existing)),
+                existing to Node(existing, "existing", NodeKind.Processor, parentId = root),
+            ),
+        )
+        val repository = InMemoryDocumentRepository()
+
+        repository.replaceDocument(document)
+        val inserted = repository.createNode(root, "inserted", NodeKind.Processor)
+
+        assertFalse(inserted.id in setOf(root, existing))
+        assertTrue(inserted.id in repository.getDocument().nodes)
+        assertTrue(uuidBackedId.matches(inserted.id.value))
+    }
+
     @Test
     fun `create link synchronizes endpoints`() {
         val repository = InMemoryDocumentRepository(newDocument("test"))
@@ -40,5 +74,9 @@ class InMemoryDocumentRepositoryTest {
         assertFalse(child.id in repository.requireNode(parentA.id).children)
         assertTrue(child.id in repository.requireNode(parentB.id).children)
         assertEquals(parentB.id, repository.requireNode(child.id).parentId)
+    }
+
+    private companion object {
+        val uuidBackedId = Regex("""node_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}""")
     }
 }
