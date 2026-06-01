@@ -629,6 +629,7 @@ class GraphCanvas(
         const val TITLE_BLOCK_HEIGHT_MM = 36.0
         const val PARTS_LIST_WIDTH_MM = 72.0
         const val PARTS_ROW_HEIGHT = 20
+        const val ROLL_MAX_LENGTH_MM = 1500.0
 
         val SHEET_FORMATS = listOf(
             SheetFormat("A4", 210.0, 297.0),
@@ -636,10 +637,10 @@ class GraphCanvas(
             SheetFormat("A2", 420.0, 594.0),
             SheetFormat("A1", 594.0, 841.0),
             SheetFormat("A0", 841.0, 1189.0),
-            SheetFormat("A3-roll", 297.0, 1189.0, roll = true),
-            SheetFormat("A2-roll", 420.0, 1189.0, roll = true),
-            SheetFormat("A1-roll", 594.0, 1189.0, roll = true),
-            SheetFormat("A0-roll", 841.0, 1682.0, roll = true),
+            SheetFormat("A3-roll", 297.0, ROLL_MAX_LENGTH_MM, roll = true),
+            SheetFormat("A2-roll", 420.0, ROLL_MAX_LENGTH_MM, roll = true),
+            SheetFormat("A1-roll", 594.0, ROLL_MAX_LENGTH_MM, roll = true),
+            SheetFormat("A0-roll", 841.0, ROLL_MAX_LENGTH_MM, roll = true),
             SheetFormat("A4-landscape", 297.0, 210.0),
             SheetFormat("A3-landscape", 420.0, 297.0),
             SheetFormat("A2-landscape", 594.0, 420.0),
@@ -894,12 +895,16 @@ class GraphCanvas(
             titleWidth * titleHeight
         val best = SHEET_FORMATS
             .mapNotNull { format ->
-                val sheetWidth = mm(format.widthMm)
-                val maxSheetHeight = mm(format.heightMm)
-                val sheetHeight = if (format.roll) {
-                    requiredHeight.coerceAtMost(maxSheetHeight)
+                val sheetWidth: Int
+                val sheetHeight: Int
+                if (format.roll) {
+                    val fixedRollHeight = mm(format.widthMm)
+                    val maxRollLength = mm(format.heightMm)
+                    sheetWidth = requiredWidth.coerceAtMost(maxRollLength)
+                    sheetHeight = fixedRollHeight
                 } else {
-                    maxSheetHeight
+                    sheetWidth = mm(format.widthMm)
+                    sheetHeight = mm(format.heightMm)
                 }
                 val fits =
                     requiredWidth <= sheetWidth &&

@@ -5,7 +5,7 @@
     "nodes": [
         {
             "id": "root",
-            "name": "Untitled Orchestra",
+            "name": "TestProject",
             "kind": "Group",
             "parentId": null,
             "children": [
@@ -32,15 +32,17 @@
                 "link_29",
                 "link_30",
                 "link_31",
-                "link_32"
+                "link_32",
+                "node_0d0a832e-4daa-4f24-b58e-9010b0de3e0a",
+                "node_eceb56e4-3081-4bb3-bc18-b50a8d4e4bf0"
             ],
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -292.0,
-                "y": -91.0,
-                "width": 1809.0,
-                "height": 842.0
+                "x": -135.0,
+                "y": -88.0,
+                "width": 1825.0,
+                "height": 806.0
             },
             "text": {
                 "initialization": "",
@@ -50,7 +52,7 @@
                 "aiInstructions": ""
             },
             "technology": {
-                "languageId": "",
+                "languageId": "javascript",
                 "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
@@ -127,10 +129,10 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 892.0,
-                "y": 192.0,
-                "width": 593.0,
-                "height": 386.0
+                "x": 871.0,
+                "y": 179.0,
+                "width": 787.0,
+                "height": 314.0
             },
             "text": {
                 "initialization": "",
@@ -180,8 +182,8 @@
                 "link_30"
             ],
             "layout": {
-                "x": 924.0,
-                "y": 272.0,
+                "x": 1382.0,
+                "y": 259.0,
                 "width": 244.0,
                 "height": 186.0
             },
@@ -232,8 +234,8 @@
                 "link_31"
             ],
             "layout": {
-                "x": 1273.0,
-                "y": 422.0,
+                "x": 903.0,
+                "y": 298.0,
                 "width": 180.0,
                 "height": 108.0
             },
@@ -341,8 +343,8 @@
                 "link_21"
             ],
             "layout": {
-                "x": 88.0,
-                "y": 595.0,
+                "x": 586.0,
+                "y": 318.0,
                 "width": 180.0,
                 "height": 108.0
             },
@@ -391,8 +393,8 @@
                 "link_8"
             ],
             "layout": {
-                "x": 606.0,
-                "y": 12.0,
+                "x": 863.0,
+                "y": -8.0,
                 "width": 180.0,
                 "height": 90.0
             },
@@ -435,8 +437,8 @@
                 "link_13"
             ],
             "layout": {
-                "x": 176.0,
-                "y": -3.0,
+                "x": 406.0,
+                "y": 0.0,
                 "width": 180.0,
                 "height": 90.0
             },
@@ -480,8 +482,8 @@
                 "link_12"
             ],
             "layout": {
-                "x": -260.0,
-                "y": -11.0,
+                "x": -31.0,
+                "y": -5.0,
                 "width": 180.0,
                 "height": 90.0
             },
@@ -807,8 +809,8 @@
                 "link_23"
             ],
             "layout": {
-                "x": 326.0,
-                "y": 407.0,
+                "x": 350.0,
+                "y": 532.0,
                 "width": 180.0,
                 "height": 138.0
             },
@@ -979,8 +981,8 @@
                 "link_32"
             ],
             "layout": {
-                "x": 635.0,
-                "y": 348.0,
+                "x": 642.0,
+                "y": 565.0,
                 "width": 180.0,
                 "height": 90.0
             },
@@ -1215,6 +1217,72 @@
                 "transportKind": "packet",
                 "payloadDefinition": ""
             },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_0d0a832e-4daa-4f24-b58e-9010b0de3e0a",
+            "name": "config.json",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 1241.0,
+                "y": -2.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "",
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "json",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_eceb56e4-3081-4bb3-bc18-b50a8d4e4bf0",
+            "name": "package.json",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 1466.0,
+                "y": -1.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "",
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "json",
+                "technologyId": "nodejs",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
             "metadata": {},
             "pluginData": {}
         }
