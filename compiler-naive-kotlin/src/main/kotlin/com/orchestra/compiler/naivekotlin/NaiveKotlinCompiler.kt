@@ -113,6 +113,7 @@ package generated
 
 fun main() {
     val context = RuntimeContext()
+    generated.nodes.${names.initializerFor(document.rootNodeId)}(context)
     generated.nodes.${names.functionFor(document.rootNodeId)}(context)
 }
 """.trimStart(),
@@ -130,6 +131,10 @@ package generated.nodes
 import generated.RuntimeContext
 import generated.runLink
 
+fun ${names.initializerFor(node.id)}(context: RuntimeContext) {
+${if (node.children.isEmpty()) terminalInitializationBody(node) else compositeInitializationBody(document, node, names)}
+}
+
 fun ${names.functionFor(node.id)}(context: RuntimeContext) {
 $body
 }
@@ -139,6 +144,15 @@ $body
         )
     }
 
+    private fun terminalInitializationBody(node: Node): String {
+        val source = node.text.initialization.trimEnd()
+        return if (source.isBlank()) {
+            "    // Node '${node.name}' has no initialization text yet.\n"
+        } else {
+            source.lines().joinToString(separator = "\n", postfix = "\n") { "    $it" }
+        }
+    }
+
     private fun terminalBody(node: Node): String {
         val source = node.text.source.trimEnd()
         return if (source.isBlank()) {
@@ -146,6 +160,13 @@ $body
         } else {
             source.lines().joinToString(separator = "\n", postfix = "\n") { "    $it" }
         }
+    }
+
+    private fun compositeInitializationBody(document: InflowDocument, node: Node, names: FunctionNames): String {
+        val processors = node.children.mapNotNull(document.nodes::get).filter { !it.isLink }
+        return processors.joinToString(separator = "\n", postfix = "\n") {
+            "    generated.nodes.${names.initializerFor(it.id)}(context)"
+        }.ifBlank { "    // Composite node '${node.name}' has no executable children to initialize.\n" }
     }
 
     private fun compositeBody(document: InflowDocument, node: Node, names: FunctionNames): String {
@@ -178,6 +199,8 @@ private class FunctionNames(document: InflowDocument) {
         .toMap()
 
     fun functionFor(id: NodeId): String = functionNames[id] ?: error("No function for node '$id'")
+
+    fun initializerFor(id: NodeId): String = functionFor(id).replaceFirst("run_", "init_")
 
     fun classFileFor(id: NodeId): String = functionFor(id).removePrefix("run_").replaceFirstChar {
         if (it.isLowerCase()) it.titlecase() else it.toString()

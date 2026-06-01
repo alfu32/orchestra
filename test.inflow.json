@@ -125,10 +125,10 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 899.0,
-                "y": 205.0,
-                "width": 586.0,
-                "height": 373.0
+                "x": 892.0,
+                "y": 224.0,
+                "width": 593.0,
+                "height": 354.0
             },
             "text": {
                 "source": "fdsdfsdf",
@@ -137,7 +137,7 @@
                 "aiInstructions": "jggggggggggggg"
             },
             "technology": {
-                "languageId": "",
+                "languageId": "javascript",
                 "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
@@ -177,8 +177,8 @@
                 "link_30"
             ],
             "layout": {
-                "x": 931.0,
-                "y": 253.0,
+                "x": 924.0,
+                "y": 272.0,
                 "width": 244.0,
                 "height": 186.0
             },
@@ -966,7 +966,7 @@
             "text": {
                 "source": "",
                 "specification": "",
-                "tests": "",
+                "tests": "[\n    {\n        \"case\": \"valid\",\n        \"input.failed_info_package\": \"{\\\"id\\\":\\\"123\\\"}\",\n        \"expected.fixed_info_package\": \"{\\\"id\\\":\\\"123\\\",\\\"processed\\\":true}\"\n    }\n]",
                 "aiInstructions": ""
             },
             "technology": {

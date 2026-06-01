@@ -455,6 +455,7 @@ class OrchestraDesktopApp(
     }
 
     private fun textFeatureRefs(): List<Pair<String, NodeTextSection>> = listOf(
+        "init-code" to NodeTextSection.Initialization,
         "code" to NodeTextSection.Source,
         "spec" to NodeTextSection.Specification,
         "test-data" to NodeTextSection.Tests,
@@ -612,6 +613,7 @@ class GraphCanvas(
         const val PORT_STUB_LENGTH = 28
         const val SHORT_LINK_MAX_DISTANCE = 360.0
         const val SHORT_LINK_MAX_VERTICAL_DELTA = 120
+        const val COMPOSITE_TOP_PADDING = 80
         const val SHEET_UNITS_PER_MM = 4.0
         const val SHEET_MARGIN_MM = 10.0
         const val DRAWING_PAD_MM = 12.0
@@ -737,9 +739,9 @@ class GraphCanvas(
                 val childHeight = boxes.maxOf { it.y + it.height } - boxes.minOf { it.y } + 96
                 parent.layout = NodeLayout(
                     x = boxes.minOf { it.x } - 32,
-                    y = boxes.minOf { it.y } - 48,
+                    y = boxes.minOf { it.y } - COMPOSITE_TOP_PADDING,
                     width = boxes.maxOf { it.x + it.width } - boxes.minOf { it.x } + 64,
-                    height = max(childHeight, requiredPortHeight(parent)),
+                    height = max(childHeight + (COMPOSITE_TOP_PADDING - 48), requiredPortHeight(parent)),
                 )
             }
         }
@@ -772,7 +774,7 @@ class GraphCanvas(
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         g2.scale(zoom, zoom)
         g2.translate(panX, panY)
-        if (showSheet) drawIsoSheet(g2)
+        if (showSheet) drawIsoSheet(g2, includeGrid = true)
         if (!showSheet) drawGrid(g2)
         drawGraph(g2)
         selectionRect?.let {
@@ -811,14 +813,14 @@ class GraphCanvas(
         drawDependencyAnnotations(g2, links.filter(::isDependencyAnnotation))
     }
 
-    private fun drawIsoSheet(g2: Graphics2D, plan: SheetPlan? = null) {
+    private fun drawIsoSheet(g2: Graphics2D, plan: SheetPlan? = null, includeGrid: Boolean = true) {
         val activePlan = plan ?: sheetPlan() ?: return
         val sheet = activePlan.sheet
         val previousStroke = g2.stroke
         val previousFont = g2.font
         g2.color = Color.WHITE
         g2.fill(sheet)
-        drawGrid(g2, sheet)
+        if (includeGrid) drawGrid(g2, sheet)
         g2.color = Color(0x999999)
         g2.stroke = BasicStroke(1f)
         g2.draw(sheet)
@@ -1005,7 +1007,7 @@ class GraphCanvas(
         g2.translate(-plan.sheet.x, -plan.sheet.y)
         val previousClip = g2.clip
         g2.clip = plan.sheet
-        drawIsoSheet(g2, plan)
+        drawIsoSheet(g2, plan, includeGrid = false)
         drawGraph(g2, plan.scopeIds)
         g2.clip = previousClip
         g2.dispose()
@@ -1035,7 +1037,6 @@ class GraphCanvas(
     private fun svgSheet(svg: StringBuilder, plan: SheetPlan) {
         val sheet = plan.sheet
         svgRect(svg, sheet, fill = "#ffffff", stroke = "#999999")
-        svgGrid(svg, sheet)
         svgFoldingMarkers(svg, sheet)
         svgRect(svg, plan.drawing, fill = "none", stroke = "#777777")
 
@@ -2296,6 +2297,7 @@ private class NodeTextEditor(
     private var testsPanel: TestTextEditorPanel? = null
 
     init {
+        addTextTab("Initialization", NodeTextSection.Initialization, { it.initialization }, { text, value -> text.copy(initialization = value) })
         addTextTab("Source", NodeTextSection.Source, { it.source }, { text, value -> text.copy(source = value) })
         addTextTab("Specification", NodeTextSection.Specification, { it.specification }, { text, value -> text.copy(specification = value) })
         addTestsTab()

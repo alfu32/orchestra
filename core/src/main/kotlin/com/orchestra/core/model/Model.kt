@@ -28,6 +28,7 @@ data class NodeLayout(
 
 @Serializable
 data class NodeText(
+    var initialization: String = "",
     var source: String = "",
     var specification: String = "",
     var tests: String = "",
@@ -36,6 +37,7 @@ data class NodeText(
 
 @Serializable
 enum class NodeTextSection {
+    Initialization,
     Source,
     Specification,
     Tests,
