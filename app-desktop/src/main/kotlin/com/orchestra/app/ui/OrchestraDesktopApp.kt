@@ -28,6 +28,13 @@ import com.orchestra.storage.DocumentRepository
 import com.orchestra.storage.InMemoryDocumentRepository
 import com.orchestra.storage.KotlinxJsonDocumentStore
 import com.orchestra.storage.newDocument
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import java.awt.BasicStroke
 import java.awt.BorderLayout
 import java.awt.Color
@@ -56,6 +63,7 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FilenameFilter
+import java.io.StringReader
 import java.nio.file.Path
 import java.nio.file.Files
 import javax.imageio.ImageIO
@@ -79,6 +87,7 @@ import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JSplitPane
 import javax.swing.JTabbedPane
+import javax.swing.JTable
 import javax.swing.JTextArea
 import javax.swing.JTextField
 import javax.swing.JTree
@@ -89,12 +98,15 @@ import javax.swing.Timer
 import javax.swing.TransferHandler
 import javax.swing.WindowConstants
 import javax.swing.filechooser.FileNameExtensionFilter
-import javax.swing.text.JTextComponent
 import javax.swing.event.TreeModelEvent
 import javax.swing.event.TreeModelListener
+import javax.swing.table.DefaultTableModel
+import javax.swing.text.JTextComponent
 import javax.swing.tree.DefaultTreeCellRenderer
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
+import javax.xml.parsers.DocumentBuilderFactory
+import org.xml.sax.InputSource
 import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -1121,6 +1133,7 @@ class GraphCanvas(
         )
         svgText(svg, node.name, r.x + 12, r.y + 22, if (node.children.isEmpty()) 13 else 12, "#222222")
         svgText(svg, stereotype.name, r.x + 12, r.y + 42, 12, "#555555")
+        technologyLabel(node)?.let { svgText(svg, it, r.x + 12, r.y + 58, 11, "#666666") }
     }
 
     private fun svgLink(svg: StringBuilder, node: Node) {
@@ -1411,6 +1424,11 @@ class GraphCanvas(
         g2.drawString(node.name, r.x + 12, r.y + 22)
         g2.color = Color(0x555555)
         g2.drawString(stereotype.name, r.x + 12, r.y + 42)
+        technologyLabel(node)?.let {
+            g2.color = Color(0x666666)
+            g2.font = g2.font.deriveFont(11f)
+            g2.drawString(it, r.x + 12, r.y + 58)
+        }
         g2.stroke = previousStroke
     }
 
@@ -1946,6 +1964,31 @@ class GraphCanvas(
 
     private fun nodeStereotype(node: Node): NodeStereotype = node.stereotype(repository.getDocument())
 
+    private fun technologyLabel(node: Node): String? {
+        if (node.kind != NodeKind.Processor || node.isLink) return null
+        val language = inheritedTechnologyValue(node.id) { it.languageId }
+        val technology = inheritedTechnologyValue(node.id) { it.technologyId }
+        return when {
+            language.isBlank() && technology.isBlank() -> null
+            language.isBlank() -> "tech: $technology"
+            technology.isBlank() -> "lang: $language"
+            else -> "lang: $language | tech: $technology"
+        }
+    }
+
+    private fun inheritedTechnologyValue(nodeId: NodeId, selector: (TechnologyMetadata) -> String): String {
+        val document = repository.getDocument()
+        val visited = mutableSetOf<NodeId>()
+        var current = document.nodes[nodeId]
+        while (current != null && current.id !in visited) {
+            visited += current.id
+            val value = selector(current.technology).trim()
+            if (value.isNotBlank()) return value
+            current = current.parentId?.let(document.nodes::get)
+        }
+        return ""
+    }
+
     private fun linkColor(stereotype: LinkStereotype, selected: Boolean): Color = when {
         selected -> Color(0x1565c0)
         stereotype == LinkStereotype.UsageImport -> Color(0x3333cc)
@@ -2218,16 +2261,18 @@ private class NodeTextEditor(
 ) : JTabbedPane() {
     private val completionService = ModelAwareCompletionService(repository::getDocument)
     private val editorsBySection = mutableMapOf<NodeTextSection, GridCodeEditorAdapter>()
+    private val componentsBySection = mutableMapOf<NodeTextSection, JComponent>()
+    private var testsPanel: TestTextEditorPanel? = null
 
     init {
         addTextTab("Source", NodeTextSection.Source, { it.source }, { text, value -> text.copy(source = value) })
         addTextTab("Specification", NodeTextSection.Specification, { it.specification }, { text, value -> text.copy(specification = value) })
-        addTextTab("Tests", NodeTextSection.Tests, { it.tests }, { text, value -> text.copy(tests = value) })
+        addTestsTab()
         addTextTab("AI Instructions", NodeTextSection.AiInstructions, { it.aiInstructions }, { text, value -> text.copy(aiInstructions = value) })
     }
 
     fun selectSection(section: NodeTextSection) {
-        editorsBySection[section]?.let { selectedComponent = it }
+        componentsBySection[section]?.let { selectedComponent = it }
     }
 
     fun refreshMetadata() {
@@ -2236,6 +2281,7 @@ private class NodeTextEditor(
             editor.setTechnology(technology)
             editor.setCompletionContext(EditorCompletionContext(nodeId.value, section))
         }
+        testsPanel?.refreshTopology()
     }
 
     private fun addTextTab(
@@ -2257,7 +2303,31 @@ private class NodeTextEditor(
         timer.isRepeats = false
         editor.onTextChanged = { timer.restart() }
         editorsBySection[section] = editor
+        componentsBySection[section] = editor
         addTab(label, editor)
+    }
+
+    private fun addTestsTab() {
+        val editor = GridCodeEditorAdapter()
+        val node = repository.requireNode(nodeId)
+        editor.setTechnology(effectiveTechnology())
+        editor.setCompletionContext(EditorCompletionContext(node.id.value, NodeTextSection.Tests))
+        editor.onCompletionRequested = completionService::getSuggestions
+        editor.setText(node.text.tests)
+        val timer = Timer(250) {
+            val current = repository.requireNode(nodeId)
+            repository.updateNodeText(nodeId, current.text.copy(tests = editor.getText()))
+        }
+        timer.isRepeats = false
+        editor.onTextChanged = { timer.restart() }
+        val panel = TestTextEditorPanel(repository, nodeId, editor) { value ->
+            val current = repository.requireNode(nodeId)
+            repository.updateNodeText(nodeId, current.text.copy(tests = value))
+        }
+        testsPanel = panel
+        editorsBySection[NodeTextSection.Tests] = editor
+        componentsBySection[NodeTextSection.Tests] = panel
+        addTab("Tests", panel)
     }
 
     private fun effectiveTechnology(): TechnologyMetadata {
@@ -2268,6 +2338,353 @@ private class NodeTextEditor(
             technologyId = document.effectiveTechnologyId(nodeId),
         )
     }
+}
+
+private class TestTextEditorPanel(
+    private val repository: DocumentRepository,
+    private val nodeId: NodeId,
+    private val rawEditor: GridCodeEditorAdapter,
+    private val saveText: (String) -> Unit,
+) : JTabbedPane() {
+    private val format = JComboBox(TabularFormat.entries.toTypedArray())
+    private val message = JLabel("Table view uses link names as test input and expected output columns.")
+    private val tableModel = object : DefaultTableModel() {
+        override fun isCellEditable(row: Int, column: Int): Boolean = true
+    }
+    private val table = JTable(tableModel).apply {
+        autoResizeMode = JTable.AUTO_RESIZE_OFF
+    }
+
+    init {
+        addTab("Raw", rawEditor)
+        addTab("Table", tablePanel())
+        addChangeListener {
+            if (selectedIndex == 1) loadTable()
+        }
+    }
+
+    fun refreshTopology() {
+        if (selectedIndex == 1) loadTable()
+    }
+
+    private fun tablePanel(): JComponent {
+        val controls = JPanel(FlowLayout(FlowLayout.LEFT, 6, 4)).apply {
+            add(JLabel("Format"))
+            add(format)
+            add(JButton("Load Table").apply { addActionListener { loadTable() } })
+            add(JButton("Apply Table").apply { addActionListener { applyTable() } })
+            add(JButton("Add Row").apply { addActionListener { tableModel.addRow(emptyRow()) } })
+            add(JButton("Remove Row").apply { addActionListener { removeSelectedRows() } })
+        }
+        return JPanel(BorderLayout()).apply {
+            add(controls, BorderLayout.NORTH)
+            add(JScrollPane(table), BorderLayout.CENTER)
+            add(message, BorderLayout.SOUTH)
+        }
+    }
+
+    private fun loadTable() {
+        val expectedColumns = expectedColumns()
+        val parsed = TabularTextCodec.parse(rawEditor.getText())
+        val data = (parsed?.data ?: TabularData(expectedColumns, mutableListOf()))
+            .withColumns(expectedColumns)
+            .withBlankRowIfEmpty()
+        parsed?.format?.let { format.selectedItem = it }
+        tableModel.setColumnIdentifiers(data.columns.toTypedArray())
+        tableModel.rowCount = 0
+        data.rows.forEach { row ->
+            tableModel.addRow(data.columns.map { row[it].orEmpty() }.toTypedArray())
+        }
+        message.text = when {
+            rawEditor.getText().isBlank() -> "Initialized from current input/output link names."
+            parsed == null -> "Raw tests are not recognized as tabular data; initialized from link names."
+            else -> "Loaded ${parsed.format.label} table. Cells are saved when Apply Table is pressed."
+        }
+    }
+
+    private fun applyTable() {
+        if (table.isEditing) table.cellEditor?.stopCellEditing()
+        val data = tableData()
+        val selectedFormat = format.selectedItem as? TabularFormat ?: TabularFormat.Json
+        val next = TabularTextCodec.write(data, selectedFormat)
+        rawEditor.setText(next)
+        saveText(next)
+        message.text = "Saved ${selectedFormat.label} table to the tests text property."
+    }
+
+    private fun tableData(): TabularData {
+        val columns = (0 until tableModel.columnCount).map { tableModel.getColumnName(it) }
+        val rows = mutableListOf<MutableMap<String, String>>()
+        for (rowIndex in 0 until tableModel.rowCount) {
+            val row = mutableMapOf<String, String>()
+            columns.forEachIndexed { columnIndex, column ->
+                row[column] = tableModel.getValueAt(rowIndex, columnIndex)?.toString().orEmpty()
+            }
+            if (row.values.any { it.isNotBlank() }) rows += row
+        }
+        return TabularData(columns, rows)
+    }
+
+    private fun expectedColumns(): List<String> {
+        val document = repository.getDocument()
+        val node = document.nodes[nodeId] ?: return listOf(TestCaseColumn)
+        val ignored = setOf(LinkStereotype.UsageImport, LinkStereotype.DependencyInjection)
+        fun linkColumnNames(ids: List<NodeId>, incoming: Boolean): List<String> =
+            ids.mapNotNull(document.nodes::get)
+                .filter { linkNode -> LinkClassifier.classify(document, linkNode) !in ignored }
+                .mapNotNull { linkNode ->
+                    val link = linkNode.link ?: return@mapNotNull null
+                    val fallback = if (incoming) link.targetPortName else link.sourcePortName
+                    linkNode.name.ifBlank { fallback }.trim().takeIf { it.isNotBlank() }
+                }
+
+        val inputs = linkColumnNames(node.incomingLinks, incoming = true).map { "input.$it" }
+        val outputs = linkColumnNames(node.outgoingLinks, incoming = false).map { "expected.$it" }
+        return (listOf(TestCaseColumn) + inputs + outputs).distinct()
+    }
+
+    private fun emptyRow(): Array<String> = Array(tableModel.columnCount.coerceAtLeast(1)) { "" }
+
+    private fun removeSelectedRows() {
+        table.selectedRows.sortedDescending().forEach(tableModel::removeRow)
+    }
+
+    private companion object {
+        private const val TestCaseColumn = "case"
+    }
+}
+
+private enum class TabularFormat(val label: String) {
+    Json("JSON"),
+    Csv("CSV"),
+    Yaml("YAML"),
+    Xml("XML"),
+}
+
+private data class TabularParseResult(
+    val format: TabularFormat,
+    val data: TabularData,
+)
+
+private data class TabularData(
+    val columns: List<String>,
+    val rows: MutableList<MutableMap<String, String>>,
+) {
+    fun withColumns(expectedColumns: List<String>): TabularData {
+        val nextColumns = (expectedColumns + columns).map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        val nextRows = rows.map { row ->
+            val next = mutableMapOf<String, String>()
+            nextColumns.forEach { column -> next[column] = row[column].orEmpty() }
+            next
+        }.toMutableList()
+        return TabularData(nextColumns, nextRows)
+    }
+
+    fun withBlankRowIfEmpty(): TabularData {
+        if (rows.isNotEmpty()) return this
+        rows += columns.associateWith { "" }.toMutableMap()
+        return this
+    }
+}
+
+private object TabularTextCodec {
+    private val json = Json { prettyPrint = true }
+
+    fun parse(text: String): TabularParseResult? {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return null
+        return when {
+            trimmed.startsWith("[") || trimmed.startsWith("{") -> parseJson(trimmed)
+            trimmed.startsWith("<") -> parseXml(trimmed)
+            trimmed.startsWith("-") -> parseYaml(trimmed)
+            trimmed.lines().firstOrNull()?.contains(",") == true -> parseCsv(trimmed)
+            else -> null
+        }
+    }
+
+    fun write(data: TabularData, format: TabularFormat): String =
+        when (format) {
+            TabularFormat.Json -> writeJson(data)
+            TabularFormat.Csv -> writeCsv(data)
+            TabularFormat.Yaml -> writeYaml(data)
+            TabularFormat.Xml -> writeXml(data)
+        }
+
+    private fun parseJson(text: String): TabularParseResult? = runCatching {
+        val element = json.parseToJsonElement(text)
+        val rows = when (element) {
+            is JsonArray -> element
+            is JsonObject -> element["cases"] as? JsonArray ?: JsonArray(listOf(element))
+            else -> return null
+        }
+        val maps = rows.mapNotNull { row ->
+            when (row) {
+                is JsonObject -> row.entries.associate { it.key to scalarText(it.value) }.toMutableMap()
+                is JsonArray -> row.withIndex().associate { (index, value) -> "column_${index + 1}" to scalarText(value) }.toMutableMap()
+                else -> null
+            }
+        }.toMutableList()
+        val columns = maps.flatMap { it.keys }.distinct()
+        TabularParseResult(TabularFormat.Json, TabularData(columns, maps))
+    }.getOrNull()
+
+    private fun writeJson(data: TabularData): String {
+        val rows = buildJsonArray {
+            data.rows.forEach { row ->
+                add(
+                    buildJsonObject {
+                        data.columns.forEach { column ->
+                            put(column, JsonPrimitive(row[column].orEmpty()))
+                        }
+                    },
+                )
+            }
+        }
+        return json.encodeToString(JsonElement.serializer(), rows)
+    }
+
+    private fun parseCsv(text: String): TabularParseResult? {
+        val rows = text.lines().filter { it.isNotBlank() }.map(::parseCsvRow)
+        if (rows.isEmpty()) return null
+        val columns = rows.first().mapIndexed { index, value -> value.ifBlank { "column_${index + 1}" } }
+        val maps = rows.drop(1).map { row ->
+            columns.mapIndexed { index, column -> column to row.getOrElse(index) { "" } }.toMap().toMutableMap()
+        }.toMutableList()
+        return TabularParseResult(TabularFormat.Csv, TabularData(columns, maps))
+    }
+
+    private fun writeCsv(data: TabularData): String =
+        (listOf(data.columns) + data.rows.map { row -> data.columns.map { row[it].orEmpty() } })
+            .joinToString("\n") { values -> values.joinToString(",") { csvEscape(it) } }
+
+    private fun parseYaml(text: String): TabularParseResult? {
+        val rows = mutableListOf<MutableMap<String, String>>()
+        var current: MutableMap<String, String>? = null
+        text.lines().forEach { raw ->
+            val line = raw.trim()
+            when {
+                line.startsWith("- ") -> {
+                    current = mutableMapOf()
+                    rows += current!!
+                    parseYamlPair(line.removePrefix("- ").trim())?.let { (key, value) -> current!![key] = value }
+                }
+                current != null && ":" in line -> {
+                    parseYamlPair(line)?.let { (key, value) -> current!![key] = value }
+                }
+            }
+        }
+        if (rows.isEmpty()) return null
+        return TabularParseResult(TabularFormat.Yaml, TabularData(rows.flatMap { it.keys }.distinct(), rows))
+    }
+
+    private fun writeYaml(data: TabularData): String =
+        data.rows.joinToString("\n") { row ->
+            data.columns.mapIndexed { index, column ->
+                val prefix = if (index == 0) "- " else "  "
+                "$prefix$column: ${yamlScalar(row[column].orEmpty())}"
+            }.joinToString("\n")
+        }
+
+    private fun parseXml(text: String): TabularParseResult? = runCatching {
+        val factory = DocumentBuilderFactory.newInstance()
+        runCatching { factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
+        val document = factory.newDocumentBuilder().parse(InputSource(StringReader(text)))
+        val root = document.documentElement ?: return null
+        val rowElements = elementChildren(root)
+        if (rowElements.isEmpty()) return null
+        val rows = rowElements.map { rowElement ->
+            val row = mutableMapOf<String, String>()
+            elementChildren(rowElement).forEach { child ->
+                val name = child.getAttribute("name").ifBlank { child.tagName }
+                row[name] = child.textContent.orEmpty()
+            }
+            row
+        }.toMutableList()
+        TabularParseResult(TabularFormat.Xml, TabularData(rows.flatMap { it.keys }.distinct(), rows))
+    }.getOrNull()
+
+    private fun writeXml(data: TabularData): String = buildString {
+        appendLine("<tests>")
+        data.rows.forEach { row ->
+            appendLine("  <case>")
+            data.columns.forEach { column ->
+                appendLine("    <cell name=\"${xmlEscape(column)}\">${xmlEscape(row[column].orEmpty())}</cell>")
+            }
+            appendLine("  </case>")
+        }
+        appendLine("</tests>")
+    }
+
+    private fun scalarText(element: JsonElement): String =
+        when (element) {
+            is JsonPrimitive -> element.content
+            else -> element.toString()
+        }
+
+    private fun parseCsvRow(line: String): List<String> {
+        val values = mutableListOf<String>()
+        val current = StringBuilder()
+        var quoted = false
+        var index = 0
+        while (index < line.length) {
+            val char = line[index]
+            when {
+                quoted && char == '"' && line.getOrNull(index + 1) == '"' -> {
+                    current.append('"')
+                    index++
+                }
+                char == '"' -> quoted = !quoted
+                char == ',' && !quoted -> {
+                    values += current.toString()
+                    current.clear()
+                }
+                else -> current.append(char)
+            }
+            index++
+        }
+        values += current.toString()
+        return values
+    }
+
+    private fun csvEscape(value: String): String =
+        if (value.any { it == ',' || it == '"' || it == '\n' || it == '\r' }) {
+            "\"${value.replace("\"", "\"\"")}\""
+        } else {
+            value
+        }
+
+    private fun parseYamlPair(line: String): Pair<String, String>? {
+        val key = line.substringBefore(":").trim().takeIf { it.isNotBlank() } ?: return null
+        val value = line.substringAfter(":", "").trim().trimMatchingQuotes()
+        return key to value
+    }
+
+    private fun yamlScalar(value: String): String =
+        "'${value.replace("'", "''")}'"
+
+    private fun String.trimMatchingQuotes(): String {
+        if (length >= 2 && ((first() == '\'' && last() == '\'') || (first() == '"' && last() == '"'))) {
+            return substring(1, length - 1)
+        }
+        return this
+    }
+
+    private fun elementChildren(element: org.w3c.dom.Element): List<org.w3c.dom.Element> {
+        val result = mutableListOf<org.w3c.dom.Element>()
+        val children = element.childNodes
+        for (index in 0 until children.length) {
+            val child = children.item(index)
+            if (child is org.w3c.dom.Element) result += child
+        }
+        return result
+    }
+
+    private fun xmlEscape(value: String): String =
+        value.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&apos;")
 }
 
 interface PluginUiProvider {
