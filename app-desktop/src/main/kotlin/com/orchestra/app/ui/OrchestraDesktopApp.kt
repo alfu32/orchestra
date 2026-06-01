@@ -2022,6 +2022,8 @@ private class InspectorPanel(
     private val transportIdByDisplay = transportDisplayById.entries.associate { (id, display) -> display to id }
     private val transportKindOptions = LinkTransportKinds.catalog.map { transportDisplayById.getValue(it.id) } + OtherTransportChoice
     private var nodeId: NodeId? = null
+    private var boundNodeIsLink = false
+    private var boundHasNode = false
     private var binding = false
     private val nameField = JTextField()
     private val language = JComboBox(languageOptions.toTypedArray()).apply { isEditable = false }
@@ -2042,6 +2044,13 @@ private class InspectorPanel(
     }
     private val payloadDefinition = JTextArea(5, 24)
     private val metadata = JTextArea(5, 24)
+    private val nameRow = fieldRow("Name", nameField)
+    private val languageRow = fieldRow("Language", language)
+    private val technologyRow = fieldRow("Technology", technology)
+    private val stateRow = fieldRow("State", state)
+    private val linkTransportKindRow = fieldRow("Link transport kind", linkTransportKind)
+    private val payloadDefinitionRow = fieldRow("Link payload definition", JScrollPane(payloadDefinition))
+    private val metadataRow = fieldRow("Metadata key=value", JScrollPane(metadata))
 
     init {
         listOf(nameField, customLanguage, technology, state, customTransportKind).forEach(::applyOnCommit)
@@ -2051,15 +2060,15 @@ private class InspectorPanel(
         val form = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
-            addField("Name", nameField)
-            addField("Language", language)
+            add(nameRow)
+            add(languageRow)
             add(customLanguagePanel)
-            addField("Technology", technology)
-            addField("State", state)
-            addField("Link transport kind", linkTransportKind)
+            add(technologyRow)
+            add(stateRow)
+            add(linkTransportKindRow)
             add(customTransportKindPanel)
-            addField("Link payload definition", JScrollPane(payloadDefinition))
-            addField("Metadata key=value", JScrollPane(metadata))
+            add(payloadDefinitionRow)
+            add(metadataRow)
             add(JButton("Apply").apply { addActionListener { apply() } })
         }
         add(form, BorderLayout.NORTH)
@@ -2070,13 +2079,16 @@ private class InspectorPanel(
         binding = true
         nodeId = id
         val node = id?.let(repository::getNode)
+        boundHasNode = node != null
+        boundNodeIsLink = node?.isLink == true
         nameField.text = node?.name.orEmpty()
         bindLanguage(node?.technology?.languageId.orEmpty())
         technology.text = node?.technology?.technologyId.orEmpty()
         state.text = node?.metadata?.get("state").orEmpty()
         bindTransportKind(node?.link?.transportKind.orEmpty())
         payloadDefinition.text = node?.link?.payloadDefinition.orEmpty()
-        metadata.text = node?.metadata?.entries?.joinToString("\n") { "${it.key}=${it.value}" }.orEmpty()
+        metadata.text = metadataText(node)
+        updateEntityFieldVisibility()
         binding = false
     }
 
@@ -2111,14 +2123,14 @@ private class InspectorPanel(
             payloadDefinition.hasFocus() ||
             metadata.hasFocus()
 
-    private fun parseMetadata(): MutableMap<String, String> {
+    private fun parseMetadata(includeState: Boolean): MutableMap<String, String> {
         val next = mutableMapOf<String, String>()
         metadata.text.lines().filter { "=" in it }.forEach {
             val key = it.substringBefore("=").trim()
             val value = it.substringAfter("=").trim()
             if (key.isNotBlank()) next[key] = value
         }
-        if (state.text.isNotBlank()) next["state"] = state.text
+        if (includeState && state.text.isNotBlank()) next["state"] = state.text
         return next
     }
 
@@ -2127,10 +2139,13 @@ private class InspectorPanel(
         val id = nodeId ?: return
         val node = repository.requireNode(id)
         repository.renameNode(id, nameField.text)
-        repository.updateNodeTechnology(id, node.technology.copy(languageId = selectedLanguage(), technologyId = technology.text))
+        val isLink = node.isLink
+        if (!isLink) {
+            repository.updateNodeTechnology(id, node.technology.copy(languageId = selectedLanguage(), technologyId = technology.text))
+        }
         node.metadata.clear()
-        node.metadata.putAll(parseMetadata())
-        node.link?.let {
+        node.metadata.putAll(parseMetadata(includeState = !isLink))
+        if (isLink) node.link?.let {
             it.transportKind = selectedTransportKind().ifBlank { LinkTransportKinds.Default }
             it.payloadDefinition = payloadDefinition.text
         }
@@ -2191,22 +2206,38 @@ private class InspectorPanel(
     }
 
     private fun updateConditionalChoiceVisibility() {
-        customLanguagePanel.isVisible = language.selectedItem == OtherLanguageChoice
+        customLanguagePanel.isVisible = languageRow.isVisible && language.selectedItem == OtherLanguageChoice
         customLanguage.isEnabled = customLanguagePanel.isVisible
-        customTransportKindPanel.isVisible = linkTransportKind.selectedItem == OtherTransportChoice
+        customTransportKindPanel.isVisible = linkTransportKindRow.isVisible && linkTransportKind.selectedItem == OtherTransportChoice
         customTransportKind.isEnabled = customTransportKindPanel.isVisible
         revalidate()
         repaint()
     }
 
-    private fun JPanel.addField(label: String, component: JComponent) {
-        JLabel(label).also {
-            it.alignmentX = Component.LEFT_ALIGNMENT
-            add(it)
-        }
-        component.alignmentX = Component.LEFT_ALIGNMENT
-        add(component)
+    private fun updateEntityFieldVisibility() {
+        val showNodeFields = boundHasNode && !boundNodeIsLink
+        val showLinkFields = boundHasNode && boundNodeIsLink
+        languageRow.isVisible = showNodeFields
+        technologyRow.isVisible = showNodeFields
+        stateRow.isVisible = showNodeFields
+        linkTransportKindRow.isVisible = showLinkFields
+        payloadDefinitionRow.isVisible = showLinkFields
+        updateConditionalChoiceVisibility()
     }
+
+    private fun metadataText(node: Node?): String =
+        node?.metadata
+            ?.entries
+            ?.filterNot { (key, _) -> !node.isLink && key == "state" }
+            ?.joinToString("\n") { "${it.key}=${it.value}" }
+            .orEmpty()
+
+    private fun fieldRow(label: String, component: JComponent): JPanel =
+        JPanel(BorderLayout(0, 4)).apply {
+            alignmentX = Component.LEFT_ALIGNMENT
+            add(JLabel(label), BorderLayout.NORTH)
+            add(component, BorderLayout.CENTER)
+        }
 
     private companion object {
         private const val NoneLanguageChoice = "None"
