@@ -140,7 +140,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     override fun getText(): String = lines.joinToString("\n")
 
     override fun setLanguage(languageId: String) {
-        this.languageId = languageId
+        this.languageId = RegexSyntaxHighlighter.normalizeLanguage(languageId)
         updateToolTip()
         repaint()
     }
@@ -512,13 +512,25 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val start = scrollColumn.coerceAtMost(line.length)
         val end = (scrollColumn + visibleCols).coerceAtMost(line.length)
         if (start >= end) return
-        val visible = line.substring(start, end)
-        val tokens = tokenize(visible, start)
-        tokens.forEach { token ->
-            g2.color = token.color
-            val x = gutterWidth + (token.start - scrollColumn) * charWidth
-            g2.drawString(token.text, x, baseline)
+        val tokens = RegexSyntaxHighlighter.highlightLine(languageId, line)
+        var cursor = start
+
+        fun drawSegment(segmentStart: Int, segmentEnd: Int, color: Color) {
+            if (segmentEnd <= segmentStart) return
+            g2.color = color
+            val x = gutterWidth + (segmentStart - scrollColumn) * charWidth
+            g2.drawString(line.substring(segmentStart, segmentEnd), x, baseline)
         }
+
+        tokens.forEach { token ->
+            val tokenStart = token.start.coerceAtLeast(start)
+            val tokenEnd = token.endExclusive.coerceAtMost(end)
+            if (tokenEnd <= tokenStart) return@forEach
+            if (cursor < tokenStart) drawSegment(cursor, tokenStart, RegexSyntaxHighlighter.Default)
+            drawSegment(tokenStart, tokenEnd, token.color)
+            cursor = tokenEnd.coerceAtLeast(cursor)
+        }
+        if (cursor < end) drawSegment(cursor, end, RegexSyntaxHighlighter.Default)
         if (diagnostics.any { it.line == lineIndex + 1 }) {
             g2.color = Color(0xff6b68)
             g2.fillRect(gutterWidth, baseline + 3, max(1, (end - start) * charWidth), 2)
@@ -622,72 +634,6 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val text = "${languageId.ifBlank { "plain" }}  ${caret.line + 1}:${caret.column + 1}${if (readOnly) "  read-only" else ""}"
         g2.color = Color(0x858585)
         g2.drawString(text, width - metrics.stringWidth(text) - 10, height - 8)
-    }
-
-    private fun tokenize(line: String, offset: Int): List<Token> {
-        val result = mutableListOf<Token>()
-        var index = 0
-        while (index < line.length) {
-            val absolute = offset + index
-            val rest = line.substring(index)
-            when {
-                rest.startsWith("//") -> {
-                    result += Token(absolute, rest, Color(0x6a9955))
-                    break
-                }
-                line[index] == '"' || line[index] == '\'' -> {
-                    val quote = line[index]
-                    var end = index + 1
-                    while (end < line.length) {
-                        if (line[end] == quote && line.getOrNull(end - 1) != '\\') {
-                            end++
-                            break
-                        }
-                        end++
-                    }
-                    result += Token(absolute, line.substring(index, end), Color(0xce9178))
-                    index = end
-                }
-                line[index].isDigit() -> {
-                    val end = scanWhile(line, index) { it.isDigit() || it == '.' }
-                    result += Token(absolute, line.substring(index, end), Color(0xb5cea8))
-                    index = end
-                }
-                line[index].isLetter() || line[index] == '_' -> {
-                    val end = scanWhile(line, index) { it.isLetterOrDigit() || it == '_' }
-                    val word = line.substring(index, end)
-                    val color = if (word in keywords()) Color(0x569cd6) else Color(0xd4d4d4)
-                    result += Token(absolute, word, color)
-                    index = end
-                }
-                else -> {
-                    result += Token(absolute, line[index].toString(), Color(0xd4d4d4))
-                    index++
-                }
-            }
-        }
-        return result
-    }
-
-    private fun keywords(): Set<String> = when (languageId.lowercase()) {
-        "kotlin", "kt", "kotlin-jvm" -> setOf(
-            "class", "data", "fun", "val", "var", "if", "else", "when", "for", "while", "return",
-            "object", "interface", "override", "private", "public", "internal", "import", "package",
-            "null", "true", "false", "try", "catch", "finally", "throw", "suspend",
-        )
-        "javascript", "js", "typescript", "ts" -> setOf(
-            "const", "let", "var", "function", "return", "if", "else", "for", "while", "class",
-            "import", "export", "from", "async", "await", "true", "false", "null", "undefined",
-        )
-        else -> emptySet()
-    }
-
-    private data class Token(val start: Int, val text: String, val color: Color)
-
-    private fun scanWhile(text: String, start: Int, predicate: (Char) -> Boolean): Int {
-        var index = start
-        while (index < text.length && predicate(text[index])) index++
-        return index
     }
 
     private fun positionAt(point: Point): BufferPosition {

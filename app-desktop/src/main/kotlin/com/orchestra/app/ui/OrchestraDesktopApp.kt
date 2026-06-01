@@ -18,6 +18,8 @@ import com.orchestra.core.model.NodeText
 import com.orchestra.core.model.NodeTextSection
 import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.TechnologyMetadata
+import com.orchestra.core.model.effectiveLanguageId
+import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.storage.DocumentRepository
 import com.orchestra.storage.InMemoryDocumentRepository
 import com.orchestra.storage.KotlinxJsonDocumentStore
@@ -99,12 +101,12 @@ class OrchestraDesktopApp(
 ) {
     private val frame = JFrame()
     private val selection = linkedSetOf<NodeId>()
-    private val canvas = GraphCanvas(repository, selection, ::onSelectionChanged, ::refreshAll, ::onCanvasModeChanged)
+    private val canvas = GraphCanvas(repository, selection, { onSelectionChanged() }, ::refreshAll, ::onCanvasModeChanged)
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
     private val selectedEntitiesTree = JTree()
     private val inspector = InspectorPanel(repository, ::refreshAll)
-    private val editorTabs = NodeEditorTabs(repository, ::refreshAll)
+    private val editorTabs = NodeEditorTabs(repository)
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
     }
@@ -238,8 +240,10 @@ class OrchestraDesktopApp(
         }
     }
 
-    private fun graphShortcutEnabled(): Boolean =
-        KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner !is JTextComponent
+    private fun graphShortcutEnabled(): Boolean {
+        val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+        return focusOwner !is JTextComponent && focusOwner !is GridCodeEditorAdapter
+    }
 
     private fun updateWindowTitle() {
         val file = currentFile?.toAbsolutePath()?.toString() ?: "Untitled"
@@ -294,9 +298,9 @@ class OrchestraDesktopApp(
         refreshAll()
     }
 
-    private fun onSelectionChanged() {
+    private fun onSelectionChanged(activeSection: NodeTextSection? = null) {
         inspector.bind(selection.firstOrNull())
-        editorTabs.bind(selection.toList())
+        editorTabs.bind(selection.toList(), activeSection)
         refreshSelectedEntitiesTree()
         canvas.repaint()
     }
@@ -326,8 +330,8 @@ class OrchestraDesktopApp(
                 .sortedWith(compareBy<Node> { treeCategory(it).sortOrder }.thenBy { it.name.lowercase() })
                 .forEach { add(treeNode(document, it.id)) }
             if (node.id != document.rootNodeId) {
-                listOf("code", "spec", "test-data", "ai-instructions").forEach { feature ->
-                    add(TreeNodeRef(id, feature, TreeItemCategory.Feature))
+                textFeatureRefs().forEach { (feature, section) ->
+                    add(TreeNodeRef(id, feature, TreeItemCategory.Feature, section))
                 }
             }
         }
@@ -355,11 +359,17 @@ class OrchestraDesktopApp(
             tree.dropMode = DropMode.ON
             tree.transferHandler = HierarchyTransferHandler()
         }
-        if (updatesSelection) {
-            tree.addTreeSelectionListener {
-                val id = (tree.lastSelectedPathComponent as? TreeNodeRef)?.id ?: return@addTreeSelectionListener
+        tree.addTreeSelectionListener {
+            val ref = tree.lastSelectedPathComponent as? TreeNodeRef ?: return@addTreeSelectionListener
+            if (ref.category == TreeItemCategory.Feature) {
                 selection.clear()
-                selection += id
+                selection += ref.id
+                onSelectionChanged(ref.textSection)
+                return@addTreeSelectionListener
+            }
+            if (updatesSelection) {
+                selection.clear()
+                selection += ref.id
                 onSelectionChanged()
             }
         }
@@ -397,14 +407,21 @@ class OrchestraDesktopApp(
             .sortedWith(compareBy<Node> { treeCategory(it).sortOrder }.thenBy { it.name.lowercase() })
             .forEach { node ->
                 root.add(TreeNodeRef(node.id, node.name, treeCategory(node)).apply {
-                    listOf("code", "spec", "test-data", "ai-instructions").forEach { feature ->
-                        add(TreeNodeRef(node.id, feature, TreeItemCategory.Feature))
+                    textFeatureRefs().forEach { (feature, section) ->
+                        add(TreeNodeRef(node.id, feature, TreeItemCategory.Feature, section))
                     }
                 })
             }
         selectedEntitiesTree.model = DefaultTreeModel(root)
         selectedEntitiesTree.expandRow(0)
     }
+
+    private fun textFeatureRefs(): List<Pair<String, NodeTextSection>> = listOf(
+        "code" to NodeTextSection.Source,
+        "spec" to NodeTextSection.Specification,
+        "test-data" to NodeTextSection.Tests,
+        "ai-instructions" to NodeTextSection.AiInstructions,
+    )
 
     private fun treeCategory(node: Node): TreeItemCategory = when {
         node.isLink -> TreeItemCategory.Link
@@ -467,6 +484,7 @@ private class TreeNodeRef(
     val id: NodeId,
     label: String,
     val category: TreeItemCategory,
+    val textSection: NodeTextSection? = null,
 ) : DefaultMutableTreeNode(label) {
     override fun toString(): String = userObject?.toString().orEmpty()
 }
@@ -2021,28 +2039,68 @@ private class InspectorPanel(
 
 private class NodeEditorTabs(
     private val repository: DocumentRepository,
-    private val refreshAll: () -> Unit,
 ) : JTabbedPane() {
-    fun bind(ids: List<NodeId>) {
-        removeAll()
-        ids.mapNotNull(repository::getNode).forEach { node ->
-            addTab(node.name, NodeTextEditor(repository, node.id, refreshAll))
+    private var boundIds: List<NodeId> = emptyList()
+
+    fun bind(ids: List<NodeId>, activeSection: NodeTextSection? = null) {
+        if (ids != boundIds) {
+            removeAll()
+            ids.mapNotNull(repository::getNode).forEach { node ->
+                addTab(node.name, NodeTextEditor(repository, node.id))
+            }
+            boundIds = ids
+        } else {
+            refreshTitlesAndMetadata()
+        }
+        activeSection?.let { section ->
+            ids.firstOrNull()?.let { selectSection(it, section) }
+        }
+    }
+
+    private fun selectSection(nodeId: NodeId, section: NodeTextSection) {
+        for (index in 0 until tabCount) {
+            val editor = getComponentAt(index) as? NodeTextEditor ?: continue
+            if (editor.nodeId == nodeId) {
+                selectedIndex = index
+                editor.selectSection(section)
+                return
+            }
+        }
+    }
+
+    private fun refreshTitlesAndMetadata() {
+        for (index in 0 until tabCount) {
+            val editor = getComponentAt(index) as? NodeTextEditor ?: continue
+            repository.getNode(editor.nodeId)?.let { node -> setTitleAt(index, node.name) }
+            editor.refreshMetadata()
         }
     }
 }
 
 private class NodeTextEditor(
     private val repository: DocumentRepository,
-    private val nodeId: NodeId,
-    private val refreshAll: () -> Unit,
+    val nodeId: NodeId,
 ) : JTabbedPane() {
     private val completionService = ModelAwareCompletionService(repository::getDocument)
+    private val editorsBySection = mutableMapOf<NodeTextSection, GridCodeEditorAdapter>()
 
     init {
         addTextTab("Source", NodeTextSection.Source, { it.source }, { text, value -> text.copy(source = value) })
         addTextTab("Specification", NodeTextSection.Specification, { it.specification }, { text, value -> text.copy(specification = value) })
         addTextTab("Tests", NodeTextSection.Tests, { it.tests }, { text, value -> text.copy(tests = value) })
         addTextTab("AI Instructions", NodeTextSection.AiInstructions, { it.aiInstructions }, { text, value -> text.copy(aiInstructions = value) })
+    }
+
+    fun selectSection(section: NodeTextSection) {
+        editorsBySection[section]?.let { selectedComponent = it }
+    }
+
+    fun refreshMetadata() {
+        val technology = effectiveTechnology()
+        editorsBySection.forEach { (section, editor) ->
+            editor.setTechnology(technology)
+            editor.setCompletionContext(EditorCompletionContext(nodeId.value, section))
+        }
     }
 
     private fun addTextTab(
@@ -2053,18 +2111,27 @@ private class NodeTextEditor(
     ) {
         val editor = GridCodeEditorAdapter()
         val node = repository.requireNode(nodeId)
-        editor.setTechnology(node.technology)
+        editor.setTechnology(effectiveTechnology())
         editor.setCompletionContext(EditorCompletionContext(node.id.value, section))
         editor.onCompletionRequested = completionService::getSuggestions
         editor.setText(getter(node.text))
         val timer = Timer(250) {
             val current = repository.requireNode(nodeId)
             repository.updateNodeText(nodeId, setter(current.text, editor.getText()))
-            refreshAll()
         }
         timer.isRepeats = false
         editor.onTextChanged = { timer.restart() }
+        editorsBySection[section] = editor
         addTab(label, editor)
+    }
+
+    private fun effectiveTechnology(): TechnologyMetadata {
+        val document = repository.getDocument()
+        val node = repository.requireNode(nodeId)
+        return node.technology.copy(
+            languageId = document.effectiveLanguageId(nodeId),
+            technologyId = document.effectiveTechnologyId(nodeId),
+        )
     }
 }
 

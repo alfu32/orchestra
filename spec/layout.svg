@@ -28,15 +28,15 @@
      borderlayer="true"
      inkscape:showpageshadow="true"
      inkscape:snap-grids="true"
-     inkscape:zoom="1"
-     inkscape:cx="2015"
-     inkscape:cy="932.5"
+     inkscape:zoom="0.70710678"
+     inkscape:cx="2068.9944"
+     inkscape:cy="531.03719"
      inkscape:window-width="1876"
      inkscape:window-height="1016"
      inkscape:window-x="0"
      inkscape:window-y="1107"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer1">
+     inkscape:current-layer="g156433">
     <inkscape:grid
        type="xygrid"
        id="grid2424"
@@ -465,7 +465,7 @@
        id="g156433"
        transform="translate(1304)">
       <path
-         style="fill:#e9e9e9;fill-opacity:1;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         style="fill:#b4f5ff;fill-opacity:1;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
          d="m 320,160 v -24 -8 h 208 l 16,24 v 8 z"
          id="path156427"
          sodipodi:nodetypes="ccccccc" />
@@ -479,7 +479,7 @@
            id="tspan156429"
            x="328"
            y="152"
-           style="font-size:24px;fill:#535353;fill-opacity:1">Entities Edit(IDE)</tspan></text>
+           style="font-size:24px;fill:#000000;fill-opacity:1">Entities Edit(IDE)</tspan></text>
     </g>
     <g
        id="g169644">
@@ -1520,6 +1520,46 @@
            x="16"
            y="952"
            style="font-size:24px">Status and Messages</tspan></text>
+    </g>
+    <g
+       id="g156425-5"
+       transform="translate(1080)">
+      <path
+         style="fill:#e9e9e9;fill-opacity:1;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 320,160 v -24 -8 h 208 l 16,24 v 8 z"
+         id="path147656-3"
+         sodipodi:nodetypes="ccccccc" />
+      <text
+         xml:space="preserve"
+         style="font-size:24px;line-height:1.25;font-family:sans-serif"
+         x="328"
+         y="152"
+         id="text151180-5"><tspan
+           sodipodi:role="line"
+           id="tspan151178-6"
+           x="328"
+           y="152"
+           style="font-size:24px;fill:#535353;fill-opacity:1">Flow Designer</tspan></text>
+    </g>
+    <g
+       id="g156433-2"
+       transform="translate(-104)">
+      <path
+         style="fill:#e9e9e9;fill-opacity:1;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 320,160 v -24 -8 h 208 l 16,24 v 8 z"
+         id="path156427-9"
+         sodipodi:nodetypes="ccccccc" />
+      <text
+         xml:space="preserve"
+         style="font-size:24px;line-height:1.25;font-family:sans-serif"
+         x="328"
+         y="152"
+         id="text156431-1"><tspan
+           sodipodi:role="line"
+           id="tspan156429-2"
+           x="328"
+           y="152"
+           style="font-size:24px;fill:#535353;fill-opacity:1">Entities Edit(IDE)</tspan></text>
     </g>
   </g>
 </svg>

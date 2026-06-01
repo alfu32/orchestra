@@ -107,6 +107,9 @@ data class InflowDocument(
     var metadata: MutableMap<String, String> = mutableMapOf(),
 )
 
+const val VOID_LANGUAGE_ID = "plain"
+const val VOID_TECHNOLOGY_ID = "none"
+
 fun InflowDocument.rootNode(): Node = nodes[rootNodeId]
     ?: error("Root node '$rootNodeId' is missing")
 
@@ -115,3 +118,25 @@ fun InflowDocument.childNodes(node: Node): List<Node> =
 
 fun InflowDocument.linkNodes(): List<Node> =
     nodes.values.filter { it.isLink }
+
+fun InflowDocument.effectiveLanguageId(nodeId: NodeId): String =
+    inheritedTechnologyValue(nodeId, VOID_LANGUAGE_ID) { it.languageId }
+
+fun InflowDocument.effectiveTechnologyId(nodeId: NodeId): String =
+    inheritedTechnologyValue(nodeId, VOID_TECHNOLOGY_ID) { it.technologyId }
+
+private fun InflowDocument.inheritedTechnologyValue(
+    nodeId: NodeId,
+    fallback: String,
+    selector: (TechnologyMetadata) -> String,
+): String {
+    val visited = mutableSetOf<NodeId>()
+    var current = nodes[nodeId]
+    while (current != null && current.id !in visited) {
+        visited += current.id
+        val value = selector(current.technology).trim()
+        if (value.isNotBlank()) return value
+        current = current.parentId?.let(nodes::get)
+    }
+    return fallback
+}
