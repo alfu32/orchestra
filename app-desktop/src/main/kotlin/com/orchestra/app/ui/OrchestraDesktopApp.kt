@@ -1,7 +1,9 @@
 package com.orchestra.app.ui
 
-import com.orchestra.app.editor.SwingCodeEditorAdapter
+import com.orchestra.app.editor.EditorCompletionContext
+import com.orchestra.app.editor.GridCodeEditorAdapter
 import com.orchestra.Version
+import com.orchestra.completion.ModelAwareCompletionService
 import com.orchestra.core.classification.LinkClassifier
 import com.orchestra.core.classification.LinkStereotype
 import com.orchestra.core.classification.NodeStereotype
@@ -13,6 +15,7 @@ import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.NodeLayout
 import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.NodeText
+import com.orchestra.core.model.NodeTextSection
 import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.storage.DocumentRepository
@@ -2033,17 +2036,26 @@ private class NodeTextEditor(
     private val nodeId: NodeId,
     private val refreshAll: () -> Unit,
 ) : JTabbedPane() {
+    private val completionService = ModelAwareCompletionService(repository::getDocument)
+
     init {
-        addTextTab("Source", { it.source }, { text, value -> text.copy(source = value) })
-        addTextTab("Specification", { it.specification }, { text, value -> text.copy(specification = value) })
-        addTextTab("Tests", { it.tests }, { text, value -> text.copy(tests = value) })
-        addTextTab("AI Instructions", { it.aiInstructions }, { text, value -> text.copy(aiInstructions = value) })
+        addTextTab("Source", NodeTextSection.Source, { it.source }, { text, value -> text.copy(source = value) })
+        addTextTab("Specification", NodeTextSection.Specification, { it.specification }, { text, value -> text.copy(specification = value) })
+        addTextTab("Tests", NodeTextSection.Tests, { it.tests }, { text, value -> text.copy(tests = value) })
+        addTextTab("AI Instructions", NodeTextSection.AiInstructions, { it.aiInstructions }, { text, value -> text.copy(aiInstructions = value) })
     }
 
-    private fun addTextTab(label: String, getter: (NodeText) -> String, setter: (NodeText, String) -> NodeText) {
-        val editor = SwingCodeEditorAdapter()
+    private fun addTextTab(
+        label: String,
+        section: NodeTextSection,
+        getter: (NodeText) -> String,
+        setter: (NodeText, String) -> NodeText,
+    ) {
+        val editor = GridCodeEditorAdapter()
         val node = repository.requireNode(nodeId)
         editor.setTechnology(node.technology)
+        editor.setCompletionContext(EditorCompletionContext(node.id.value, section))
+        editor.onCompletionRequested = completionService::getSuggestions
         editor.setText(getter(node.text))
         val timer = Timer(250) {
             val current = repository.requireNode(nodeId)
