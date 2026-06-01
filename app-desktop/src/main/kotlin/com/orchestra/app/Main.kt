@@ -36,16 +36,16 @@ private fun printHelp() {
         Orchestra MVP CLI
 
         Commands:
-          new <file.inflow.json>              Create a sample document
-          validate <file.inflow.json>         Validate document references
-          compile <file.inflow.json> <dir>    Export a naive Kotlin/JVM project
+          new <file.orch>                     Create a sample document
+          validate <file.orch>                Validate document references
+          compile <file.orch> <dir>           Export a naive Kotlin/JVM project
           desktop                             Open the graphical desktop editor
         """.trimIndent(),
     )
 }
 
 private fun createSample(args: Array<String>) {
-    val file = args.getOrNull(1)?.let(Path::of) ?: error("Usage: new <file.inflow.json>")
+    val file = args.getOrNull(1)?.let(Path::of) ?: error("Usage: new <file.orch>")
     val repository = InMemoryDocumentRepository(newDocument("Sample Orchestra Project"))
     val root = repository.getDocument().rootNodeId
     val producer = repository.createNode(root, "Producer", NodeKind.Processor)
@@ -70,7 +70,7 @@ private fun createSample(args: Array<String>) {
 }
 
 private fun validate(args: Array<String>) {
-    val file = args.getOrNull(1)?.let(Path::of) ?: error("Usage: validate <file.inflow.json>")
+    val file = args.getOrNull(1)?.let(Path::of) ?: error("Usage: validate <file.orch>")
     val document = KotlinxJsonDocumentStore().load(file)
     val diagnostics = DocumentValidator.validate(document)
     diagnostics.forEach { println("${it.severity}: ${it.message}") }
@@ -80,7 +80,7 @@ private fun validate(args: Array<String>) {
 }
 
 private fun compile(args: Array<String>) {
-    val file = args.getOrNull(1)?.let(Path::of) ?: error("Usage: compile <file.inflow.json> <dir>")
+    val file = args.getOrNull(1)?.let(Path::of) ?: error("Usage: compile <file.orch> <dir>")
     val output = args.getOrNull(2)?.let(Path::of) ?: error("Usage: compile <file.inflow.json> <dir>")
     val document = KotlinxJsonDocumentStore().load(file)
     val result = NaiveKotlinCompiler().compile(document, CompilerOptions(projectName = document.name))

@@ -350,7 +350,7 @@
             },
             "text": {
                 "initialization": "",
-                "source": "",
+                "source": "var lib_logging=`lib_logging -> send_results`\nvar lib_soap_sm=`lib_soap_sm -> send_results`\nvar packet=processing_result.pop()\n\n\nsend_results_error.push(packet)\n\n",
                 "specification": "",
                 "tests": "[\n    {\n        \"case\": \"valid\",\n        \"input.processing_result\": \"{\\\"id\\\":\\\"123\\\"}\",\n        \"expected.send_results_error\": \"{}\"\n    },\n    {\n        \"case\": \"invalid\",\n        \"input.processing_result\": \"{}\",\n        \"expected.send_results_error\": \"{\\\"error\\\":\\\"invalid id\\\"}\"\n    }\n]",
                 "aiInstructions": ""

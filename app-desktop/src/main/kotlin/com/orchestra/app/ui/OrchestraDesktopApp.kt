@@ -119,6 +119,12 @@ class OrchestraDesktopApp(
     private val repository: DocumentRepository = InMemoryDocumentRepository(newDocument("Untitled Orchestra")),
     private val store: KotlinxJsonDocumentStore = KotlinxJsonDocumentStore(),
 ) {
+    private companion object {
+        const val NATIVE_PROJECT_EXTENSION = "orch"
+        const val LEGACY_PROJECT_EXTENSION = "json"
+        const val DEFAULT_PROJECT_NAME = "document.orch"
+    }
+
     private val frame = JFrame()
     private val selection = linkedSetOf<NodeId>()
     private val canvas = GraphCanvas(repository, selection, { onSelectionChanged() }, ::refreshAll, ::onCanvasModeChanged)
@@ -292,7 +298,7 @@ class OrchestraDesktopApp(
             .sorted()
 
     private fun openFile() {
-        val path = chooseDocumentPath("Open .inflow.json", FileDialog.LOAD) ?: return
+        val path = chooseDocumentPath("Open .orch", FileDialog.LOAD) ?: return
         repository.replaceDocument(store.load(path))
         currentFile = path
         selection.clear()
@@ -301,7 +307,7 @@ class OrchestraDesktopApp(
     }
 
     private fun saveFile() {
-        val path = currentFile ?: chooseDocumentPath("Save .inflow.json", FileDialog.SAVE) ?: return
+        val path = currentFile ?: chooseDocumentPath("Save .orch", FileDialog.SAVE) ?: return
         store.save(repository.getDocument(), path)
         currentFile = path
         repository.clearDirty()
@@ -309,7 +315,7 @@ class OrchestraDesktopApp(
     }
 
     private fun saveAsFile() {
-        val path = chooseDocumentPath("Save As .inflow.json", FileDialog.SAVE) ?: return
+        val path = chooseDocumentPath("Save As .orch", FileDialog.SAVE) ?: return
         store.save(repository.getDocument(), path)
         currentFile = path
         repository.clearDirty()
@@ -319,15 +325,21 @@ class OrchestraDesktopApp(
     private fun chooseDocumentPath(title: String, mode: Int): Path? {
         val dialog = FileDialog(frame, title, mode).apply {
             currentFile?.parent?.let { directory = it.toString() }
-            file = currentFile?.fileName?.toString() ?: if (mode == FileDialog.SAVE) "document.inflow.json" else "*.inflow.json"
-            filenameFilter = FilenameFilter { _, name -> name.endsWith(".inflow.json") || name.endsWith(".json") }
+            file = currentFile?.fileName?.toString() ?: if (mode == FileDialog.SAVE) DEFAULT_PROJECT_NAME else "*.$NATIVE_PROJECT_EXTENSION"
+            filenameFilter = FilenameFilter { _, name ->
+                name.endsWith(".$NATIVE_PROJECT_EXTENSION", ignoreCase = true) ||
+                    name.endsWith(".$LEGACY_PROJECT_EXTENSION", ignoreCase = true)
+            }
         }
         dialog.isVisible = true
         val fileName = dialog.file ?: return null
         val directory = dialog.directory?.let(Path::of) ?: Path.of(".")
         val chosen = directory.resolve(fileName)
-        if (mode != FileDialog.SAVE || fileName.endsWith(".json")) return chosen
-        return chosen.resolveSibling("${chosen.fileName}.inflow.json")
+        if (mode != FileDialog.SAVE) return chosen
+        if (fileName.endsWith(".$NATIVE_PROJECT_EXTENSION", ignoreCase = true) ||
+            fileName.endsWith(".$LEGACY_PROJECT_EXTENSION", ignoreCase = true)
+        ) return chosen
+        return chosen.resolveSibling("${chosen.fileName}.$NATIVE_PROJECT_EXTENSION")
     }
 
     private fun deleteSelection() {
