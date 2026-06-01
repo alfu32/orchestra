@@ -795,7 +795,7 @@ class GraphCanvas(
         val point = modelPoint(e.point)
         dragStart = point
         val hit = hitNode(point)
-        val hitLink = if (hit == null) hitLink(point) else null
+        val hitLink = hitLink(point)
         when (mode) {
             CanvasMode.CreateNode -> {
                 val parent = selection.firstOrNull()
@@ -824,7 +824,13 @@ class GraphCanvas(
                 }
             }
             CanvasMode.Select -> {
-                if (hit != null) {
+                val hitNode = hit?.let(repository::getNode)
+                if (hitLink != null && hitNode?.isComposite == true) {
+                    if (!e.isShiftDown) selection.clear()
+                    selection += hitLink
+                    dragAllowsReparent = false
+                    onSelectionChanged()
+                } else if (hit != null) {
                     if (hit !in selection) {
                         if (!e.isShiftDown) selection.clear()
                         selection += hit

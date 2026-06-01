@@ -2,8 +2,8 @@
     "id": "document_1780271837861",
     "name": "Untitled Orchestra",
     "rootNodeId": "root",
-    "nodes": {
-        "root": {
+    "nodes": [
+        {
             "id": "root",
             "name": "Untitled Orchestra",
             "kind": "Group",
@@ -37,10 +37,10 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 46.0,
-                "y": -281.0,
-                "width": 2711.0,
-                "height": 1097.0
+                "x": -59.0,
+                "y": 193.0,
+                "width": 1855.0,
+                "height": 743.0
             },
             "text": {
                 "source": "",
@@ -60,7 +60,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "node_1": {
+        {
             "id": "node_1",
             "name": "read_config",
             "kind": "Processor",
@@ -75,8 +75,161 @@
                 "link_18"
             ],
             "layout": {
-                "x": 78.0,
-                "y": 242.0,
+                "x": -27.0,
+                "y": 687.0,
+                "width": 180.0,
+                "height": 108.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_2",
+            "name": "process_data",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [
+                "node_27",
+                "node_28"
+            ],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 865.0,
+                "y": 385.0,
+                "width": 664.0,
+                "height": 283.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_27",
+            "name": "remove_duplicates",
+            "kind": "Processor",
+            "parentId": "node_2",
+            "children": [],
+            "incomingLinks": [
+                "link_29",
+                "link_32"
+            ],
+            "outgoingLinks": [
+                "link_30"
+            ],
+            "layout": {
+                "x": 897.0,
+                "y": 434.0,
+                "width": 244.0,
+                "height": 186.0
+            },
+            "text": {
+                "source": "",
+                "specification": "",
+                "tests": "",
+                "aiInstructions": ""
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_28",
+            "name": "process_data",
+            "kind": "Processor",
+            "parentId": "node_2",
+            "children": [],
+            "incomingLinks": [
+                "link_30"
+            ],
+            "outgoingLinks": [
+                "link_31"
+            ],
+            "layout": {
+                "x": 1317.0,
+                "y": 433.0,
                 "width": 180.0,
                 "height": 90.0
             },
@@ -113,59 +266,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "node_2": {
-            "id": "node_2",
-            "name": "process_data",
-            "kind": "Processor",
-            "parentId": "root",
-            "children": [
-                "node_27",
-                "node_28"
-            ],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": 1467.0,
-                "y": 77.0,
-                "width": 657.0,
-                "height": 282.0
-            },
-            "text": {
-                "source": "",
-                "specification": "",
-                "tests": "",
-                "aiInstructions": ""
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "ports": [
-                {
-                    "id": "input_in",
-                    "name": "in",
-                    "direction": "Input",
-                    "dataType": "",
-                    "metadata": {}
-                },
-                {
-                    "id": "output_out",
-                    "name": "out",
-                    "direction": "Output",
-                    "dataType": "",
-                    "metadata": {}
-                }
-            ],
-            "link": null,
-            "metadata": {},
-            "pluginData": {}
-        },
-        "node_3": {
+        {
             "id": "node_3",
-            "name": "read_infop",
+            "name": "read_info_packages",
             "kind": "Processor",
             "parentId": "root",
             "children": [],
@@ -179,10 +282,10 @@
                 "link_29"
             ],
             "layout": {
-                "x": 434.0,
-                "y": 189.0,
+                "x": 198.0,
+                "y": 489.0,
                 "width": 180.0,
-                "height": 90.0
+                "height": 108.0
             },
             "text": {
                 "source": "",
@@ -217,7 +320,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "node_4": {
+        {
             "id": "node_4",
             "name": "send_results",
             "kind": "Processor",
@@ -232,10 +335,10 @@
                 "link_21"
             ],
             "layout": {
-                "x": 2545.0,
-                "y": 436.0,
+                "x": 1584.0,
+                "y": 780.0,
                 "width": 180.0,
-                "height": 90.0
+                "height": 108.0
             },
             "text": {
                 "source": "",
@@ -270,7 +373,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "node_5": {
+        {
             "id": "node_5",
             "name": "lib_io_file",
             "kind": "Processor",
@@ -281,8 +384,8 @@
                 "link_8"
             ],
             "layout": {
-                "x": 332.0,
-                "y": -233.0,
+                "x": 695.0,
+                "y": 250.0,
                 "width": 180.0,
                 "height": 90.0
             },
@@ -312,7 +415,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "node_6": {
+        {
             "id": "node_6",
             "name": "lib_soap_sm",
             "kind": "Processor",
@@ -324,8 +427,8 @@
                 "link_13"
             ],
             "layout": {
-                "x": 339.0,
-                "y": -118.0,
+                "x": 357.0,
+                "y": 245.0,
                 "width": 180.0,
                 "height": 90.0
             },
@@ -355,7 +458,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "node_7": {
+        {
             "id": "node_7",
             "name": "lib_logging",
             "kind": "Processor",
@@ -368,8 +471,8 @@
                 "link_12"
             ],
             "layout": {
-                "x": 340.0,
-                "y": -6.0,
+                "x": 19.0,
+                "y": 241.0,
                 "width": 180.0,
                 "height": 90.0
             },
@@ -399,7 +502,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_8": {
+        {
             "id": "link_8",
             "name": "lib_io_file -> read_config",
             "kind": "Link",
@@ -438,7 +541,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_9": {
+        {
             "id": "link_9",
             "name": "lib_soap_sm -> read_infop",
             "kind": "Link",
@@ -477,7 +580,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_10": {
+        {
             "id": "link_10",
             "name": "lib_logging -> read_config",
             "kind": "Link",
@@ -516,7 +619,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_11": {
+        {
             "id": "link_11",
             "name": "lib_logging -> read_infop",
             "kind": "Link",
@@ -555,7 +658,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_12": {
+        {
             "id": "link_12",
             "name": "lib_logging -> send_results",
             "kind": "Link",
@@ -594,7 +697,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_13": {
+        {
             "id": "link_13",
             "name": "lib_soap_sm -> send_results",
             "kind": "Link",
@@ -633,9 +736,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_14": {
+        {
             "id": "link_14",
-            "name": "read_config -> read_infop",
+            "name": "config",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -672,7 +775,7 @@
             "metadata": {},
             "pluginData": {}
         },
-        "node_17": {
+        {
             "id": "node_17",
             "name": "error_log",
             "kind": "Processor",
@@ -687,10 +790,10 @@
                 "link_23"
             ],
             "layout": {
-                "x": 692.0,
-                "y": 678.0,
+                "x": 445.0,
+                "y": 684.0,
                 "width": 180.0,
-                "height": 90.0
+                "height": 108.0
             },
             "text": {
                 "source": "",
@@ -725,9 +828,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_18": {
+        {
             "id": "link_18",
-            "name": "read_config -> error_log",
+            "name": "config_error",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -764,9 +867,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_19": {
+        {
             "id": "link_19",
-            "name": "read_infop -> error_log",
+            "name": "info_package_error",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -803,9 +906,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_21": {
+        {
             "id": "link_21",
-            "name": "send_results -> error_log",
+            "name": "send_results_error",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -842,9 +945,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "node_22": {
+        {
             "id": "node_22",
-            "name": "retry_failed",
+            "name": "retry_failed_packages",
             "kind": "Processor",
             "parentId": "root",
             "children": [],
@@ -855,8 +958,8 @@
                 "link_32"
             ],
             "layout": {
-                "x": 1153.0,
-                "y": 503.0,
+                "x": 645.0,
+                "y": 535.0,
                 "width": 180.0,
                 "height": 90.0
             },
@@ -893,9 +996,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_23": {
+        {
             "id": "link_23",
-            "name": "error_log -> retry_failed",
+            "name": "failed_info_package",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -932,112 +1035,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "node_27": {
-            "id": "node_27",
-            "name": "New Node",
-            "kind": "Processor",
-            "parentId": "node_2",
-            "children": [],
-            "incomingLinks": [
-                "link_29",
-                "link_32"
-            ],
-            "outgoingLinks": [
-                "link_30"
-            ],
-            "layout": {
-                "x": 1499.0,
-                "y": 125.0,
-                "width": 244.0,
-                "height": 186.0
-            },
-            "text": {
-                "source": "",
-                "specification": "",
-                "tests": "",
-                "aiInstructions": ""
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "ports": [
-                {
-                    "id": "input_in",
-                    "name": "in",
-                    "direction": "Input",
-                    "dataType": "",
-                    "metadata": {}
-                },
-                {
-                    "id": "output_out",
-                    "name": "out",
-                    "direction": "Output",
-                    "dataType": "",
-                    "metadata": {}
-                }
-            ],
-            "link": null,
-            "metadata": {},
-            "pluginData": {}
-        },
-        "node_28": {
-            "id": "node_28",
-            "name": "New Node",
-            "kind": "Processor",
-            "parentId": "node_2",
-            "children": [],
-            "incomingLinks": [
-                "link_30"
-            ],
-            "outgoingLinks": [
-                "link_31"
-            ],
-            "layout": {
-                "x": 1912.0,
-                "y": 156.0,
-                "width": 180.0,
-                "height": 90.0
-            },
-            "text": {
-                "source": "",
-                "specification": "",
-                "tests": "",
-                "aiInstructions": ""
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "ports": [
-                {
-                    "id": "input_in",
-                    "name": "in",
-                    "direction": "Input",
-                    "dataType": "",
-                    "metadata": {}
-                },
-                {
-                    "id": "output_out",
-                    "name": "out",
-                    "direction": "Output",
-                    "dataType": "",
-                    "metadata": {}
-                }
-            ],
-            "link": null,
-            "metadata": {},
-            "pluginData": {}
-        },
-        "link_29": {
+        {
             "id": "link_29",
-            "name": "read_infop -> New Node",
+            "name": "info_package",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -1074,9 +1074,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_30": {
+        {
             "id": "link_30",
-            "name": "New Node -> New Node",
+            "name": "valid_info_package",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -1113,9 +1113,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_31": {
+        {
             "id": "link_31",
-            "name": "New Node -> send_results",
+            "name": "processing_result",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -1152,9 +1152,9 @@
             "metadata": {},
             "pluginData": {}
         },
-        "link_32": {
+        {
             "id": "link_32",
-            "name": "retry_failed -> New Node",
+            "name": "fixed_info_package",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -1191,6 +1191,6 @@
             "metadata": {},
             "pluginData": {}
         }
-    },
+    ],
     "metadata": {}
 }
