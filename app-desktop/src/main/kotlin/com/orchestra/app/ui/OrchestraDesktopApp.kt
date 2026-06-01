@@ -2385,17 +2385,45 @@ private class TestTextEditorPanel(
     private val table = JTable(tableModel).apply {
         autoResizeMode = JTable.AUTO_RESIZE_OFF
     }
+    private var loadingTable = false
+    private var tableDirty = false
+    private var previousTabIndex = 0
+    private val tableSyncTimer = Timer(300) {
+        syncTableToRaw(force = false, commitEditing = false, status = "Table changes synchronized to the raw tests text.")
+    }.apply {
+        isRepeats = false
+    }
 
     init {
         addTab("Raw", rawEditor)
         addTab("Table", tablePanel())
+        tableModel.addTableModelListener {
+            if (!loadingTable) {
+                tableDirty = true
+                message.text = "Table changes are pending; raw tests text will be synchronized automatically."
+                tableSyncTimer.restart()
+            }
+        }
+        format.addActionListener {
+            if (!loadingTable && selectedIndex == 1) {
+                tableDirty = true
+                syncTableToRaw(force = true, commitEditing = true, status = "Saved ${selectedFormat().label} table to the tests text property.")
+            }
+        }
         addChangeListener {
+            if (previousTabIndex == 1 && selectedIndex != 1) {
+                syncTableToRaw(force = true, commitEditing = true, status = "Table changes synchronized to the raw tests text.")
+            }
             if (selectedIndex == 1) loadTable()
+            previousTabIndex = selectedIndex
         }
     }
 
     fun refreshTopology() {
-        if (selectedIndex == 1) loadTable()
+        if (selectedIndex == 1) {
+            syncTableToRaw(force = false, commitEditing = true, status = "Table changes synchronized to the raw tests text.")
+            loadTable()
+        }
     }
 
     private fun tablePanel(): JComponent {
@@ -2415,33 +2443,52 @@ private class TestTextEditorPanel(
     }
 
     private fun loadTable() {
+        syncTableToRaw(force = false, commitEditing = true, status = "Table changes synchronized to the raw tests text.")
         val expectedColumns = expectedColumns()
         val parsed = TabularTextCodec.parse(rawEditor.getText())
         val data = (parsed?.data ?: TabularData(expectedColumns, mutableListOf()))
             .withColumns(expectedColumns)
             .withBlankRowIfEmpty()
-        parsed?.format?.let { format.selectedItem = it }
-        tableModel.setColumnIdentifiers(data.columns.toTypedArray())
-        tableModel.rowCount = 0
-        data.rows.forEach { row ->
-            tableModel.addRow(data.columns.map { row[it].orEmpty() }.toTypedArray())
+        loadingTable = true
+        try {
+            parsed?.format?.let { format.selectedItem = it }
+            tableModel.setColumnIdentifiers(data.columns.toTypedArray())
+            tableModel.rowCount = 0
+            data.rows.forEach { row ->
+                tableModel.addRow(data.columns.map { row[it].orEmpty() }.toTypedArray())
+            }
+            tableDirty = false
+            tableSyncTimer.stop()
+        } finally {
+            loadingTable = false
         }
         message.text = when {
             rawEditor.getText().isBlank() -> "Initialized from current input/output link names."
             parsed == null -> "Raw tests are not recognized as tabular data; initialized from link names."
-            else -> "Loaded ${parsed.format.label} table. Cells are saved when Apply Table is pressed."
+            else -> "Loaded ${parsed.format.label} table. Edits synchronize automatically; Apply Table forces a write."
         }
     }
 
     private fun applyTable() {
-        if (table.isEditing) table.cellEditor?.stopCellEditing()
+        syncTableToRaw(force = true, commitEditing = true, status = "Saved ${selectedFormat().label} table to the tests text property.")
+    }
+
+    private fun syncTableToRaw(force: Boolean, commitEditing: Boolean, status: String? = null) {
+        if (loadingTable) return
+        if (commitEditing && table.isEditing && table.cellEditor?.stopCellEditing() == false) return
+        if (!force && !tableDirty) return
+        tableSyncTimer.stop()
         val data = tableData()
-        val selectedFormat = format.selectedItem as? TabularFormat ?: TabularFormat.Json
+        val selectedFormat = selectedFormat()
         val next = TabularTextCodec.write(data, selectedFormat)
         rawEditor.setText(next)
         saveText(next)
-        message.text = "Saved ${selectedFormat.label} table to the tests text property."
+        tableDirty = false
+        status?.let { message.text = it }
     }
+
+    private fun selectedFormat(): TabularFormat =
+        format.selectedItem as? TabularFormat ?: TabularFormat.Json
 
     private fun tableData(): TabularData {
         val columns = (0 until tableModel.columnCount).map { tableModel.getColumnName(it) }

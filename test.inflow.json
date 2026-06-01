@@ -343,7 +343,7 @@
             "text": {
                 "source": "",
                 "specification": "",
-                "tests": "",
+                "tests": "[\n    {\n        \"case\": \"valid\",\n        \"input.processing_result\": \"{\\\"id\\\":\\\"123\\\"}\",\n        \"expected.send_results_error\": \"{}\"\n    },\n    {\n        \"case\": \"invalid\",\n        \"input.processing_result\": \"{}\",\n        \"expected.send_results_error\": \"{\\\"error\\\":\\\"invalid id\\\"}\"\n    }\n]",
                 "aiInstructions": ""
             },
             "technology": {
