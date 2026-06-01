@@ -72,7 +72,7 @@ data class LinkData(
     var sourcePortName: String,
     var targetNodeId: NodeId,
     var targetPortName: String,
-    var transportKind: String = "packet",
+    var transportKind: String = LinkTransportKinds.Default,
     var payloadDefinition: String = "",
 )
 

@@ -12,6 +12,7 @@ import com.orchestra.core.classification.LinkStereotype
 import com.orchestra.core.classification.NodeStereotype
 import com.orchestra.core.classification.stereotype
 import com.orchestra.core.model.InflowDocument
+import com.orchestra.core.model.LinkTransportKinds
 import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
@@ -1809,11 +1810,7 @@ class GraphCanvas(
         val source = repository.requireNode(sourceId)
         val target = repository.requireNode(targetId)
         val link = repository.createLink(repository.getDocument().rootNodeId, "${source.name} -> ${target.name}", sourceId, "out", targetId, "in")
-        link.link?.transportKind = when {
-            nodeStereotype(source) == NodeStereotype.ServiceLibrary -> "usage"
-            nodeStereotype(target) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> "error"
-            else -> "packet"
-        }
+        link.link?.transportKind = LinkTransportKinds.Default
         selection.clear()
         selection += link.id
         repository.markDirty()
@@ -1977,6 +1974,8 @@ private class InspectorPanel(
         .distinct()
         .sorted()
     private val languageOptions = listOf(NoneLanguageChoice) + knownLanguageIds + OtherLanguageChoice
+    private val knownTransportKindIds = LinkTransportKinds.catalog.map { it.id }
+    private val transportKindOptions = knownTransportKindIds + OtherTransportChoice
     private var nodeId: NodeId? = null
     private var binding = false
     private val nameField = JTextField()
@@ -1989,13 +1988,20 @@ private class InspectorPanel(
     }
     private val technology = JTextField()
     private val state = JTextField()
-    private val linkTransportKind = JTextField()
+    private val linkTransportKind = JComboBox(transportKindOptions.toTypedArray()).apply { isEditable = false }
+    private val customTransportKind = JTextField()
+    private val customTransportKindPanel = JPanel(BorderLayout(0, 4)).apply {
+        add(JLabel("Custom transport identifier"), BorderLayout.NORTH)
+        add(customTransportKind, BorderLayout.CENTER)
+        isVisible = false
+    }
     private val payloadDefinition = JTextArea(5, 24)
     private val metadata = JTextArea(5, 24)
 
     init {
-        listOf(nameField, customLanguage, technology, state, linkTransportKind).forEach(::applyOnCommit)
+        listOf(nameField, customLanguage, technology, state, customTransportKind).forEach(::applyOnCommit)
         applyOnCommit(language)
+        applyOnCommit(linkTransportKind)
         listOf(metadata, payloadDefinition).forEach(::applyOnFocusLost)
         val form = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -2006,6 +2012,7 @@ private class InspectorPanel(
             addField("Technology", technology)
             addField("State", state)
             addField("Link transport kind", linkTransportKind)
+            add(customTransportKindPanel)
             addField("Link payload definition", JScrollPane(payloadDefinition))
             addField("Metadata key=value", JScrollPane(metadata))
             add(JButton("Apply").apply { addActionListener { apply() } })
@@ -2022,7 +2029,7 @@ private class InspectorPanel(
         bindLanguage(node?.technology?.languageId.orEmpty())
         technology.text = node?.technology?.technologyId.orEmpty()
         state.text = node?.metadata?.get("state").orEmpty()
-        linkTransportKind.text = node?.link?.transportKind.orEmpty()
+        bindTransportKind(node?.link?.transportKind.orEmpty())
         payloadDefinition.text = node?.link?.payloadDefinition.orEmpty()
         metadata.text = node?.metadata?.entries?.joinToString("\n") { "${it.key}=${it.value}" }.orEmpty()
         binding = false
@@ -2037,12 +2044,9 @@ private class InspectorPanel(
 
     private fun applyOnCommit(field: JComboBox<String>) {
         field.addActionListener {
-            updateCustomLanguageVisibility()
+            updateConditionalChoiceVisibility()
             if (!binding && field.selectedItem != OtherLanguageChoice) apply()
         }
-        field.addFocusListener(object : FocusAdapter() {
-            override fun focusLost(e: FocusEvent) = apply()
-        })
     }
 
     private fun applyOnFocusLost(area: JTextArea) {
@@ -2058,6 +2062,7 @@ private class InspectorPanel(
             technology.hasFocus() ||
             state.hasFocus() ||
             linkTransportKind.hasFocus() ||
+            customTransportKind.hasFocus() ||
             payloadDefinition.hasFocus() ||
             metadata.hasFocus()
 
@@ -2081,7 +2086,7 @@ private class InspectorPanel(
         node.metadata.clear()
         node.metadata.putAll(parseMetadata())
         node.link?.let {
-            it.transportKind = linkTransportKind.text.ifBlank { "packet" }
+            it.transportKind = selectedTransportKind().ifBlank { LinkTransportKinds.Default }
             it.payloadDefinition = payloadDefinition.text
         }
         repository.markDirty()
@@ -2092,6 +2097,12 @@ private class InspectorPanel(
         when (val selected = language.selectedItem?.toString().orEmpty()) {
             NoneLanguageChoice -> ""
             OtherLanguageChoice -> customLanguage.text.trim()
+            else -> selected.trim()
+        }
+
+    private fun selectedTransportKind(): String =
+        when (val selected = linkTransportKind.selectedItem?.toString().orEmpty()) {
+            OtherTransportChoice -> customTransportKind.text.trim()
             else -> selected.trim()
         }
 
@@ -2111,12 +2122,33 @@ private class InspectorPanel(
                 customLanguage.text = value
             }
         }
-        updateCustomLanguageVisibility()
+        updateConditionalChoiceVisibility()
     }
 
-    private fun updateCustomLanguageVisibility() {
+    private fun bindTransportKind(transportKind: String) {
+        val value = transportKind.trim()
+        when {
+            value.isBlank() -> {
+                linkTransportKind.selectedItem = LinkTransportKinds.Default
+                customTransportKind.text = ""
+            }
+            value in knownTransportKindIds -> {
+                linkTransportKind.selectedItem = value
+                customTransportKind.text = ""
+            }
+            else -> {
+                linkTransportKind.selectedItem = OtherTransportChoice
+                customTransportKind.text = value
+            }
+        }
+        updateConditionalChoiceVisibility()
+    }
+
+    private fun updateConditionalChoiceVisibility() {
         customLanguagePanel.isVisible = language.selectedItem == OtherLanguageChoice
         customLanguage.isEnabled = customLanguagePanel.isVisible
+        customTransportKindPanel.isVisible = linkTransportKind.selectedItem == OtherTransportChoice
+        customTransportKind.isEnabled = customTransportKindPanel.isVisible
         revalidate()
         repaint()
     }
@@ -2133,6 +2165,7 @@ private class InspectorPanel(
     private companion object {
         private const val NoneLanguageChoice = "None"
         private const val OtherLanguageChoice = "Other"
+        private const val OtherTransportChoice = "Other"
     }
 }
 

@@ -796,13 +796,13 @@
                 "height": 138.0
             },
             "text": {
-                "source": "",
+                "source": "var ff=config_error\nvar gg=info_package_error\nvar hh=send_results_error\n\nfailed_info_package.push(result)",
                 "specification": "",
                 "tests": "",
                 "aiInstructions": ""
             },
             "technology": {
-                "languageId": "",
+                "languageId": "javascript",
                 "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
