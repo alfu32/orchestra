@@ -593,7 +593,7 @@ class GraphCanvas(
         val targetDirection: Int,
         val points: List<Point>,
     )
-    private data class SheetFormat(val id: String, val widthMm: Double, val heightMm: Double)
+    private data class SheetFormat(val id: String, val widthMm: Double, val heightMm: Double, val roll: Boolean = false)
     private data class BomRow(val index: Int, val name: String, val kind: String)
     private data class SheetPlan(
         val format: SheetFormat,
@@ -605,6 +605,14 @@ class GraphCanvas(
         val scopeIds: Set<NodeId>,
         val bomRows: List<BomRow>,
     )
+    private data class SheetCandidate(
+        val format: SheetFormat,
+        val width: Int,
+        val height: Int,
+        val coverage: Double,
+    ) {
+        val area: Int get() = width * height
+    }
 
     private companion object {
         const val PORT_TOP_SPACING = 28
@@ -628,10 +636,10 @@ class GraphCanvas(
             SheetFormat("A2", 420.0, 594.0),
             SheetFormat("A1", 594.0, 841.0),
             SheetFormat("A0", 841.0, 1189.0),
-            SheetFormat("A3-roll", 297.0, 1189.0),
-            SheetFormat("A2-roll", 420.0, 1189.0),
-            SheetFormat("A1-roll", 594.0, 1189.0),
-            SheetFormat("A0-roll", 841.0, 1682.0),
+            SheetFormat("A3-roll", 297.0, 1189.0, roll = true),
+            SheetFormat("A2-roll", 420.0, 1189.0, roll = true),
+            SheetFormat("A1-roll", 594.0, 1189.0, roll = true),
+            SheetFormat("A0-roll", 841.0, 1682.0, roll = true),
             SheetFormat("A4-landscape", 297.0, 210.0),
             SheetFormat("A3-landscape", 420.0, 297.0),
             SheetFormat("A2-landscape", 594.0, 420.0),
@@ -879,30 +887,43 @@ class GraphCanvas(
         val partsRequiredHeight = ((bomRows.size + 2) * PARTS_ROW_HEIGHT).coerceAtLeast(mm(80.0))
         val gap = mm(8.0)
 
+        val requiredWidth = margin * 2 + partsWidth + gap + contentBounds.width + drawingPad * 2
+        val requiredHeight = margin * 2 + titleHeight + gap + max(partsRequiredHeight, contentBounds.height + drawingPad * 2)
+        val occupiedArea = (contentBounds.width + drawingPad * 2) * (contentBounds.height + drawingPad * 2) +
+            partsWidth * partsRequiredHeight +
+            titleWidth * titleHeight
         val best = SHEET_FORMATS
-            .map { format ->
+            .mapNotNull { format ->
                 val sheetWidth = mm(format.widthMm)
-                val sheetHeight = mm(format.heightMm)
-                val innerWidth = sheetWidth - margin * 2
-                val innerHeight = sheetHeight - margin * 2
-                val availableDrawingWidth = innerWidth - partsWidth - gap
-                val availableDrawingHeight = innerHeight - titleHeight - gap
-                val partsFit = partsRequiredHeight <= availableDrawingHeight
-                val drawingFit =
-                    contentBounds.width + drawingPad * 2 <= availableDrawingWidth &&
-                        contentBounds.height + drawingPad * 2 <= availableDrawingHeight
-                Triple(format, sheetWidth to sheetHeight, partsFit && drawingFit)
+                val maxSheetHeight = mm(format.heightMm)
+                val sheetHeight = if (format.roll) {
+                    requiredHeight.coerceAtMost(maxSheetHeight)
+                } else {
+                    maxSheetHeight
+                }
+                val fits =
+                    requiredWidth <= sheetWidth &&
+                        requiredHeight <= sheetHeight &&
+                        partsRequiredHeight <= sheetHeight - margin * 2 - titleHeight - gap
+                if (!fits) null else SheetCandidate(
+                    format = format,
+                    width = sheetWidth,
+                    height = sheetHeight,
+                    coverage = occupiedArea.toDouble() / (sheetWidth.toDouble() * sheetHeight.toDouble()),
+                )
             }
-            .filter { it.third }
-            .minByOrNull { it.second.first * it.second.second }
+            .maxWithOrNull(
+                compareBy<SheetCandidate> { it.coverage }
+                    .thenByDescending { -it.area },
+            )
             ?: SHEET_FORMATS
-                .map { Triple(it, mm(it.widthMm) to mm(it.heightMm), false) }
-                .maxByOrNull { it.second.first * it.second.second }
+                .map { SheetCandidate(it, mm(it.widthMm), mm(it.heightMm), coverage = 0.0) }
+                .maxByOrNull { it.area }
             ?: return null
 
-        val format = best.first
-        val sheetWidth = best.second.first
-        val sheetHeight = best.second.second
+        val format = best.format
+        val sheetWidth = best.width
+        val sheetHeight = best.height
         val sheetX = contentBounds.x - margin - drawingPad
         val sheetY = contentBounds.y - margin - drawingPad
         val sheet = Rectangle(sheetX, sheetY, sheetWidth, sheetHeight)

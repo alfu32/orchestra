@@ -38,11 +38,12 @@
             "outgoingLinks": [],
             "layout": {
                 "x": -292.0,
-                "y": -59.0,
+                "y": -91.0,
                 "width": 1809.0,
-                "height": 810.0
+                "height": 842.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -81,6 +82,7 @@
                 "height": 108.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -126,11 +128,12 @@
             "outgoingLinks": [],
             "layout": {
                 "x": 892.0,
-                "y": 224.0,
+                "y": 192.0,
                 "width": 593.0,
-                "height": 354.0
+                "height": 386.0
             },
             "text": {
+                "initialization": "",
                 "source": "fdsdfsdf",
                 "specification": "jgjgjgjgj",
                 "tests": "nnnnnnn",
@@ -183,7 +186,8 @@
                 "height": 186.0
             },
             "text": {
-                "source": "",
+                "initialization": "var packagesIndex={}",
+                "source": "var ip=info_package.pop();\nif(ip.id){\n  if(ip.id in packagesIndex){\n  }else{\n    var fip = ip\n    fip.fixed=true\n    fixed_info_package.push(fip)\n  }\n}",
                 "specification": "",
                 "tests": "",
                 "aiInstructions": ""
@@ -234,6 +238,7 @@
                 "height": 108.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -288,6 +293,7 @@
                 "height": 108.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -341,6 +347,7 @@
                 "height": 108.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "[\n    {\n        \"case\": \"valid\",\n        \"input.processing_result\": \"{\\\"id\\\":\\\"123\\\"}\",\n        \"expected.send_results_error\": \"{}\"\n    },\n    {\n        \"case\": \"invalid\",\n        \"input.processing_result\": \"{}\",\n        \"expected.send_results_error\": \"{\\\"error\\\":\\\"invalid id\\\"}\"\n    }\n]",
@@ -390,6 +397,7 @@
                 "height": 90.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -433,6 +441,7 @@
                 "height": 90.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -477,6 +486,7 @@
                 "height": 90.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -517,6 +527,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -556,6 +567,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -595,6 +607,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -634,6 +647,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -673,6 +687,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -712,6 +727,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -751,6 +767,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -790,12 +807,13 @@
                 "link_23"
             ],
             "layout": {
-                "x": 334.0,
-                "y": 401.0,
+                "x": 326.0,
+                "y": 407.0,
                 "width": 180.0,
                 "height": 138.0
             },
             "text": {
+                "initialization": "",
                 "source": "var ff=config_error\nvar gg=info_package_error\nvar hh=send_results_error\n\nfailed_info_package.push(result)",
                 "specification": "",
                 "tests": "",
@@ -843,6 +861,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -882,6 +901,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -921,6 +941,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -958,12 +979,13 @@
                 "link_32"
             ],
             "layout": {
-                "x": 535.0,
-                "y": 313.0,
+                "x": 635.0,
+                "y": 348.0,
                 "width": 180.0,
                 "height": 90.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "[\n    {\n        \"case\": \"valid\",\n        \"input.failed_info_package\": \"{\\\"id\\\":\\\"123\\\"}\",\n        \"expected.fixed_info_package\": \"{\\\"id\\\":\\\"123\\\",\\\"processed\\\":true}\"\n    }\n]",
@@ -1011,6 +1033,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -1050,6 +1073,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -1089,6 +1113,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -1128,6 +1153,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
@@ -1167,6 +1193,7 @@
                 "height": 100.0
             },
             "text": {
+                "initialization": "",
                 "source": "",
                 "specification": "",
                 "tests": "",
