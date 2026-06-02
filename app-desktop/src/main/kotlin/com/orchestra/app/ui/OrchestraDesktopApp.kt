@@ -70,6 +70,8 @@ import java.io.FilenameFilter
 import java.io.StringReader
 import java.nio.file.Path
 import java.nio.file.Files
+import java.net.URLClassLoader
+import java.util.ServiceLoader
 import javax.imageio.ImageIO
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
@@ -129,6 +131,8 @@ import kotlin.math.roundToInt
 class OrchestraDesktopApp(
     private val repository: DocumentRepository = InMemoryDocumentRepository(newDocument("Untitled Orchestra")),
     private val store: KotlinxJsonDocumentStore = KotlinxJsonDocumentStore(),
+    private val pluginsFolder: Path = defaultPluginsFolder(),
+    private val uiPlugins: List<OrchestraDesktopPlugin> = loadDesktopPlugins(pluginsFolder),
 ) {
     private companion object {
         const val NATIVE_PROJECT_EXTENSION = "orch"
@@ -154,7 +158,6 @@ class OrchestraDesktopApp(
     private val commands = linkedMapOf<String, AppCommand>()
     private val pluginToolbarButtons = mutableListOf<PluginToolbarButton>()
     private val pluginContentTabs = mutableListOf<PluginContentTab>()
-    private val uiPlugins: List<OrchestraDesktopPlugin> = emptyList()
     private val historyJson = Json {
         encodeDefaults = true
         ignoreUnknownKeys = true
@@ -508,6 +511,8 @@ class OrchestraDesktopApp(
             appendLine("Git commit: ${version.gitCommitId}")
             appendLine("Git tag: ${version.gitTag ?: "-"}")
             appendLine("Build date: ${version.buildDate}")
+            appendLine("Plugins folder: ${pluginsFolder.toAbsolutePath().normalize()}")
+            appendLine("Loaded plugins: ${uiPlugins.size}")
         }
         JOptionPane.showMessageDialog(frame, details, "About orchestra", JOptionPane.INFORMATION_MESSAGE)
     }
@@ -3510,6 +3515,31 @@ interface OrchestraPluginContext {
     fun addCommand(id: String, title: String, keyStroke: KeyStroke? = null, action: () -> Unit)
 }
 
+fun defaultPluginsFolder(): Path {
+    val location = OrchestraDesktopApp::class.java.protectionDomain.codeSource?.location?.toURI()
+    val binary = location?.let(Path::of)
+    val base = when {
+        binary == null -> Path.of(".")
+        Files.isRegularFile(binary) -> binary.parent ?: Path.of(".")
+        else -> binary
+    }
+    return base.resolve("plugins").toAbsolutePath().normalize()
+}
+
+fun loadDesktopPlugins(folder: Path): List<OrchestraDesktopPlugin> {
+    Files.createDirectories(folder)
+    val jars = Files.list(folder).use { stream ->
+        stream
+            .filter { Files.isRegularFile(it) && it.fileName.toString().endsWith(".jar", ignoreCase = true) }
+            .sorted()
+            .toList()
+    }
+    if (jars.isEmpty()) return emptyList()
+    val urls = jars.map { it.toUri().toURL() }.toTypedArray()
+    val classLoader = URLClassLoader(urls, OrchestraDesktopPlugin::class.java.classLoader)
+    return ServiceLoader.load(OrchestraDesktopPlugin::class.java, classLoader).toList()
+}
+
 private class CommandListCellRenderer : DefaultListCellRenderer() {
     override fun getListCellRendererComponent(
         list: javax.swing.JList<*>?,
@@ -3535,8 +3565,8 @@ private class SimpleDocumentListener(private val onChange: () -> Unit) : Documen
 private fun NodeLayout.rect(): Rectangle = Rectangle(x.toInt(), y.toInt(), width.toInt(), height.toInt())
 private fun NodeLayout.center(): Point = Point((x + width / 2).toInt(), (y + height / 2).toInt())
 
-fun launchDesktopApp() {
+fun launchDesktopApp(pluginsFolder: Path? = null) {
     SwingUtilities.invokeLater {
-        OrchestraDesktopApp().show()
+        OrchestraDesktopApp(pluginsFolder = pluginsFolder ?: defaultPluginsFolder()).show()
     }
 }

@@ -19,7 +19,7 @@ import kotlin.io.path.createDirectories
 fun main(args: Array<String>) {
     when (args.firstOrNull()) {
         null, "help", "--help", "-h" -> printHelp()
-        "desktop" -> launchDesktopApp()
+        "desktop" -> launchDesktopApp(parseDesktopPluginsFolder(args.drop(1)))
         "new" -> createSample(args)
         "validate" -> validate(args)
         "compile" -> compile(args)
@@ -39,9 +39,16 @@ private fun printHelp() {
           new <file.orch>                     Create a sample document
           validate <file.orch>                Validate document references
           compile <file.orch> <dir>           Export a naive Kotlin/JVM project
-          desktop                             Open the graphical desktop editor
+          desktop [--plugins <dir>]           Open the graphical desktop editor
         """.trimIndent(),
     )
+}
+
+private fun parseDesktopPluginsFolder(args: List<String>): Path? {
+    if (args.isEmpty()) return null
+    val index = args.indexOfFirst { it == "--plugins" || it == "--plugins-dir" }
+    if (index < 0) error("Usage: desktop [--plugins <dir>]")
+    return args.getOrNull(index + 1)?.let(Path::of) ?: error("Usage: desktop [--plugins <dir>]")
 }
 
 private fun createSample(args: Array<String>) {
