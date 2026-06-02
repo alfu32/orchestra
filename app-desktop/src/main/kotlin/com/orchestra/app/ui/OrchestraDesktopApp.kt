@@ -1661,22 +1661,22 @@ class GraphCanvas(
             outgoing && side < 0 -> PortTemplate(
                 points = listOf(
                     0.0 to 0.0,
-                    40.0 to 0.0,
-                    48.0 to 8.0,
-                    40.0 to 16.0,
-                    0.0 to 16.0,
-                ),
-                connection = 48.0 to 8.0,
-            )
-            outgoing && side >= 0 -> PortTemplate(
-                points = listOf(
-                    0.0 to 0.0,
                     -40.0 to 0.0,
                     -48.0 to -8.0,
                     -40.0 to -16.0,
                     0.0 to -16.0,
                 ),
                 connection = -48.0 to -8.0,
+            )
+            outgoing && side >= 0 -> PortTemplate(
+                points = listOf(
+                    0.0 to 0.0,
+                    40.0 to 0.0,
+                    48.0 to 8.0,
+                    40.0 to 16.0,
+                    0.0 to 16.0,
+                ),
+                connection = 48.0 to 8.0,
             )
             !outgoing && side < 0 -> PortTemplate(
                 points = listOf(
