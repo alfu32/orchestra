@@ -116,6 +116,7 @@ import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class OrchestraDesktopApp(
@@ -796,9 +797,20 @@ class GraphCanvas(
     }
 
     private fun requiredPortHeight(node: Node): Double {
-        val portCount = max(normalLinksOnSide(node, -1).size, normalLinksOnSide(node, 1).size)
+        val portCount = max(linksOnSide(node, -1).size, linksOnSide(node, 1).size)
         if (portCount == 0) return 0.0
         return (PORT_TOP_SPACING + portCount * PORT_SPACING + PORT_BOTTOM_SPACING).toDouble()
+    }
+
+    private fun linksOnSide(node: Node, side: Int): List<Node> {
+        val document = repository.getDocument()
+        val ids = node.outgoingLinks + node.incomingLinks
+        return ids.distinct().mapNotNull(document.nodes::get)
+            .filter { linkNode ->
+                val link = linkNode.link ?: return@filter false
+                val outgoing = link.sourceNodeId == node.id
+                linkSide(node, linkNode, outgoing) == side
+            }
     }
 
     private fun depthOf(node: Node): Int {
@@ -1906,7 +1918,8 @@ class GraphCanvas(
                 val parent = hit?.takeIf { repository.getNode(it)?.isLink != true }
                     ?: repository.getDocument().rootNodeId
                 val node = repository.createNode(parent, "New Node", NodeKind.Processor)
-                repository.updateNodeLayout(node.id, NodeLayout(point.x.toDouble(), point.y.toDouble(), 180.0, 90.0))
+                val snapped = snapPointToGrid(point)
+                repository.updateNodeLayout(node.id, NodeLayout(snapped.x.toDouble(), snapped.y.toDouble(), 180.0, 90.0))
                 selection.clear()
                 selection += node.id
                 refreshAll()
@@ -1968,7 +1981,10 @@ class GraphCanvas(
         } else if (selection.isNotEmpty() && mode == CanvasMode.Select) {
             val dx = point.x - start.x
             val dy = point.y - start.y
-            selectedMoveRoots().forEach { moveNodeAndDescendants(it, dx.toDouble(), dy.toDouble()) }
+            selectedMoveRoots().forEach { moved ->
+                moveNodeAndDescendants(moved, dx.toDouble(), dy.toDouble())
+                snapNodeSubtreeToGrid(moved)
+            }
             repository.markDirty()
             dragStart = point
         }
@@ -2025,6 +2041,29 @@ class GraphCanvas(
         node.children.mapNotNull(repository::getNode).filter { !it.isLink }.forEach {
             moveNodeAndDescendants(it, dx, dy)
         }
+    }
+
+    private fun snapNodeSubtreeToGrid(node: Node) {
+        val tolerance = 5.0 / zoom
+        val snappedX = snapValueToGrid(node.layout.x, 40.0, tolerance)
+        val snappedY = snapValueToGrid(node.layout.y, 40.0, tolerance)
+        val dx = snappedX - node.layout.x
+        val dy = snappedY - node.layout.y
+        if (abs(dx) < 0.001 && abs(dy) < 0.001) return
+        moveNodeAndDescendants(node, dx, dy)
+    }
+
+    private fun snapPointToGrid(point: Point): Point {
+        val tolerance = 5.0 / zoom
+        val step = 40.0
+        val snappedX = snapValueToGrid(point.x.toDouble(), step, tolerance)
+        val snappedY = snapValueToGrid(point.y.toDouble(), step, tolerance)
+        return Point(snappedX.roundToInt(), snappedY.roundToInt())
+    }
+
+    private fun snapValueToGrid(value: Double, step: Double, tolerance: Double): Double {
+        val snapped = (kotlin.math.round(value / step) * step)
+        return if (abs(snapped - value) <= tolerance) snapped else value
     }
 
     private fun updateParentAfterDrag(dropPoint: Point) {

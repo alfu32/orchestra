@@ -38,18 +38,36 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
     private data class Snapshot(
         val lines: List<String>,
-        val caret: BufferPosition,
-        val anchor: BufferPosition?,
+        val cursors: List<CaretState>,
         val scrollLine: Int,
         val scrollColumn: Int,
     )
 
+    private data class CaretState(
+        var caret: BufferPosition,
+        var anchor: BufferPosition? = null,
+    )
+
+    private data class TextEdit(
+        val stateIndex: Int,
+        val startOffset: Int,
+        val endOffset: Int,
+        val replacement: String,
+    )
+
+    private data class EditPlan(
+        val stateIndex: Int,
+        val startOffset: Int,
+        val endOffset: Int,
+        val replacement: String,
+        val resultingCaretOffset: Int,
+    )
+
     private val editorFont = Font(Font.MONOSPACED, Font.PLAIN, 14)
     private val lines = mutableListOf("")
+    private val cursors = mutableListOf(CaretState(BufferPosition(0, 0)))
     private val undoStack = ArrayDeque<Snapshot>()
     private val redoStack = ArrayDeque<Snapshot>()
-    private var caret = BufferPosition(0, 0)
-    private var selectionAnchor: BufferPosition? = null
     private var scrollLine = 0
     private var scrollColumn = 0
     private var readOnly = false
@@ -62,6 +80,18 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private var cursorVisible = true
     private val menuMask = runCatching { Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx }
         .getOrDefault(InputEvent.CTRL_DOWN_MASK)
+
+    private var caret: BufferPosition
+        get() = cursors.first().caret
+        set(value) {
+            cursors.first().caret = value
+        }
+
+    private var selectionAnchor: BufferPosition?
+        get() = cursors.first().anchor
+        set(value) {
+            cursors.first().anchor = value
+        }
 
     override var onTextChanged: ((String) -> Unit)? = null
     override var onCursorChanged: ((EditorCursor) -> Unit)? = null
@@ -82,12 +112,16 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             override fun mousePressed(e: MouseEvent) {
                 requestFocusInWindow()
                 val pos = positionAt(e.point)
-                if (e.isShiftDown) {
-                    if (selectionAnchor == null) selectionAnchor = caret
-                    caret = pos
+                if (e.isAltDown) {
+                    toggleCursor(pos)
+                } else if (e.isShiftDown) {
+                    cursorStates().forEach { state ->
+                        if (state.anchor == null) state.anchor = state.caret
+                        state.caret = pos
+                    }
                 } else {
-                    caret = pos
-                    selectionAnchor = null
+                    cursors.clear()
+                    cursors += CaretState(pos)
                 }
                 hideCompletions()
                 notifyCursor()
@@ -100,8 +134,11 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         })
         addMouseMotionListener(object : MouseMotionAdapter() {
             override fun mouseDragged(e: MouseEvent) {
-                if (selectionAnchor == null) selectionAnchor = caret
-                caret = positionAt(e.point)
+                val pos = positionAt(e.point)
+                cursorStates().forEach { state ->
+                    if (state.anchor == null) state.anchor = state.caret
+                    state.caret = pos
+                }
                 ensureCaretVisible()
                 notifyCursor()
                 repaint()
@@ -126,8 +163,8 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         lines.clear()
         lines += splitLines(text)
         if (lines.isEmpty()) lines += ""
-        caret = BufferPosition(0, 0)
-        selectionAnchor = null
+        cursors.clear()
+        cursors += CaretState(BufferPosition(0, 0))
         scrollLine = 0
         scrollColumn = 0
         undoStack.clear()
@@ -239,19 +276,34 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             return
         }
 
+        if (e.isAltDown && e.keyCode == KeyEvent.VK_UP) {
+            addAdjacentCursors(-1)
+            e.consume()
+            return
+        }
+        if (e.isAltDown && e.keyCode == KeyEvent.VK_DOWN) {
+            addAdjacentCursors(1)
+            e.consume()
+            return
+        }
+
         when (e.keyCode) {
             KeyEvent.VK_LEFT -> moveHorizontal(-1, shift, e.isControlDown)
             KeyEvent.VK_RIGHT -> moveHorizontal(1, shift, e.isControlDown)
             KeyEvent.VK_UP -> moveVertical(-1, shift)
             KeyEvent.VK_DOWN -> moveVertical(1, shift)
-            KeyEvent.VK_HOME -> moveTo(BufferPosition(caret.line, 0), shift)
-            KeyEvent.VK_END -> moveTo(BufferPosition(caret.line, lines[caret.line].length), shift)
+            KeyEvent.VK_HOME -> moveToLineBoundary(start = true, expand = shift)
+            KeyEvent.VK_END -> moveToLineBoundary(start = false, expand = shift)
             KeyEvent.VK_PAGE_UP -> moveVertical(-visibleRowCount(), shift)
             KeyEvent.VK_PAGE_DOWN -> moveVertical(visibleRowCount(), shift)
-            KeyEvent.VK_BACK_SPACE -> edit { deleteBackspace() }
-            KeyEvent.VK_DELETE -> edit { deleteForward() }
-            KeyEvent.VK_ENTER -> edit { insertTextAtCaret("\n") }
-            KeyEvent.VK_TAB -> edit { insertTextAtCaret("    ") }
+            KeyEvent.VK_BACK_SPACE -> {
+                if (e.isControlDown) edit { deleteWordBackward() } else edit { deleteBackward() }
+            }
+            KeyEvent.VK_DELETE -> {
+                if (e.isControlDown) edit { deleteWordForward() } else edit { deleteForward() }
+            }
+            KeyEvent.VK_ENTER -> edit { insertTextAtCursors("\n") }
+            KeyEvent.VK_TAB -> edit { insertTextAtCursors("    ") }
             KeyEvent.VK_ESCAPE -> hideCompletions()
             else -> return
         }
@@ -263,7 +315,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val char = e.keyChar
         if (char == KeyEvent.CHAR_UNDEFINED || char < ' ' || char == '\u007f') return
         cursorVisible = true
-        edit { insertTextAtCaret(char.toString()) }
+        edit { insertTextAtCursors(char.toString()) }
         e.consume()
     }
 
@@ -302,8 +354,9 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private fun applyCompletion(suggestion: CompletionSuggestion) {
         val prefix = currentPrefix()
         val start = BufferPosition(caret.line, (caret.column - prefix.length).coerceAtLeast(0))
-        selectionAnchor = start
-        edit { insertTextAtCaret(suggestion.insertText) }
+        cursors.clear()
+        cursors += CaretState(caret = caret, anchor = start)
+        edit { insertTextAtCursors(suggestion.insertText) }
         hideCompletions()
     }
 
@@ -317,67 +370,78 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         notifyTextChanged()
     }
 
-    private fun insertTextAtCaret(value: String) {
-        deleteSelectionIfAny()
-        val pieces = splitLines(value)
-        val current = lines[caret.line]
-        val before = current.substring(0, caret.column)
-        val after = current.substring(caret.column)
-        if (pieces.size == 1) {
-            lines[caret.line] = before + pieces.first() + after
-            caret = BufferPosition(caret.line, caret.column + pieces.first().length)
-        } else {
-            lines[caret.line] = before + pieces.first()
-            val insertAt = caret.line + 1
-            pieces.drop(1).dropLast(1).forEachIndexed { index, line ->
-                lines.add(insertAt + index, line)
+    private fun insertTextAtCursors(value: String) {
+        applyMultiTextEdit(value) { state ->
+            val range = selectionRange(state)
+            if (range != null) {
+                val start = offsetFor(range.first)
+                val end = offsetFor(range.second)
+                EditPlan(cursorIndex(state), start, end, value, start + value.length)
+            } else {
+                val offset = offsetFor(state.caret)
+                EditPlan(cursorIndex(state), offset, offset, value, offset + value.length)
             }
-            val last = pieces.last()
-            lines.add(insertAt + pieces.size - 2, last + after)
-            caret = BufferPosition(insertAt + pieces.size - 2, last.length)
         }
-        selectionAnchor = null
     }
 
-    private fun deleteBackspace() {
-        if (deleteSelectionIfAny()) return
-        if (caret.column > 0) {
-            val line = lines[caret.line]
-            lines[caret.line] = line.removeRange(caret.column - 1, caret.column)
-            caret = BufferPosition(caret.line, caret.column - 1)
-        } else if (caret.line > 0) {
-            val previousLength = lines[caret.line - 1].length
-            lines[caret.line - 1] += lines.removeAt(caret.line)
-            caret = BufferPosition(caret.line - 1, previousLength)
+    private fun deleteBackward() {
+        applyDeletion { state ->
+            val range = selectionRange(state)
+            if (range != null) {
+                EditPlan(cursorIndex(state), offsetFor(range.first), offsetFor(range.second), "", offsetFor(range.first))
+            } else if (state.caret.column > 0) {
+                val end = offsetFor(state.caret)
+                EditPlan(cursorIndex(state), end - 1, end, "", end - 1)
+            } else if (state.caret.line > 0) {
+                val currentStart = lineStartOffset(state.caret.line)
+                EditPlan(cursorIndex(state), currentStart - 1, currentStart, "", currentStart - 1)
+            } else {
+                null
+            }
         }
     }
 
     private fun deleteForward() {
-        if (deleteSelectionIfAny()) return
-        val line = lines[caret.line]
-        if (caret.column < line.length) {
-            lines[caret.line] = line.removeRange(caret.column, caret.column + 1)
-        } else if (caret.line < lines.lastIndex) {
-            lines[caret.line] += lines.removeAt(caret.line + 1)
+        applyDeletion { state ->
+            val range = selectionRange(state)
+            if (range != null) {
+                EditPlan(cursorIndex(state), offsetFor(range.first), offsetFor(range.second), "", offsetFor(range.first))
+            } else if (state.caret.column < lines[state.caret.line].length) {
+                val start = offsetFor(state.caret)
+                EditPlan(cursorIndex(state), start, start + 1, "", start)
+            } else if (state.caret.line < lines.lastIndex) {
+                val start = offsetFor(state.caret)
+                EditPlan(cursorIndex(state), start, start + 1, "", start)
+            } else {
+                null
+            }
         }
     }
 
-    private fun deleteSelectionIfAny(): Boolean {
-        val range = selectionRange() ?: return false
-        if (range.first.line == range.second.line) {
-            val line = lines[range.first.line]
-            lines[range.first.line] = line.removeRange(range.first.column, range.second.column)
-        } else {
-            val firstPrefix = lines[range.first.line].substring(0, range.first.column)
-            val lastSuffix = lines[range.second.line].substring(range.second.column)
-            repeat(range.second.line - range.first.line) {
-                lines.removeAt(range.first.line + 1)
+    private fun deleteWordBackward() {
+        applyDeletion { state ->
+            val range = selectionRange(state)
+            if (range != null) {
+                EditPlan(cursorIndex(state), offsetFor(range.first), offsetFor(range.second), "", offsetFor(range.first))
+            } else {
+                val caretOffset = offsetFor(state.caret)
+                val start = wordBoundaryLeft(state.caret)
+                if (start == state.caret) null else EditPlan(cursorIndex(state), offsetFor(start), caretOffset, "", offsetFor(start))
             }
-            lines[range.first.line] = firstPrefix + lastSuffix
         }
-        caret = range.first
-        selectionAnchor = null
-        return true
+    }
+
+    private fun deleteWordForward() {
+        applyDeletion { state ->
+            val range = selectionRange(state)
+            if (range != null) {
+                EditPlan(cursorIndex(state), offsetFor(range.first), offsetFor(range.second), "", offsetFor(range.first))
+            } else {
+                val caretOffset = offsetFor(state.caret)
+                val end = wordBoundaryRight(state.caret)
+                if (end == state.caret) null else EditPlan(cursorIndex(state), caretOffset, offsetFor(end), "", caretOffset)
+            }
+        }
     }
 
     private fun undo() {
@@ -405,7 +469,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
     private fun cutSelection(): Boolean {
         if (!copySelection()) return false
-        edit { deleteSelectionIfAny() }
+        edit { deleteSelections() }
         return true
     }
 
@@ -413,64 +477,95 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val text = runCatching {
             Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.stringFlavor) as? String
         }.getOrNull() ?: return
-        edit { insertTextAtCaret(text) }
+        edit { insertTextAtCursors(text) }
     }
 
     private fun selectAll() {
-        selectionAnchor = BufferPosition(0, 0)
-        caret = BufferPosition(lines.lastIndex, lines.last().length)
+        cursors.clear()
+        cursors += CaretState(caret = BufferPosition(lines.lastIndex, lines.last().length), anchor = BufferPosition(0, 0))
         notifyCursor()
         repaint()
     }
 
     private fun moveHorizontal(delta: Int, expand: Boolean, word: Boolean) {
-        val target = if (word) nextWordPosition(delta) else stepHorizontal(delta)
-        moveTo(target, expand)
-    }
-
-    private fun moveVertical(delta: Int, expand: Boolean) {
-        val line = (caret.line + delta).coerceIn(0, lines.lastIndex)
-        moveTo(BufferPosition(line, caret.column.coerceAtMost(lines[line].length)), expand)
-    }
-
-    private fun moveTo(position: BufferPosition, expand: Boolean) {
-        if (expand && selectionAnchor == null) selectionAnchor = caret
-        if (!expand) selectionAnchor = null
-        caret = clamp(position)
+        cursorStates().forEach { state ->
+            val target = if (word) nextWordPosition(state.caret, delta) else stepHorizontal(state.caret, delta)
+            if (expand && state.anchor == null) state.anchor = state.caret
+            if (!expand) state.anchor = null
+            state.caret = clamp(target)
+        }
         ensureCaretVisible()
         notifyCursor()
         repaint()
     }
 
-    private fun stepHorizontal(delta: Int): BufferPosition =
+    private fun moveVertical(delta: Int, expand: Boolean) {
+        cursorStates().forEach { state ->
+            val line = (state.caret.line + delta).coerceIn(0, lines.lastIndex)
+            val column = state.caret.column.coerceAtMost(lines[line].length)
+            if (expand && state.anchor == null) state.anchor = state.caret
+            if (!expand) state.anchor = null
+            state.caret = BufferPosition(line, column)
+        }
+        ensureCaretVisible()
+        notifyCursor()
+        repaint()
+    }
+
+    private fun moveToLineBoundary(start: Boolean, expand: Boolean) {
+        cursorStates().forEach { state ->
+            if (expand && state.anchor == null) state.anchor = state.caret
+            if (!expand) state.anchor = null
+            state.caret = clamp(BufferPosition(state.caret.line, if (start) 0 else lines[state.caret.line].length))
+        }
+        ensureCaretVisible()
+        notifyCursor()
+        repaint()
+    }
+
+    private fun stepHorizontal(position: BufferPosition, delta: Int): BufferPosition =
         if (delta < 0) {
             when {
-                caret.column > 0 -> BufferPosition(caret.line, caret.column - 1)
-                caret.line > 0 -> BufferPosition(caret.line - 1, lines[caret.line - 1].length)
-                else -> caret
+                position.column > 0 -> BufferPosition(position.line, position.column - 1)
+                position.line > 0 -> BufferPosition(position.line - 1, lines[position.line - 1].length)
+                else -> position
             }
         } else {
             when {
-                caret.column < lines[caret.line].length -> BufferPosition(caret.line, caret.column + 1)
-                caret.line < lines.lastIndex -> BufferPosition(caret.line + 1, 0)
-                else -> caret
+                position.column < lines[position.line].length -> BufferPosition(position.line, position.column + 1)
+                position.line < lines.lastIndex -> BufferPosition(position.line + 1, 0)
+                else -> position
             }
         }
 
-    private fun nextWordPosition(delta: Int): BufferPosition {
-        var pos = caret
-        var previous = pos
-        do {
-            previous = pos
-            pos = if (delta < 0) stepHorizontal(-1) else stepHorizontal(1)
-            caret = pos
-        } while (pos != previous && currentChar(pos)?.let { it.isLetterOrDigit() || it == '_' } == false)
-        caret = previous
-        return pos
+    private fun nextWordPosition(position: BufferPosition, delta: Int): BufferPosition =
+        if (delta < 0) wordBoundaryLeft(position) else wordBoundaryRight(position)
+
+    private fun wordBoundaryLeft(position: BufferPosition): BufferPosition {
+        var current = position
+        if (current.column == 0 && current.line == 0) return current
+        if (current.column == 0) current = BufferPosition(current.line - 1, lines[current.line - 1].length)
+        while (current.column > 0 && lines[current.line][current.column - 1].isWhitespace()) {
+            current = BufferPosition(current.line, current.column - 1)
+        }
+        while (current.column > 0 && !lines[current.line][current.column - 1].isWhitespace()) {
+            current = BufferPosition(current.line, current.column - 1)
+        }
+        return current
     }
 
-    private fun currentChar(pos: BufferPosition): Char? =
-        lines.getOrNull(pos.line)?.getOrNull((pos.column - 1).coerceAtLeast(0))
+    private fun wordBoundaryRight(position: BufferPosition): BufferPosition {
+        var current = position
+        if (current.column == lines[current.line].length && current.line == lines.lastIndex) return current
+        while (current.column < lines[current.line].length && lines[current.line][current.column].isWhitespace()) {
+            current = BufferPosition(current.line, current.column + 1)
+        }
+        while (current.column < lines[current.line].length && !lines[current.line][current.column].isWhitespace()) {
+            current = BufferPosition(current.line, current.column + 1)
+        }
+        if (current.column == lines[current.line].length && current.line < lines.lastIndex) return BufferPosition(current.line + 1, 0)
+        return current
+    }
 
     private fun drawGutter(
         g2: Graphics2D,
@@ -546,12 +641,21 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         gutterWidth: Int,
         visibleCols: Int,
     ) {
-        val selected = selectedColumns(lineIndex) ?: return
-        val start = selected.first.coerceAtLeast(scrollColumn)
-        val end = selected.last.coerceAtMost(scrollColumn + visibleCols)
-        if (end < start) return
-        g2.color = Color(0x3a5f8a)
-        g2.fillRect(gutterWidth + (start - scrollColumn) * charWidth, row * lineHeight, max(1, (end - start) * charWidth), lineHeight)
+        selectionRanges().forEach { range ->
+            if (lineIndex !in range.first.line..range.second.line) return@forEach
+            val start = if (lineIndex == range.first.line) range.first.column else 0
+            val end = if (lineIndex == range.second.line) range.second.column else lines[lineIndex].length
+            val visibleStart = start.coerceAtLeast(scrollColumn)
+            val visibleEnd = end.coerceAtMost(scrollColumn + visibleCols)
+            if (visibleEnd < visibleStart) return@forEach
+            g2.color = Color(0x3a5f8a)
+            g2.fillRect(
+                gutterWidth + (visibleStart - scrollColumn) * charWidth,
+                row * lineHeight,
+                max(1, (visibleEnd - visibleStart) * charWidth),
+                lineHeight,
+            )
+        }
     }
 
     private fun drawDiagnostics(
@@ -585,15 +689,17 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         gutterWidth: Int,
         visibleRows: Int,
     ) {
-        if (!hasFocus() || !cursorVisible || selectionRange() != null) return
-        val row = caret.line - scrollLine
-        if (row !in 0 until visibleRows) return
-        val col = caret.column - scrollColumn
-        if (col < 0) return
-        val x = gutterWidth + col * charWidth
-        val y = row * lineHeight + 2
+        if (!hasFocus() || !cursorVisible) return
         g2.color = Color(0xf2f2f2)
-        g2.fillRect(x, y, 2, metrics.height - 4)
+        cursorStates().forEach { state ->
+            val row = state.caret.line - scrollLine
+            if (row !in 0 until visibleRows) return@forEach
+            val col = state.caret.column - scrollColumn
+            if (col < 0) return@forEach
+            val x = gutterWidth + col * charWidth
+            val y = row * lineHeight + 2
+            g2.fillRect(x, y, 2, metrics.height - 4)
+        }
     }
 
     private fun drawCompletionPopup(
@@ -657,8 +763,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         (lines.size + 1).toString().length * charWidth + charWidth * 3
 
     private fun selectedColumns(lineIndex: Int): IntRange? {
-        val range = selectionRange() ?: return null
-        if (lineIndex !in range.first.line..range.second.line) return null
+        val range = selectionRanges().firstOrNull { lineIndex in it.first.line..it.second.line } ?: return null
         val start = if (lineIndex == range.first.line) range.first.column else 0
         val end = if (lineIndex == range.second.line) range.second.column else lines[lineIndex].length
         return start..end
@@ -670,16 +775,29 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         return if (anchor < caret) anchor to caret else caret to anchor
     }
 
+    private fun selectionRange(state: CaretState): Pair<BufferPosition, BufferPosition>? {
+        val anchor = state.anchor ?: return null
+        if (anchor == state.caret) return null
+        return if (anchor < state.caret) anchor to state.caret else state.caret to anchor
+    }
+
+    private fun selectionRanges(): List<Pair<BufferPosition, BufferPosition>> =
+        cursorStates().mapNotNull { selectionRange(it) }
+
     private fun selectionText(): String {
-        val range = selectionRange() ?: return ""
-        if (range.first.line == range.second.line) {
-            return lines[range.first.line].substring(range.first.column, range.second.column)
+        val ranges = selectionRanges()
+        if (ranges.isEmpty()) return ""
+        return ranges.joinToString("\n") { range ->
+            if (range.first.line == range.second.line) {
+                lines[range.first.line].substring(range.first.column, range.second.column)
+            } else {
+                val selected = mutableListOf<String>()
+                selected += lines[range.first.line].substring(range.first.column)
+                for (line in (range.first.line + 1) until range.second.line) selected += lines[line]
+                selected += lines[range.second.line].substring(0, range.second.column)
+                selected.joinToString("\n")
+            }
         }
-        val selected = mutableListOf<String>()
-        selected += lines[range.first.line].substring(range.first.column)
-        for (line in (range.first.line + 1) until range.second.line) selected += lines[line]
-        selected += lines[range.second.line].substring(0, range.second.column)
-        return selected.joinToString("\n")
     }
 
     private fun currentPrefix(): String {
@@ -725,13 +843,14 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     }
 
     private fun snapshot(): Snapshot =
-        Snapshot(lines.toList(), caret, selectionAnchor, scrollLine, scrollColumn)
+        Snapshot(lines.toList(), cursors.map { CaretState(it.caret, it.anchor) }, scrollLine, scrollColumn)
 
     private fun restore(snapshot: Snapshot) {
         lines.clear()
         lines += snapshot.lines
-        caret = snapshot.caret
-        selectionAnchor = snapshot.anchor
+        cursors.clear()
+        cursors += snapshot.cursors.map { CaretState(it.caret, it.anchor) }
+        if (cursors.isEmpty()) cursors += CaretState(BufferPosition(0, 0))
         scrollLine = snapshot.scrollLine
         scrollColumn = snapshot.scrollColumn
         hideCompletions()
@@ -762,5 +881,130 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             start = next + 1
         }
         return result.ifEmpty { listOf("") }
+    }
+
+    private fun cursorStates(): MutableList<CaretState> = cursors
+
+    private fun cursorIndex(state: CaretState): Int = cursors.indexOfFirst { it === state }.coerceAtLeast(0)
+
+    private fun toggleCursor(position: BufferPosition): Boolean {
+        val existingIndex = cursors.indexOfFirst { it.caret == position && it.anchor == null }
+        return if (existingIndex >= 0) {
+            cursors.removeAt(existingIndex)
+            if (cursors.isEmpty()) cursors += CaretState(position)
+            true
+        } else {
+            cursors += CaretState(position)
+            false
+        }
+    }
+
+    private fun addAdjacentCursors(delta: Int) {
+        val additions = cursorStates().mapNotNull { state ->
+            val targetLine = (state.caret.line + delta).coerceIn(0, lines.lastIndex)
+            val targetColumn = state.caret.column.coerceAtMost(lines[targetLine].length)
+            val target = BufferPosition(targetLine, targetColumn)
+            if (cursors.any { it.caret == target && it.anchor == null }) null else CaretState(target)
+        }
+        if (additions.isNotEmpty()) {
+            cursors += additions
+            normalizeCursors()
+            ensureCaretVisible()
+            notifyCursor()
+            repaint()
+        }
+    }
+
+    private fun deleteSelections(): Boolean {
+        val plans = cursorStates().mapIndexedNotNull { index, state ->
+            selectionRange(state)?.let { range ->
+                EditPlan(index, offsetFor(range.first), offsetFor(range.second), "", offsetFor(range.first))
+            }
+        }
+        if (plans.isEmpty()) return false
+        applyPlans(plans)
+        return true
+    }
+
+    private fun deleteBackwardSelectionAware(): Boolean = deleteSelections()
+
+    private fun applyDeletion(planBuilder: (CaretState) -> EditPlan?) {
+        val plans = cursorStates().mapIndexedNotNull { index, state ->
+            planBuilder(state)?.copy(stateIndex = index)
+        }
+        if (plans.isEmpty()) return
+        applyPlans(plans)
+    }
+
+    private fun applyMultiTextEdit(value: String, planBuilder: (CaretState) -> EditPlan?) {
+        val plans = cursorStates().mapIndexedNotNull { index, state ->
+            planBuilder(state)?.copy(stateIndex = index)
+        }
+        if (plans.isEmpty()) return
+        applyPlans(plans)
+    }
+
+    private fun applyPlans(plans: List<EditPlan>) {
+        if (plans.isEmpty()) return
+        val originalText = getText()
+        val sortedPlans = plans.sortedWith(compareByDescending<EditPlan> { it.startOffset }.thenByDescending { it.stateIndex })
+        val builder = StringBuilder(originalText)
+        sortedPlans.forEach { plan ->
+            builder.replace(plan.startOffset, plan.endOffset, plan.replacement)
+        }
+        val finalText = builder.toString()
+        lines.clear()
+        lines += splitLines(finalText)
+        if (lines.isEmpty()) lines += ""
+        val deltasBefore = sortedPlans.associateWith { plan ->
+            sortedPlans.filter { it.startOffset < plan.startOffset }.sumOf { it.replacement.length - (it.endOffset - it.startOffset) }
+        }
+        val updated = cursors.mapIndexed { index, state ->
+            val plan = sortedPlans.firstOrNull { it.stateIndex == index }
+            if (plan != null) {
+                val finalOffset = plan.resultingCaretOffset + deltasBefore.getValue(plan)
+                CaretState(positionFromOffset(finalText, finalOffset))
+            } else {
+                CaretState(state.caret, state.anchor)
+            }
+        }
+        cursors.clear()
+        cursors += updated
+        normalizeCursors()
+        ensureCaretVisible()
+        notifyTextChanged()
+    }
+
+    private fun normalizeCursors() {
+        val unique = linkedMapOf<Pair<BufferPosition, BufferPosition?>, CaretState>()
+        cursors.forEach { state ->
+            unique[state.caret to state.anchor] = state
+        }
+        cursors.clear()
+        cursors += unique.values
+        if (cursors.isEmpty()) cursors += CaretState(BufferPosition(0, 0))
+    }
+
+    private fun positionFromOffset(text: String, offset: Int): BufferPosition {
+        val clamped = offset.coerceIn(0, text.length)
+        var line = 0
+        var column = 0
+        for (index in 0 until clamped) {
+            if (text[index] == '\n') {
+                line++
+                column = 0
+            } else {
+                column++
+            }
+        }
+        return BufferPosition(line, column)
+    }
+
+    private fun lineStartOffset(line: Int): Int {
+        var offset = 0
+        for (index in 0 until line.coerceAtMost(lines.lastIndex)) {
+            offset += lines[index].length + 1
+        }
+        return offset
     }
 }
