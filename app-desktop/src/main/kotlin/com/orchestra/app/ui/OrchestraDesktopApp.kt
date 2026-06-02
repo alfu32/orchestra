@@ -644,7 +644,7 @@ class GraphCanvas(
         const val PORT_SPACING = 30
         const val PORT_BOTTOM_SPACING = 20
         const val PORT_STUB_LENGTH = 28
-        const val PORT_OUTSIDE_OFFSET = 19
+        const val PORT_OUTSIDE_OFFSET = 20
         const val SHORT_LINK_MAX_DISTANCE = 360.0
         const val SHORT_LINK_MAX_VERTICAL_DELTA = 120
         const val COMPOSITE_TOP_PADDING = 80
