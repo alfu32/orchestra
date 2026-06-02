@@ -1426,18 +1426,49 @@ class GraphCanvas(
     }
 
     private fun svgPortCapPoints(point: Point, side: Int, outgoing: Boolean): List<Pair<Double, Double>> {
-        val direction = if (outgoing) side else -side
-        val left = point.x.toDouble()
-        val top = point.y.toDouble() - 8.0
-        val shoulder = left + direction * 40.0
-        val tip = left + direction * 48.0
-        return listOf(
-            left to top,
-            shoulder to top,
-            tip to point.y.toDouble(),
-            shoulder to (top + 16.0),
-            left to (top + 16.0),
-        )
+        val direction = if (side >= 0) 1 else -1
+        val width = 30.0
+        val height = 10.0
+        val inset = 6.0
+        val x = point.x.toDouble()
+        val y = point.y.toDouble()
+        return if (outgoing) {
+            if (direction > 0) {
+                listOf(
+                    x to (y - height / 2),
+                    (x + width - inset) to (y - height / 2),
+                    (x + width) to y,
+                    (x + width - inset) to (y + height / 2),
+                    x to (y + height / 2),
+                )
+            } else {
+                listOf(
+                    x to (y - height / 2),
+                    (x - width + inset) to (y - height / 2),
+                    (x - width) to y,
+                    (x - width + inset) to (y + height / 2),
+                    x to (y + height / 2),
+                )
+            }
+        } else {
+            if (direction > 0) {
+                listOf(
+                    x to (y - height / 2),
+                    (x + inset) to (y - height / 2),
+                    (x + width) to y,
+                    (x + inset) to (y + height / 2),
+                    x to (y + height / 2),
+                )
+            } else {
+                listOf(
+                    x to (y - height / 2),
+                    (x - inset) to (y - height / 2),
+                    (x - width) to y,
+                    (x - inset) to (y + height / 2),
+                    x to (y + height / 2),
+                )
+            }
+        }
     }
 
     private fun hex(color: Color): String =
@@ -1604,18 +1635,57 @@ class GraphCanvas(
     }
 
     private fun portCapShape(point: Point, side: Int, outgoing: Boolean): Path2D.Double {
-        val direction = if (outgoing) side else -side
-        val left = point.x
-        val top = point.y - 8
-        val shoulder = left + direction * 40
-        val tip = left + direction * 48
+        val points = portCapPoints(point, side, outgoing)
         return Path2D.Double().apply {
-            moveTo(left.toDouble(), top.toDouble())
-            lineTo(shoulder.toDouble(), top.toDouble())
-            lineTo(tip.toDouble(), point.y.toDouble())
-            lineTo(shoulder.toDouble(), (top + 16).toDouble())
-            lineTo(left.toDouble(), (top + 16).toDouble())
+            moveTo(points.first().first, points.first().second)
+            points.drop(1).forEach { lineTo(it.first, it.second) }
             closePath()
+        }
+    }
+
+    private fun portCapPoints(point: Point, side: Int, outgoing: Boolean): List<Pair<Double, Double>> {
+        val direction = if (side >= 0) 1 else -1
+        val width = 30.0
+        val height = 10.0
+        val inset = 6.0
+        val x = point.x.toDouble()
+        val y = point.y.toDouble()
+        return if (outgoing) {
+            if (direction > 0) {
+                listOf(
+                    x to (y - height / 2),
+                    (x + width - inset) to (y - height / 2),
+                    (x + width) to y,
+                    (x + width - inset) to (y + height / 2),
+                    x to (y + height / 2),
+                )
+            } else {
+                listOf(
+                    x to (y - height / 2),
+                    (x - width + inset) to (y - height / 2),
+                    (x - width) to y,
+                    (x - width + inset) to (y + height / 2),
+                    x to (y + height / 2),
+                )
+            }
+        } else {
+            if (direction > 0) {
+                listOf(
+                    x to (y - height / 2),
+                    (x + inset) to (y - height / 2),
+                    (x + width) to y,
+                    (x + inset) to (y + height / 2),
+                    x to (y + height / 2),
+                )
+            } else {
+                listOf(
+                    x to (y - height / 2),
+                    (x - inset) to (y - height / 2),
+                    (x - width) to y,
+                    (x - inset) to (y + height / 2),
+                    x to (y + height / 2),
+                )
+            }
         }
     }
 
