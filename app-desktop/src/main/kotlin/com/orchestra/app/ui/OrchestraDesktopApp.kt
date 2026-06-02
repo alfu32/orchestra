@@ -1656,48 +1656,43 @@ class GraphCanvas(
     }
 
     private fun portCapPoints(point: Point, side: Int, outgoing: Boolean): List<Pair<Double, Double>> {
-        val direction = if (side >= 0) 1 else -1
-        val width = 30.0
-        val height = 10.0
-        val inset = 6.0
-        val x = point.x.toDouble()
-        val y = point.y.toDouble()
-        return if (outgoing) {
-            if (direction > 0) {
-                listOf(
-                    x to (y - height / 2),
-                    (x + width - inset) to (y - height / 2),
-                    (x + width) to y,
-                    (x + width - inset) to (y + height / 2),
-                    x to (y + height / 2),
-                )
-            } else {
-                listOf(
-                    x to (y - height / 2),
-                    (x - width + inset) to (y - height / 2),
-                    (x - width) to y,
-                    (x - width + inset) to (y + height / 2),
-                    x to (y + height / 2),
-                )
-            }
-        } else {
-            if (direction > 0) {
-                listOf(
-                    x to (y - height / 2),
-                    (x + inset) to (y - height / 2),
-                    (x + width) to y,
-                    (x + inset) to (y + height / 2),
-                    x to (y + height / 2),
-                )
-            } else {
-                listOf(
-                    x to (y - height / 2),
-                    (x - inset) to (y - height / 2),
-                    (x - width) to y,
-                    (x - inset) to (y + height / 2),
-                    x to (y + height / 2),
-                )
-            }
+        val scale = 0.65
+        val base = when {
+            outgoing && side < 0 -> listOf(
+                0.0 to 0.0,
+                40.0 to 0.0,
+                48.0 to 8.0,
+                40.0 to 16.0,
+                0.0 to 16.0,
+            )
+            outgoing && side >= 0 -> listOf(
+                0.0 to 0.0,
+                -40.0 to 0.0,
+                -48.0 to -8.0,
+                -40.0 to -16.0,
+                0.0 to -16.0,
+            )
+            !outgoing && side < 0 -> listOf(
+                0.0 to 0.0,
+                8.0 to 8.0,
+                0.0 to 16.0,
+                48.0 to 16.0,
+                48.0 to 0.0,
+            )
+            else -> listOf(
+                0.0 to 0.0,
+                -8.0 to -8.0,
+                0.0 to -16.0,
+                -48.0 to -16.0,
+                -48.0 to 0.0,
+            )
+        }
+        val width = 48.0 * scale
+        val height = 16.0 * scale
+        val offsetX = if (side < 0) -width else width
+        val offsetY = -height / 2
+        return base.map { (dx, dy) ->
+            point.x + offsetX + dx * scale to point.y + offsetY + dy * scale
         }
     }
 
