@@ -2,6 +2,7 @@ package com.orchestra.app.editor
 
 import com.orchestra.completion.CompletionRequest
 import com.orchestra.completion.CompletionSuggestion
+import com.orchestra.app.fonts.OrchestraFonts
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.core.model.NodeId
@@ -63,7 +64,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val resultingCaretOffset: Int,
     )
 
-    private val editorFont = Font(Font.MONOSPACED, Font.PLAIN, 14)
+    private var editorFont = OrchestraFonts.codeFont(14f)
     private val lines = mutableListOf("")
     private val cursors = mutableListOf(CaretState(BufferPosition(0, 0)))
     private val undoStack = ArrayDeque<Snapshot>()
@@ -217,6 +218,12 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     fun commandCut(): Boolean = cutSelection()
 
     fun commandPaste() = pasteClipboard()
+
+    fun setEditorFont(font: Font) {
+        editorFont = font
+        revalidate()
+        repaint()
+    }
 
     override fun paintComponent(g: Graphics) {
         super.paintComponent(g)

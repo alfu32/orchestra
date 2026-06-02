@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":storage-json"))
     implementation(project(":completion-core"))
     implementation(project(":compiler-naive-kotlin"))
+    implementation(project(":assets"))
 }
 
 application {

@@ -3,6 +3,7 @@ package com.orchestra.app.ui
 import com.orchestra.app.editor.EditorCompletionContext
 import com.orchestra.app.editor.GridCodeEditorAdapter
 import com.orchestra.app.editor.RegexSyntaxHighlighter
+import com.orchestra.app.fonts.OrchestraFonts
 import com.orchestra.Version
 import com.orchestra.compiler.api.CompilerPlugin
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
@@ -44,6 +45,7 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.FileDialog
 import java.awt.FlowLayout
+import java.awt.Font
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.KeyboardFocusManager
@@ -183,6 +185,7 @@ class OrchestraDesktopApp(
         frame.defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
         frame.jMenuBar = menuBar()
         frame.contentPane = layout()
+        applyFontOptions()
         installKeyBindings(frame.rootPane)
         frame.minimumSize = Dimension(1100, 720)
         frame.setSize(1400, 900)
@@ -271,6 +274,7 @@ class OrchestraDesktopApp(
             add(commandItem("file.save"))
             add(commandItem("file.saveAs"))
             add(commandItem("sheet.export"))
+            add(commandItem("app.options"))
             add(commandItem("file.quit"))
         })
         add(JMenu("Edit").apply {
@@ -317,6 +321,7 @@ class OrchestraDesktopApp(
         registerCommand(AppCommand("file.save", "File: Save", KeyStroke.getKeyStroke(KeyEvent.VK_S, shortcut)) { saveFile() })
         registerCommand(AppCommand("file.saveAs", "File: Save As...", KeyStroke.getKeyStroke(KeyEvent.VK_S, shiftShortcut)) { saveAsFile() })
         registerCommand(AppCommand("file.quit", "File: Quit", KeyStroke.getKeyStroke(KeyEvent.VK_Q, shortcut)) { quit() })
+        registerCommand(AppCommand("app.options", "Application: Options...") { showOptions() })
         registerCommand(AppCommand("edit.undo", "Edit: Undo", KeyStroke.getKeyStroke(KeyEvent.VK_Z, shortcut)) { undo() })
         registerCommand(AppCommand("edit.redo", "Edit: Redo", KeyStroke.getKeyStroke(KeyEvent.VK_Y, shortcut)) { redo() })
         registerCommand(AppCommand("edit.redoAlt", "Edit: Redo", KeyStroke.getKeyStroke(KeyEvent.VK_Z, shiftShortcut)) { redo() })
@@ -499,6 +504,35 @@ class OrchestraDesktopApp(
         dialog.setLocationRelativeTo(frame)
         SwingUtilities.invokeLater { query.requestFocusInWindow() }
         dialog.isVisible = true
+    }
+
+    private fun showOptions() {
+        val designerSelector = JComboBox(OrchestraFonts.designerOptions.map { it.label }.toTypedArray()).apply {
+            selectedItem = OrchestraFonts.optionLabel(OrchestraFonts.designerFontId, OrchestraFonts.designerOptions)
+        }
+        val codeSelector = JComboBox(OrchestraFonts.codeOptions.map { it.label }.toTypedArray()).apply {
+            selectedItem = OrchestraFonts.optionLabel(OrchestraFonts.codeFontId, OrchestraFonts.codeOptions)
+        }
+        val content = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
+            add(JLabel("Flow Designer font"))
+            add(designerSelector)
+            add(JLabel("Code editor font").apply { border = BorderFactory.createEmptyBorder(12, 0, 0, 0) })
+            add(codeSelector)
+        }
+        val result = JOptionPane.showConfirmDialog(frame, content, "Options", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
+        if (result != JOptionPane.OK_OPTION) return
+
+        OrchestraFonts.designerFontId = OrchestraFonts.optionId(designerSelector.selectedItem?.toString().orEmpty(), OrchestraFonts.designerOptions)
+        OrchestraFonts.codeFontId = OrchestraFonts.optionId(codeSelector.selectedItem?.toString().orEmpty(), OrchestraFonts.codeOptions)
+        applyFontOptions()
+        status.text = "Options updated"
+    }
+
+    private fun applyFontOptions() {
+        canvas.setDesignerFont(OrchestraFonts.designerFont(13f))
+        editorTabs.applyCodeEditorFont(OrchestraFonts.codeFont(14f))
     }
 
     private fun graphShortcutEnabled(): Boolean {
@@ -914,6 +948,7 @@ class GraphCanvas(
     private var panY = 0.0
     private var showSheet = false
     private var sheetFormatChoice = AUTO_SHEET_FORMAT
+    private var designerFont: Font = OrchestraFonts.designerFont(13f)
 
     private data class PortAnchor(val point: Point, val xDirection: Int)
     private data class LinkRoute(
@@ -1028,6 +1063,12 @@ class GraphCanvas(
         repaint()
     }
 
+    fun setDesignerFont(font: Font) {
+        designerFont = font
+        this.font = font
+        repaint()
+    }
+
     fun exportSheet(parent: JFrame) {
         val format = JOptionPane.showInputDialog(
             parent,
@@ -1136,6 +1177,7 @@ class GraphCanvas(
         super.paintComponent(g)
         val g2 = g as Graphics2D
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2.font = designerFont
         g2.scale(zoom, zoom)
         g2.translate(panX, panY)
         if (showSheet) drawIsoSheet(g2, includeGrid = true)
@@ -2841,6 +2883,12 @@ private class NodeEditorTabs(
             editor.refreshMetadata()
         }
     }
+
+    fun applyCodeEditorFont(font: Font) {
+        for (index in 0 until tabCount) {
+            (getComponentAt(index) as? NodeTextEditor)?.applyCodeEditorFont(font)
+        }
+    }
 }
 
 private class NodeTextEditor(
@@ -2942,8 +2990,13 @@ private class NodeTextEditor(
         }
     }
 
+    fun applyCodeEditorFont(font: Font) {
+        editorsBySection.values.forEach { it.setEditorFont(font) }
+    }
+
     private fun addTextTab(spec: TextTabSpec) {
         val editor = GridCodeEditorAdapter()
+        editor.setEditorFont(OrchestraFonts.codeFont(14f))
         val node = repository.requireNode(nodeId)
         val languageSelector = JComboBox(languageChoices(spec).toTypedArray()).apply {
             isEditable = false
@@ -3006,6 +3059,7 @@ private class NodeTextEditor(
 
     private fun addTestsTab() {
         val editor = GridCodeEditorAdapter()
+        editor.setEditorFont(OrchestraFonts.codeFont(14f))
         val node = repository.requireNode(nodeId)
         val languageSelector = JComboBox(languageChoicesForTests().toTypedArray()).apply {
             isEditable = false

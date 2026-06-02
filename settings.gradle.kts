@@ -20,5 +20,6 @@ include(
     "completion-core",
     "compiler-api",
     "compiler-naive-kotlin",
+    "assets",
     "app-desktop",
 )
