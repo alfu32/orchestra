@@ -644,6 +644,7 @@ class GraphCanvas(
         const val PORT_SPACING = 30
         const val PORT_BOTTOM_SPACING = 20
         const val PORT_STUB_LENGTH = 28
+        const val PORT_OUTSIDE_OFFSET = 48
         const val SHORT_LINK_MAX_DISTANCE = 360.0
         const val SHORT_LINK_MAX_VERTICAL_DELTA = 120
         const val COMPOSITE_TOP_PADDING = 80
@@ -1832,7 +1833,12 @@ class GraphCanvas(
         val sorted = normalLinksOnSide(node, side)
             .sortedWith(compareBy<Node> { portOrderValue(node, it, side) }.thenBy { it.id.value })
         val index = sorted.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 } ?: 0
-        val x = if (side > 0) r.x + r.width else r.x
+        val x = when {
+            outgoing && side > 0 -> r.x + r.width + PORT_OUTSIDE_OFFSET
+            outgoing && side < 0 -> r.x - PORT_OUTSIDE_OFFSET
+            side > 0 -> r.x + r.width
+            else -> r.x
+        }
         val y = r.y + PORT_TOP_SPACING + index * PORT_SPACING
         return PortAnchor(Point(x, y), side)
     }
