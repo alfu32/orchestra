@@ -29,10 +29,15 @@ data class NodeLayout(
 @Serializable
 data class NodeText(
     var initialization: String = "",
+    var initializationLanguageId: String = "",
     var source: String = "",
+    var sourceLanguageId: String = "",
     var specification: String = "",
+    var specificationLanguageId: String = "markdown",
     var tests: String = "",
+    var testsLanguageId: String = "json",
     var aiInstructions: String = "",
+    var aiInstructionsLanguageId: String = "markdown",
 )
 
 @Serializable
@@ -127,6 +132,48 @@ fun InflowDocument.effectiveLanguageId(nodeId: NodeId): String =
 fun InflowDocument.effectiveTechnologyId(nodeId: NodeId): String =
     inheritedTechnologyValue(nodeId, VOID_TECHNOLOGY_ID) { it.technologyId }
 
+fun InflowDocument.effectiveTextLanguageId(nodeId: NodeId, section: NodeTextSection): String {
+    val visited = mutableSetOf<NodeId>()
+    var current = nodes[nodeId]
+    while (current != null && current.id !in visited) {
+        visited += current.id
+        val languageId = current.text.languageId(section).trim()
+        when (section) {
+            NodeTextSection.Initialization,
+            NodeTextSection.Source -> if (languageId.isNotBlank()) return languageId
+            NodeTextSection.Specification,
+            NodeTextSection.Tests,
+            NodeTextSection.AiInstructions -> return languageId.ifBlank { defaultTextLanguageId(section) }
+        }
+        current = current.parentId?.let(nodes::get)
+    }
+    return when (section) {
+        NodeTextSection.Initialization,
+        NodeTextSection.Source -> VOID_LANGUAGE_ID
+        NodeTextSection.Specification,
+        NodeTextSection.AiInstructions -> defaultTextLanguageId(section)
+        NodeTextSection.Tests -> defaultTextLanguageId(section)
+    }
+}
+
+fun NodeText.languageId(section: NodeTextSection): String =
+    when (section) {
+        NodeTextSection.Initialization -> initializationLanguageId
+        NodeTextSection.Source -> sourceLanguageId
+        NodeTextSection.Specification -> specificationLanguageId
+        NodeTextSection.Tests -> testsLanguageId
+        NodeTextSection.AiInstructions -> aiInstructionsLanguageId
+    }
+
+fun NodeText.withLanguageId(section: NodeTextSection, languageId: String): NodeText =
+    when (section) {
+        NodeTextSection.Initialization -> copy(initializationLanguageId = languageId)
+        NodeTextSection.Source -> copy(sourceLanguageId = languageId)
+        NodeTextSection.Specification -> copy(specificationLanguageId = languageId)
+        NodeTextSection.Tests -> copy(testsLanguageId = languageId)
+        NodeTextSection.AiInstructions -> copy(aiInstructionsLanguageId = languageId)
+    }
+
 private fun InflowDocument.inheritedTechnologyValue(
     nodeId: NodeId,
     fallback: String,
@@ -142,3 +189,12 @@ private fun InflowDocument.inheritedTechnologyValue(
     }
     return fallback
 }
+
+private fun defaultTextLanguageId(section: NodeTextSection): String =
+    when (section) {
+        NodeTextSection.Initialization,
+        NodeTextSection.Source,
+        NodeTextSection.AiInstructions -> VOID_LANGUAGE_ID
+        NodeTextSection.Specification -> "markdown"
+        NodeTextSection.Tests -> "json"
+    }

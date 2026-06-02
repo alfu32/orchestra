@@ -22,8 +22,10 @@ import com.orchestra.core.model.NodeText
 import com.orchestra.core.model.NodeTextSection
 import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.TechnologyMetadata
+import com.orchestra.core.model.VOID_LANGUAGE_ID
 import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveTechnologyId
+import com.orchestra.core.model.effectiveTextLanguageId
 import com.orchestra.storage.DocumentRepository
 import com.orchestra.storage.InMemoryDocumentRepository
 import com.orchestra.storage.KotlinxJsonDocumentStore
@@ -50,6 +52,7 @@ import java.awt.Rectangle
 import java.awt.RenderingHints
 import java.awt.Stroke
 import java.awt.Toolkit
+import java.awt.geom.Path2D
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.awt.datatransfer.Transferable
@@ -134,7 +137,7 @@ class OrchestraDesktopApp(
     private val compilerPlugins: List<CompilerPlugin> = listOf(NaiveKotlinCompiler())
     private val languageIds = availableLanguageIds()
     private val inspector = InspectorPanel(repository, ::refreshAll, languageIds)
-    private val editorTabs = NodeEditorTabs(repository)
+    private val editorTabs = NodeEditorTabs(repository, ::refreshAll)
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
     }
@@ -166,6 +169,13 @@ class OrchestraDesktopApp(
                 add(it)
             }
             add(button("Sheet") { canvas.toggleSheet() })
+            add(JComboBox(canvas.sheetFormatChoices().toTypedArray()).apply {
+                isEditable = false
+                selectedItem = canvas.selectedSheetFormatChoice()
+                addActionListener { canvas.setSheetFormatChoice(selectedItem?.toString().orEmpty()) }
+                preferredSize = Dimension(120, preferredSize.height)
+                maximumSize = preferredSize
+            })
             add(button("About") { showAbout() })
             modeButtons[canvas.mode]?.isSelected = true
         }
@@ -471,7 +481,7 @@ class OrchestraDesktopApp(
         "code" to NodeTextSection.Source,
         "spec" to NodeTextSection.Specification,
         "test-data" to NodeTextSection.Tests,
-        "ai-instructions" to NodeTextSection.AiInstructions,
+        "usage-instructions" to NodeTextSection.AiInstructions,
     )
 
     private fun treeCategory(node: Node): TreeItemCategory = when {
@@ -596,6 +606,7 @@ class GraphCanvas(
     private var panX = 0.0
     private var panY = 0.0
     private var showSheet = false
+    private var sheetFormatChoice = AUTO_SHEET_FORMAT
 
     private data class PortAnchor(val point: Point, val xDirection: Int)
     private data class LinkRoute(
@@ -627,6 +638,7 @@ class GraphCanvas(
     }
 
     private companion object {
+        const val AUTO_SHEET_FORMAT = "Auto"
         const val PORT_TOP_SPACING = 28
         const val PORT_SPACING = 30
         const val PORT_BOTTOM_SPACING = 20
@@ -693,6 +705,17 @@ class GraphCanvas(
 
     fun toggleSheet() {
         showSheet = !showSheet
+        repaint()
+    }
+
+    fun sheetFormatChoices(): List<String> = listOf(AUTO_SHEET_FORMAT) + SHEET_FORMATS.map { it.id }
+
+    fun selectedSheetFormatChoice(): String = sheetFormatChoice
+
+    fun setSheetFormatChoice(choice: String) {
+        val next = choice.ifBlank { AUTO_SHEET_FORMAT }
+        if (sheetFormatChoice == next) return
+        sheetFormatChoice = next
         repaint()
     }
 
@@ -905,37 +928,12 @@ class GraphCanvas(
         val occupiedArea = (contentBounds.width + drawingPad * 2) * (contentBounds.height + drawingPad * 2) +
             partsWidth * partsRequiredHeight +
             titleWidth * titleHeight
-        val best = SHEET_FORMATS
-            .mapNotNull { format ->
-                val sheetWidth: Int
-                val sheetHeight: Int
-                if (format.roll) {
-                    val fixedRollHeight = mm(format.widthMm)
-                    val maxRollLength = mm(format.heightMm)
-                    sheetWidth = requiredWidth.coerceAtMost(maxRollLength)
-                    sheetHeight = fixedRollHeight
-                } else {
-                    sheetWidth = mm(format.widthMm)
-                    sheetHeight = mm(format.heightMm)
-                }
-                val fits =
-                    requiredWidth <= sheetWidth &&
-                        requiredHeight <= sheetHeight &&
-                        partsRequiredHeight <= sheetHeight - margin * 2 - titleHeight - gap
-                if (!fits) null else SheetCandidate(
-                    format = format,
-                    width = sheetWidth,
-                    height = sheetHeight,
-                    coverage = occupiedArea.toDouble() / (sheetWidth.toDouble() * sheetHeight.toDouble()),
-                )
+        val best = when (val choice = sheetFormatChoice) {
+            AUTO_SHEET_FORMAT -> autoSheetCandidate(requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea)
+            else -> SHEET_FORMATS.firstOrNull { it.id == choice }?.let {
+                sheetCandidateFor(it, requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, enforceFit = false)
             }
-            .maxWithOrNull(
-                compareBy<SheetCandidate> { it.coverage }
-                    .thenByDescending { -it.area },
-            )
-            ?: SHEET_FORMATS
-                .map { SheetCandidate(it, mm(it.widthMm), mm(it.heightMm), coverage = 0.0) }
-                .maxByOrNull { it.area }
+        } ?: autoSheetCandidate(requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea)
             ?: return null
 
         val format = best.format
@@ -964,6 +962,55 @@ class GraphCanvas(
             partsHeight,
         )
         return SheetPlan(format, sheet, drawing, titleBlock, partsList, contentBounds, scopeIds, bomRows)
+    }
+
+    private fun autoSheetCandidate(
+        requiredWidth: Int,
+        requiredHeight: Int,
+        partsRequiredHeight: Int,
+        margin: Int,
+        titleHeight: Int,
+        gap: Int,
+        occupiedArea: Int,
+    ): SheetCandidate? =
+        SHEET_FORMATS
+            .mapNotNull { format ->
+                sheetCandidateFor(format, requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, enforceFit = true)
+            }
+            .maxWithOrNull(compareBy<SheetCandidate> { it.coverage }.thenByDescending { -it.area })
+            ?: SHEET_FORMATS
+                .map { SheetCandidate(it, mm(it.widthMm), mm(it.heightMm), coverage = 0.0) }
+                .maxByOrNull { it.area }
+
+    private fun sheetCandidateFor(
+        format: SheetFormat,
+        requiredWidth: Int,
+        requiredHeight: Int,
+        partsRequiredHeight: Int,
+        margin: Int,
+        titleHeight: Int,
+        gap: Int,
+        occupiedArea: Int,
+        enforceFit: Boolean,
+    ): SheetCandidate? {
+        val (sheetWidth, sheetHeight) = if (format.roll) {
+            val fixedRollHeight = mm(format.widthMm)
+            val maxRollLength = mm(format.heightMm)
+            requiredWidth.coerceAtMost(maxRollLength) to fixedRollHeight
+        } else {
+            mm(format.widthMm) to mm(format.heightMm)
+        }
+        val fits =
+            requiredWidth <= sheetWidth &&
+                requiredHeight <= sheetHeight &&
+                partsRequiredHeight <= sheetHeight - margin * 2 - titleHeight - gap
+        if (enforceFit && !fits) return null
+        return SheetCandidate(
+            format = format,
+            width = sheetWidth,
+            height = sheetHeight,
+            coverage = occupiedArea.toDouble() / (sheetWidth.toDouble() * sheetHeight.toDouble()),
+        )
     }
 
     private fun sheetScopeIds(): Set<NodeId> {
@@ -1191,14 +1238,13 @@ class GraphCanvas(
     }
 
     private fun svgPortMarker(svg: StringBuilder, point: Point, side: Int, outgoing: Boolean, color: String) {
-        if (outgoing) {
-            svgRect(svg, Rectangle(point.x - 4, point.y - 7, 8, 14), fill = color, stroke = "none")
-            svgLine(svg, point.x, point.y, point.x + side * 18, point.y, color)
-            svgTriangle(svg, Point(point.x + side * 18, point.y), side, 7, color)
-        } else {
-            svgTriangle(svg, point, -side, 8, color)
-            svgLine(svg, point.x - side * 18, point.y, point.x, point.y, color)
-        }
+        svgPolygon(
+            svg,
+            svgPortCapPoints(point, side, outgoing),
+            fill = color,
+            stroke = color,
+            strokeWidth = 1.0,
+        )
     }
 
     private fun svgArrowAlongRoute(svg: StringBuilder, points: List<Point>, color: String) {
@@ -1366,9 +1412,32 @@ class GraphCanvas(
         svg.appendLine("    <circle cx=\"$cx\" cy=\"$cy\" r=\"$radius\" fill=\"$fill\"/>")
     }
 
-    private fun svgPolygon(svg: StringBuilder, points: List<Pair<Double, Double>>, fill: String) {
+    private fun svgPolygon(
+        svg: StringBuilder,
+        points: List<Pair<Double, Double>>,
+        fill: String,
+        stroke: String = fill,
+        strokeWidth: Double = 1.0,
+    ) {
         val pointData = points.joinToString(" ") { "${fmt(it.first)},${fmt(it.second)}" }
-        svg.appendLine("    <polygon points=\"$pointData\" fill=\"$fill\"/>")
+        svg.appendLine(
+            "    <polygon points=\"$pointData\" fill=\"$fill\" stroke=\"$stroke\" stroke-width=\"${fmt(strokeWidth)}\"/>",
+        )
+    }
+
+    private fun svgPortCapPoints(point: Point, side: Int, outgoing: Boolean): List<Pair<Double, Double>> {
+        val direction = if (outgoing) side else -side
+        val left = point.x.toDouble()
+        val top = point.y.toDouble() - 8.0
+        val shoulder = left + direction * 40.0
+        val tip = left + direction * 48.0
+        return listOf(
+            left to top,
+            shoulder to top,
+            tip to point.y.toDouble(),
+            shoulder to (top + 16.0),
+            left to (top + 16.0),
+        )
     }
 
     private fun hex(color: Color): String =
@@ -1488,18 +1557,12 @@ class GraphCanvas(
     }
 
     private fun drawPortMarker(g2: Graphics2D, point: Point, side: Int, outgoing: Boolean) {
-        val x = point.x
-        val y = point.y
-        if (outgoing) {
-            g2.fillRect(x - 4, y - 7, 8, 14)
-            g2.drawLine(x, y, x + side * 18, y)
-            val tip = Point(x + side * 18, y)
-            fillTriangle(g2, tip, side, 7)
-        } else {
-            val tip = Point(x, y)
-            fillTriangle(g2, tip, -side, 8)
-            g2.drawLine(x - side * 18, y, x, y)
-        }
+        val previousStroke = g2.stroke
+        g2.stroke = BasicStroke(1f)
+        val shape = portCapShape(point, side, outgoing)
+        g2.fill(shape)
+        g2.draw(shape)
+        g2.stroke = previousStroke
     }
 
     private fun drawArrowAlongRoute(g2: Graphics2D, points: List<Point>) {
@@ -1540,13 +1603,20 @@ class GraphCanvas(
         )
     }
 
-    private fun fillTriangle(g2: Graphics2D, tip: Point, horizontalDirection: Int, size: Int) {
-        val baseX = tip.x - horizontalDirection * size
-        g2.fillPolygon(
-            intArrayOf(tip.x, baseX, baseX),
-            intArrayOf(tip.y, tip.y - size, tip.y + size),
-            3,
-        )
+    private fun portCapShape(point: Point, side: Int, outgoing: Boolean): Path2D.Double {
+        val direction = if (outgoing) side else -side
+        val left = point.x
+        val top = point.y - 8
+        val shoulder = left + direction * 40
+        val tip = left + direction * 48
+        return Path2D.Double().apply {
+            moveTo(left.toDouble(), top.toDouble())
+            lineTo(shoulder.toDouble(), top.toDouble())
+            lineTo(tip.toDouble(), point.y.toDouble())
+            lineTo(shoulder.toDouble(), (top + 16).toDouble())
+            lineTo(left.toDouble(), (top + 16).toDouble())
+            closePath()
+        }
     }
 
     private fun drawDependencyAnnotations(g2: Graphics2D, links: List<Node>) {
@@ -1763,11 +1833,7 @@ class GraphCanvas(
         val hitLink = hitLink(point)
         when (mode) {
             CanvasMode.CreateNode -> {
-                val parent = selection.firstOrNull()
-                    ?.let(repository::getNode)
-                    ?.takeIf { !it.isLink }
-                    ?.id
-                    ?: hit?.takeIf { repository.getNode(it)?.isLink != true }
+                val parent = hit?.takeIf { repository.getNode(it)?.isLink != true }
                     ?: repository.getDocument().rootNodeId
                 val node = repository.createNode(parent, "New Node", NodeKind.Processor)
                 repository.updateNodeLayout(node.id, NodeLayout(point.x.toDouble(), point.y.toDouble(), 180.0, 90.0))
@@ -2283,6 +2349,7 @@ private class InspectorPanel(
 
 private class NodeEditorTabs(
     private val repository: DocumentRepository,
+    private val refreshAll: () -> Unit,
 ) : JTabbedPane() {
     private var boundIds: List<NodeId> = emptyList()
 
@@ -2290,7 +2357,7 @@ private class NodeEditorTabs(
         if (ids != boundIds) {
             removeAll()
             ids.mapNotNull(repository::getNode).forEach { node ->
-                addTab(node.name, NodeTextEditor(repository, node.id))
+                addTab(node.name, NodeTextEditor(repository, node.id, refreshAll))
             }
             boundIds = ids
         } else {
@@ -2324,60 +2391,158 @@ private class NodeEditorTabs(
 private class NodeTextEditor(
     private val repository: DocumentRepository,
     val nodeId: NodeId,
+    private val refreshAll: () -> Unit,
 ) : JTabbedPane() {
     private val completionService = ModelAwareCompletionService(repository::getDocument)
     private val editorsBySection = mutableMapOf<NodeTextSection, GridCodeEditorAdapter>()
+    private val languageSelectorsBySection = mutableMapOf<NodeTextSection, JComboBox<String>>()
     private val componentsBySection = mutableMapOf<NodeTextSection, JComponent>()
     private var testsPanel: TestTextEditorPanel? = null
+    private var binding = false
+    private val inheritedLanguageChoice = "Inherited"
+    private val selectableLanguages = listOf(VOID_LANGUAGE_ID) + RegexSyntaxHighlighter.availableLanguageIds()
+    private val textTabs = listOf(
+        TextTabSpec(
+            label = "Initialization",
+            section = NodeTextSection.Initialization,
+            allowInheritance = true,
+            defaultLanguageId = VOID_LANGUAGE_ID,
+            textGetter = { it.initialization },
+            textSetter = { text, value -> text.copy(initialization = value) },
+            languageGetter = { it.initializationLanguageId },
+            languageSetter = { text, value -> text.copy(initializationLanguageId = value) },
+        ),
+        TextTabSpec(
+            label = "Source",
+            section = NodeTextSection.Source,
+            allowInheritance = true,
+            defaultLanguageId = VOID_LANGUAGE_ID,
+            textGetter = { it.source },
+            textSetter = { text, value -> text.copy(source = value) },
+            languageGetter = { it.sourceLanguageId },
+            languageSetter = { text, value -> text.copy(sourceLanguageId = value) },
+        ),
+        TextTabSpec(
+            label = "Specification",
+            section = NodeTextSection.Specification,
+            allowInheritance = false,
+            defaultLanguageId = "markdown",
+            textGetter = { it.specification },
+            textSetter = { text, value -> text.copy(specification = value) },
+            languageGetter = { it.specificationLanguageId },
+            languageSetter = { text, value -> text.copy(specificationLanguageId = value) },
+        ),
+        TextTabSpec(
+            label = "Usage Instructions",
+            section = NodeTextSection.AiInstructions,
+            allowInheritance = false,
+            defaultLanguageId = "markdown",
+            textGetter = { it.aiInstructions },
+            textSetter = { text, value -> text.copy(aiInstructions = value) },
+            languageGetter = { it.aiInstructionsLanguageId },
+            languageSetter = { text, value -> text.copy(aiInstructionsLanguageId = value) },
+        ),
+    )
 
     init {
-        addTextTab("Initialization", NodeTextSection.Initialization, { it.initialization }, { text, value -> text.copy(initialization = value) })
-        addTextTab("Source", NodeTextSection.Source, { it.source }, { text, value -> text.copy(source = value) })
-        addTextTab("Specification", NodeTextSection.Specification, { it.specification }, { text, value -> text.copy(specification = value) })
+        textTabs.forEach(::addTextTab)
         addTestsTab()
-        addTextTab("AI Instructions", NodeTextSection.AiInstructions, { it.aiInstructions }, { text, value -> text.copy(aiInstructions = value) })
     }
 
     fun selectSection(section: NodeTextSection) {
-        componentsBySection[section]?.let { selectedComponent = it }
+        componentsBySection[section]?.let { component ->
+            selectedComponent = component
+            when (section) {
+                NodeTextSection.Tests -> testsPanel?.focusEditor()
+                else -> editorsBySection[section]?.focus()
+            }
+        }
     }
 
     fun refreshMetadata() {
         val technology = effectiveTechnology()
-        editorsBySection.forEach { (section, editor) ->
-            editor.setTechnology(technology)
-            editor.setCompletionContext(EditorCompletionContext(nodeId.value, section))
+        binding = true
+        try {
+            val node = repository.requireNode(nodeId)
+            textTabs.forEach { spec ->
+                val effectiveLanguage = repository.getDocument().effectiveTextLanguageId(nodeId, spec.section)
+                languageSelectorsBySection[spec.section]?.let { selector ->
+                    selector.selectedItem = languageDisplayFor(spec, node.text, effectiveLanguage)
+                }
+                editorsBySection[spec.section]?.let { editor ->
+                    editor.setTechnology(technology.copy(languageId = effectiveLanguage))
+                    editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
+                }
+            }
+            testsPanel?.bindLanguage(effectiveTextLanguage(NodeTextSection.Tests))
+            testsPanel?.refreshTopology()
+        } finally {
+            binding = false
         }
-        testsPanel?.refreshTopology()
     }
 
-    private fun addTextTab(
-        label: String,
-        section: NodeTextSection,
-        getter: (NodeText) -> String,
-        setter: (NodeText, String) -> NodeText,
-    ) {
+    private fun addTextTab(spec: TextTabSpec) {
         val editor = GridCodeEditorAdapter()
         val node = repository.requireNode(nodeId)
-        editor.setTechnology(effectiveTechnology())
-        editor.setCompletionContext(EditorCompletionContext(node.id.value, section))
+        val languageSelector = JComboBox(languageChoices(spec).toTypedArray()).apply {
+            isEditable = false
+        }
+        val controls = JPanel(FlowLayout(FlowLayout.LEFT, 6, 4)).apply {
+            alignmentX = Component.LEFT_ALIGNMENT
+            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
+            add(JLabel("Language"))
+            add(languageSelector)
+        }
+        val editorPanel = JPanel(BorderLayout()).apply {
+            add(controls, BorderLayout.NORTH)
+            add(editor, BorderLayout.CENTER)
+        }
+        editor.setTechnology(effectiveTechnology().copy(languageId = effectiveTextLanguage(spec.section)))
+        editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
         editor.onCompletionRequested = completionService::getSuggestions
-        editor.setText(getter(node.text))
+        editor.setText(spec.textGetter(node.text))
         val timer = Timer(250) {
             val current = repository.requireNode(nodeId)
-            repository.updateNodeText(nodeId, setter(current.text, editor.getText()))
+            repository.updateNodeText(nodeId, spec.textSetter(current.text, editor.getText()))
         }
         timer.isRepeats = false
         editor.onTextChanged = { timer.restart() }
-        editorsBySection[section] = editor
-        componentsBySection[section] = editor
-        addTab(label, editor)
+        languageSelector.addActionListener {
+            if (binding) return@addActionListener
+            val current = repository.requireNode(nodeId)
+            val selected = selectedLanguageForSpec(spec, languageSelector.selectedItem?.toString().orEmpty(), current.text)
+            repository.updateNodeText(nodeId, spec.languageSetter(current.text, selected))
+            refreshAll()
+        }
+        editorsBySection[spec.section] = editor
+        languageSelectorsBySection[spec.section] = languageSelector
+        componentsBySection[spec.section] = editorPanel
+        addTab(spec.label, editorPanel)
+        binding = true
+        try {
+            syncTextLanguageBinding(spec, node.text)
+        } finally {
+            binding = false
+        }
     }
 
     private fun addTestsTab() {
         val editor = GridCodeEditorAdapter()
         val node = repository.requireNode(nodeId)
-        editor.setTechnology(effectiveTechnology())
+        val languageSelector = JComboBox(languageChoicesForTests().toTypedArray()).apply {
+            isEditable = false
+        }
+        val controls = JPanel(FlowLayout(FlowLayout.LEFT, 6, 4)).apply {
+            alignmentX = Component.LEFT_ALIGNMENT
+            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
+            add(JLabel("Language"))
+            add(languageSelector)
+        }
+        val editorPanel = JPanel(BorderLayout()).apply {
+            add(controls, BorderLayout.NORTH)
+            add(editor, BorderLayout.CENTER)
+        }
+        editor.setTechnology(effectiveTechnology().copy(languageId = effectiveTextLanguage(NodeTextSection.Tests)))
         editor.setCompletionContext(EditorCompletionContext(node.id.value, NodeTextSection.Tests))
         editor.onCompletionRequested = completionService::getSuggestions
         editor.setText(node.text.tests)
@@ -2387,14 +2552,30 @@ private class NodeTextEditor(
         }
         timer.isRepeats = false
         editor.onTextChanged = { timer.restart() }
-        val panel = TestTextEditorPanel(repository, nodeId, editor) { value ->
+        languageSelector.addActionListener {
+            if (binding) return@addActionListener
+            val current = repository.requireNode(nodeId)
+            repository.updateNodeText(
+                nodeId,
+                current.text.copy(testsLanguageId = languageSelector.selectedItem?.toString().orEmpty().ifBlank { "json" }),
+            )
+            refreshAll()
+        }
+        val panel = TestTextEditorPanel(repository, nodeId, editor, languageSelector) { value ->
             val current = repository.requireNode(nodeId)
             repository.updateNodeText(nodeId, current.text.copy(tests = value))
         }
         testsPanel = panel
         editorsBySection[NodeTextSection.Tests] = editor
+        languageSelectorsBySection[NodeTextSection.Tests] = languageSelector
         componentsBySection[NodeTextSection.Tests] = panel
         addTab("Tests", panel)
+        binding = true
+        try {
+            panel.bindLanguage(effectiveTextLanguage(NodeTextSection.Tests))
+        } finally {
+            binding = false
+        }
     }
 
     private fun effectiveTechnology(): TechnologyMetadata {
@@ -2405,12 +2586,54 @@ private class NodeTextEditor(
             technologyId = document.effectiveTechnologyId(nodeId),
         )
     }
+
+    private fun effectiveTextLanguage(section: NodeTextSection): String =
+        repository.getDocument().effectiveTextLanguageId(nodeId, section)
+
+    private fun languageChoices(spec: TextTabSpec): List<String> =
+        if (spec.allowInheritance) listOf(inheritedLanguageChoice) + selectableLanguages else selectableLanguages
+
+    private fun languageChoicesForTests(): List<String> = selectableLanguages
+
+    private fun languageDisplayFor(spec: TextTabSpec, nodeText: NodeText, effectiveLanguageId: String): String {
+        val stored = spec.languageGetter(nodeText).trim()
+        return when {
+            spec.allowInheritance && stored.isBlank() -> inheritedLanguageChoice
+            stored.isNotBlank() -> stored
+            else -> effectiveLanguageId.ifBlank { spec.defaultLanguageId }
+        }
+    }
+
+    private fun selectedLanguageForSpec(spec: TextTabSpec, selected: String, nodeText: NodeText): String =
+        when {
+            spec.allowInheritance && selected == inheritedLanguageChoice -> ""
+            selected.isBlank() -> spec.defaultLanguageId
+            else -> selected
+        }
+
+    private fun syncTextLanguageBinding(spec: TextTabSpec, nodeText: NodeText) {
+        val selector = languageSelectorsBySection[spec.section] ?: return
+        val current = languageDisplayFor(spec, nodeText, effectiveTextLanguage(spec.section))
+        selector.selectedItem = current
+    }
+
+    private data class TextTabSpec(
+        val label: String,
+        val section: NodeTextSection,
+        val allowInheritance: Boolean,
+        val defaultLanguageId: String,
+        val textGetter: (NodeText) -> String,
+        val textSetter: (NodeText, String) -> NodeText,
+        val languageGetter: (NodeText) -> String,
+        val languageSetter: (NodeText, String) -> NodeText,
+    )
 }
 
 private class TestTextEditorPanel(
     private val repository: DocumentRepository,
     private val nodeId: NodeId,
     private val rawEditor: GridCodeEditorAdapter,
+    private val languageSelector: JComboBox<String>,
     private val saveText: (String) -> Unit,
 ) : JTabbedPane() {
     private val format = JComboBox(TabularFormat.entries.toTypedArray())
@@ -2431,7 +2654,7 @@ private class TestTextEditorPanel(
     }
 
     init {
-        addTab("Raw", rawEditor)
+        addTab("Raw", rawPanel())
         addTab("Table", tablePanel())
         tableModel.addTableModelListener {
             if (!loadingTable) {
@@ -2455,6 +2678,16 @@ private class TestTextEditorPanel(
         }
     }
 
+    fun bindLanguage(languageId: String) {
+        val selected = languageId.ifBlank { "json" }
+        languageSelector.selectedItem = selected
+        rawEditor.setTechnology(effectiveTechnology().copy(languageId = selected))
+    }
+
+    fun focusEditor() {
+        rawEditor.focus()
+    }
+
     fun refreshTopology() {
         if (selectedIndex == 1) {
             syncTableToRaw(force = false, commitEditing = true, status = "Table changes synchronized to the raw tests text.")
@@ -2475,6 +2708,17 @@ private class TestTextEditorPanel(
             add(controls, BorderLayout.NORTH)
             add(JScrollPane(table), BorderLayout.CENTER)
             add(message, BorderLayout.SOUTH)
+        }
+    }
+
+    private fun rawPanel(): JComponent {
+        val controls = JPanel(FlowLayout(FlowLayout.LEFT, 6, 4)).apply {
+            add(JLabel("Language"))
+            add(languageSelector)
+        }
+        return JPanel(BorderLayout()).apply {
+            add(controls, BorderLayout.NORTH)
+            add(rawEditor, BorderLayout.CENTER)
         }
     }
 
@@ -2525,6 +2769,15 @@ private class TestTextEditorPanel(
 
     private fun selectedFormat(): TabularFormat =
         format.selectedItem as? TabularFormat ?: TabularFormat.Json
+
+    private fun effectiveTechnology(): TechnologyMetadata {
+        val document = repository.getDocument()
+        val node = repository.requireNode(nodeId)
+        return node.technology.copy(
+            languageId = document.effectiveLanguageId(nodeId),
+            technologyId = document.effectiveTechnologyId(nodeId),
+        )
+    }
 
     private fun tableData(): TabularData {
         val columns = (0 until tableModel.columnCount).map { tableModel.getColumnName(it) }

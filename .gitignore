@@ -4,3 +4,4 @@ build
 dist
 .kotlin
 core/src/main/kotlin/com/orchestra/Version.kt
+.idea
