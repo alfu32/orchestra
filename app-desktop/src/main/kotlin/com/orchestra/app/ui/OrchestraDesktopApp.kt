@@ -1656,45 +1656,59 @@ class GraphCanvas(
     }
 
     private fun portCapPoints(point: Point, side: Int, outgoing: Boolean): List<Pair<Double, Double>> {
-        val scale = 0.65
-        val base = when {
-            outgoing && side < 0 -> listOf(
-                0.0 to 0.0,
-                40.0 to 0.0,
-                48.0 to 8.0,
-                40.0 to 16.0,
-                0.0 to 16.0,
+        val scale = 0.6
+        val template = when {
+            outgoing && side < 0 -> PortTemplate(
+                points = listOf(
+                    0.0 to 0.0,
+                    40.0 to 0.0,
+                    48.0 to 8.0,
+                    40.0 to 16.0,
+                    0.0 to 16.0,
+                ),
+                connection = 48.0 to 8.0,
             )
-            outgoing && side >= 0 -> listOf(
-                0.0 to 0.0,
-                -40.0 to 0.0,
-                -48.0 to -8.0,
-                -40.0 to -16.0,
-                0.0 to -16.0,
+            outgoing && side >= 0 -> PortTemplate(
+                points = listOf(
+                    0.0 to 0.0,
+                    -40.0 to 0.0,
+                    -48.0 to -8.0,
+                    -40.0 to -16.0,
+                    0.0 to -16.0,
+                ),
+                connection = -48.0 to -8.0,
             )
-            !outgoing && side < 0 -> listOf(
-                0.0 to 0.0,
-                8.0 to 8.0,
-                0.0 to 16.0,
-                48.0 to 16.0,
-                48.0 to 0.0,
+            !outgoing && side < 0 -> PortTemplate(
+                points = listOf(
+                    0.0 to 0.0,
+                    8.0 to 8.0,
+                    0.0 to 16.0,
+                    48.0 to 16.0,
+                    48.0 to 0.0,
+                ),
+                connection = 48.0 to 8.0,
             )
-            else -> listOf(
-                0.0 to 0.0,
-                -8.0 to -8.0,
-                0.0 to -16.0,
-                -48.0 to -16.0,
-                -48.0 to 0.0,
+            else -> PortTemplate(
+                points = listOf(
+                    0.0 to 0.0,
+                    -8.0 to -8.0,
+                    0.0 to -16.0,
+                    -48.0 to -16.0,
+                    -48.0 to 0.0,
+                ),
+                connection = -48.0 to -8.0,
             )
         }
-        val width = 48.0 * scale
-        val height = 16.0 * scale
-        val offsetX = if (side < 0) -width else width
-        val offsetY = -height / 2
-        return base.map { (dx, dy) ->
-            point.x + offsetX + dx * scale to point.y + offsetY + dy * scale
+        val (connX, connY) = template.connection
+        return template.points.map { (dx, dy) ->
+            point.x + (dx - connX) * scale to point.y + (dy - connY) * scale
         }
     }
+
+    private data class PortTemplate(
+        val points: List<Pair<Double, Double>>,
+        val connection: Pair<Double, Double>,
+    )
 
     private fun drawDependencyAnnotations(g2: Graphics2D, links: List<Node>) {
         links.groupBy { it.link?.sourceNodeId }.forEach { (sourceId, sourceLinks) ->
