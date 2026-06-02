@@ -247,33 +247,39 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                 KeyEvent.VK_A -> {
                     selectAll()
                     e.consume()
+                    return
                 }
                 KeyEvent.VK_C -> {
                     copySelection()
                     e.consume()
+                    return
                 }
                 KeyEvent.VK_X -> {
                     cutSelection()
                     e.consume()
+                    return
                 }
                 KeyEvent.VK_V -> {
                     pasteClipboard()
                     e.consume()
+                    return
                 }
                 KeyEvent.VK_Z -> {
                     if (e.isShiftDown) redo() else undo()
                     e.consume()
+                    return
                 }
                 KeyEvent.VK_Y -> {
                     redo()
                     e.consume()
+                    return
                 }
                 KeyEvent.VK_SPACE -> {
                     requestCompletions()
                     e.consume()
+                    return
                 }
             }
-            return
         }
 
         if (e.isAltDown && e.keyCode == KeyEvent.VK_UP) {

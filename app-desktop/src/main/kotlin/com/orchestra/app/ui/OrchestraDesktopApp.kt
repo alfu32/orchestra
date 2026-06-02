@@ -644,7 +644,7 @@ class GraphCanvas(
         const val PORT_SPACING = 30
         const val PORT_BOTTOM_SPACING = 20
         const val PORT_STUB_LENGTH = 28
-        const val PORT_OUTSIDE_OFFSET = 48
+        const val PORT_OUTSIDE_OFFSET = 19
         const val SHORT_LINK_MAX_DISTANCE = 360.0
         const val SHORT_LINK_MAX_VERTICAL_DELTA = 120
         const val COMPOSITE_TOP_PADDING = 80
@@ -1603,8 +1603,10 @@ class GraphCanvas(
     private fun drawPortMarker(g2: Graphics2D, point: Point, side: Int, outgoing: Boolean) {
         val previousStroke = g2.stroke
         g2.stroke = BasicStroke(1f)
-        val shape = portCapShape(point, side, outgoing)
-        g2.fill(shape)
+        val (shape,fill) = portCapShape(point, side, outgoing)
+        if(fill) {
+            g2.fill(shape)
+        }
         g2.draw(shape)
         g2.stroke = previousStroke
     }
@@ -1647,69 +1649,76 @@ class GraphCanvas(
         )
     }
 
-    private fun portCapShape(point: Point, side: Int, outgoing: Boolean): Path2D.Double {
-        val points = portCapPoints(point, side, outgoing)
-        return Path2D.Double().apply {
+    private fun portCapShape(point: Point, side: Int, outgoing: Boolean): Pair<Path2D.Double,Boolean> {
+        val (points,fill) = portCapPoints(point, side, outgoing)
+        return Pair(Path2D.Double().apply {
             moveTo(points.first().first, points.first().second)
             points.drop(1).forEach { lineTo(it.first, it.second) }
             closePath()
-        }
+        }, fill)
     }
 
-    private fun portCapPoints(point: Point, side: Int, outgoing: Boolean): List<Pair<Double, Double>> {
+    private fun portCapPoints(point: Point, side: Int, outgoing: Boolean): Pair<List<Pair<Double, Double>>, Boolean> {
         val scale = 0.6
         val template = when {
             outgoing && side < 0 -> PortTemplate(
                 points = listOf(
                     0.0 to 0.0,
-                    -40.0 to 0.0,
-                    -48.0 to -8.0,
-                    -40.0 to -16.0,
+                    -25.0 to 0.0,
+                    -33.0 to -8.0,
+                    -25.0 to -16.0,
                     0.0 to -16.0,
                 ),
-                connection = -48.0 to -8.0,
+                connection = -33.0 to -8.0,
+                fillRendering = false,
             )
             outgoing && side >= 0 -> PortTemplate(
                 points = listOf(
                     0.0 to 0.0,
-                    40.0 to 0.0,
-                    48.0 to 8.0,
-                    40.0 to 16.0,
+                    25.0 to 0.0,
+                    33.0 to 8.0,
+                    25.0 to 16.0,
                     0.0 to 16.0,
                 ),
-                connection = 48.0 to 8.0,
+                connection = 33.0 to 8.0,
+                fillRendering = false,
             )
             !outgoing && side < 0 -> PortTemplate(
                 points = listOf(
                     0.0 to 0.0,
                     8.0 to 8.0,
                     0.0 to 16.0,
-                    48.0 to 16.0,
-                    48.0 to 0.0,
+                    33.0 to 16.0,
+                    33.0 to 0.0,
                 ),
-                connection = 48.0 to 8.0,
+                connection = 33.0 to 8.0,
+                fillRendering = true,
             )
             else -> PortTemplate(
                 points = listOf(
                     0.0 to 0.0,
                     -8.0 to -8.0,
                     0.0 to -16.0,
-                    -48.0 to -16.0,
-                    -48.0 to 0.0,
+                    -33.0 to -16.0,
+                    -33.0 to 0.0,
                 ),
-                connection = -48.0 to -8.0,
+                connection = -33.0 to -8.0,
+                fillRendering = true,
             )
         }
         val (connX, connY) = template.connection
-        return template.points.map { (dx, dy) ->
+        val fillRendering = template.fillRendering
+        return Pair(template.points.map { (dx, dy) ->
             point.x + (dx - connX) * scale to point.y + (dy - connY) * scale
-        }
+        }, fillRendering)
     }
 
     private data class PortTemplate(
         val points: List<Pair<Double, Double>>,
         val connection: Pair<Double, Double>,
-    )
+        val fillRendering: Boolean,
+    ){
+    }
 
     private fun drawDependencyAnnotations(g2: Graphics2D, links: List<Node>) {
         links.groupBy { it.link?.sourceNodeId }.forEach { (sourceId, sourceLinks) ->
@@ -1933,8 +1942,7 @@ class GraphCanvas(
                 val parent = hit?.takeIf { repository.getNode(it)?.isLink != true }
                     ?: repository.getDocument().rootNodeId
                 val node = repository.createNode(parent, "New Node", NodeKind.Processor)
-                val snapped = snapPointToGrid(point)
-                repository.updateNodeLayout(node.id, NodeLayout(snapped.x.toDouble(), snapped.y.toDouble(), 180.0, 90.0))
+                repository.updateNodeLayout(node.id, NodeLayout(point.x.toDouble(), point.y.toDouble(), 180.0, 90.0))
                 selection.clear()
                 selection += node.id
                 refreshAll()
@@ -1998,7 +2006,6 @@ class GraphCanvas(
             val dy = point.y - start.y
             selectedMoveRoots().forEach { moved ->
                 moveNodeAndDescendants(moved, dx.toDouble(), dy.toDouble())
-                snapNodeSubtreeToGrid(moved)
             }
             repository.markDirty()
             dragStart = point
