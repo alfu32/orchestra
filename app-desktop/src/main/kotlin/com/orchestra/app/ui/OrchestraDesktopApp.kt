@@ -1944,7 +1944,7 @@ class GraphCanvas(
         g2.color = color
         drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
         drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
-        drawEndpointLinkLabels(g2, node.name, route.points, color)
+        drawEndpointLinkLabels(g2, node.name, route, color)
         g2.font = previousFont
         g2.stroke = previousStroke
     }
@@ -2237,24 +2237,20 @@ class GraphCanvas(
             acc
         }
 
-    private fun drawEndpointLinkLabels(g2: Graphics2D, label: String, points: List<Point>, color: Color) {
+    private fun drawEndpointLinkLabels(g2: Graphics2D, label: String, route: LinkRoute, color: Color) {
         val text = label.take(24)
         if (text.isBlank()) return
         g2.font = g2.font.deriveFont(10f)
         g2.color = color
-        drawEndpointLinkLabel(g2, text, points, fromSource = true)
-        drawEndpointLinkLabel(g2, text, points, fromSource = false)
+        drawEndpointLinkLabel(g2, text, route.source, route.sourceDirection)
+        drawEndpointLinkLabel(g2, text, route.target, route.targetDirection)
     }
 
-    private fun drawEndpointLinkLabel(g2: Graphics2D, text: String, points: List<Point>, fromSource: Boolean) {
-        if (points.isEmpty()) return
+    private fun drawEndpointLinkLabel(g2: Graphics2D, text: String, anchor: Point, side: Int) {
         val metrics = g2.fontMetrics
         val width = metrics.stringWidth(text)
-        val index = if (fromSource) 0 else points.lastIndex
-        val anchor = points[index]
-        val neighbor = if (fromSource) points.getOrNull(1) ?: anchor else points.getOrNull(points.lastIndex - 1) ?: anchor
-        val dx = if (fromSource) neighbor.x - anchor.x else anchor.x - neighbor.x
-        val x = if (dx >= 0) anchor.x + 8 else anchor.x - width - 8
+        val spacing = 8
+        val x = if (side < 0) anchor.x - width - spacing else anchor.x + spacing
         val y = anchor.y - metrics.height - 4
         g2.drawString(text, x, y + metrics.ascent)
     }
