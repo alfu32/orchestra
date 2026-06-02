@@ -206,6 +206,16 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         requestFocusInWindow()
     }
 
+    fun commandUndo() = undo()
+
+    fun commandRedo() = redo()
+
+    fun commandCopy(): Boolean = copySelection()
+
+    fun commandCut(): Boolean = cutSelection()
+
+    fun commandPaste() = pasteClipboard()
+
     override fun paintComponent(g: Graphics) {
         super.paintComponent(g)
         val g2 = g as Graphics2D

@@ -58,6 +58,7 @@ import java.awt.datatransfer.StringSelection
 import java.awt.datatransfer.Transferable
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
+import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -74,14 +75,18 @@ import javax.swing.AbstractAction
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
+import javax.swing.DefaultListCellRenderer
+import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JDialog
 import javax.swing.DropMode
 import javax.swing.Icon
 import javax.swing.JFileChooser
 import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JComboBox
+import javax.swing.JList
 import javax.swing.JMenu
 import javax.swing.JMenuBar
 import javax.swing.JMenuItem
@@ -103,6 +108,8 @@ import javax.swing.WindowConstants
 import javax.swing.filechooser.FileNameExtensionFilter
 import javax.swing.event.TreeModelEvent
 import javax.swing.event.TreeModelListener
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 import javax.swing.table.DefaultTableModel
 import javax.swing.text.JTextComponent
 import javax.swing.tree.DefaultTreeCellRenderer
@@ -127,6 +134,7 @@ class OrchestraDesktopApp(
         const val NATIVE_PROJECT_EXTENSION = "orch"
         const val LEGACY_PROJECT_EXTENSION = "json"
         const val DEFAULT_PROJECT_NAME = "document.orch"
+        const val MAX_HISTORY_SNAPSHOTS = 100
     }
 
     private val frame = JFrame()
@@ -138,14 +146,29 @@ class OrchestraDesktopApp(
     private val compilerPlugins: List<CompilerPlugin> = listOf(NaiveKotlinCompiler())
     private val languageIds = availableLanguageIds()
     private val inspector = InspectorPanel(repository, ::refreshAll, languageIds)
-    private val editorTabs = NodeEditorTabs(repository, ::refreshAll)
+    private val editorTabs = NodeEditorTabs(repository, ::refreshAll, ::checkpointHistory)
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
     }
     private val modeButtons = mutableMapOf<CanvasMode, JToggleButton>()
+    private val commands = linkedMapOf<String, AppCommand>()
+    private val pluginToolbarButtons = mutableListOf<PluginToolbarButton>()
+    private val pluginContentTabs = mutableListOf<PluginContentTab>()
+    private val uiPlugins: List<OrchestraDesktopPlugin> = emptyList()
+    private val historyJson = Json {
+        encodeDefaults = true
+        ignoreUnknownKeys = true
+    }
+    private val undoStack = ArrayDeque<String>()
+    private val redoStack = ArrayDeque<String>()
+    private var currentSnapshot = documentSnapshot()
+    private var applyingHistory = false
     private var currentFile: Path? = null
+    private val autosaveTimer = Timer(10_000) { autosave() }.apply { isRepeats = true }
 
     fun show() {
+        registerBuiltInCommands()
+        configurePlugins()
         frame.defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
         frame.jMenuBar = menuBar()
         frame.contentPane = layout()
@@ -154,7 +177,9 @@ class OrchestraDesktopApp(
         frame.setSize(1400, 900)
         frame.setLocationRelativeTo(null)
         refreshAll()
+        resetHistory()
         updateWindowTitle()
+        autosaveTimer.start()
         frame.isVisible = true
     }
 
@@ -169,7 +194,7 @@ class OrchestraDesktopApp(
                 modes.add(it)
                 add(it)
             }
-            add(button("Sheet") { canvas.toggleSheet() })
+            add(button("Sheet") { executeCommand("sheet.toggle") })
             add(JComboBox(canvas.sheetFormatChoices().toTypedArray()).apply {
                 isEditable = false
                 selectedItem = canvas.selectedSheetFormatChoice()
@@ -177,7 +202,10 @@ class OrchestraDesktopApp(
                 preferredSize = Dimension(120, preferredSize.height)
                 maximumSize = preferredSize
             })
-            add(button("About") { showAbout() })
+            pluginToolbarButtons.forEach { button ->
+                add(JButton(button.label).apply { addActionListener { button.action() } })
+            }
+            add(button("About") { executeCommand("help.about") })
             modeButtons[canvas.mode]?.isSelected = true
         }
 
@@ -214,6 +242,9 @@ class OrchestraDesktopApp(
         val workflows = JTabbedPane().apply {
             addTab("Flow Designer", flowDesigner)
             addTab("Entities Edit(IDE)", detailsEditor)
+            pluginContentTabs.forEach { tab ->
+                addTab(tab.title, tab.createPanel())
+            }
         }
         return JPanel(BorderLayout()).apply {
             add(toolbar, BorderLayout.NORTH)
@@ -224,59 +255,239 @@ class OrchestraDesktopApp(
 
     private fun menuBar() = JMenuBar().apply {
         add(JMenu("File").apply {
-            add(item("New") {
-                repository.replaceDocument(newDocument("Untitled Orchestra"))
-                selection.clear()
-                currentFile = null
-                refreshAll()
-                updateWindowTitle()
-            })
-            add(item("Open...") { openFile() })
-            add(item("Save") { saveFile() })
-            add(item("Save As...") { saveAsFile() })
-            add(item("Export Sheet...") { canvas.exportSheet(frame) })
+            add(commandItem("file.new"))
+            add(commandItem("file.open"))
+            add(commandItem("file.save"))
+            add(commandItem("file.saveAs"))
+            add(commandItem("sheet.export"))
+            add(commandItem("file.quit"))
+        })
+        add(JMenu("Edit").apply {
+            add(commandItem("edit.undo"))
+            add(commandItem("edit.redo"))
+            addSeparator()
+            add(commandItem("edit.cut"))
+            add(commandItem("edit.copy"))
+            add(commandItem("edit.paste"))
         })
         add(JMenu("Graph").apply {
-            add(item("Select Mode") { canvas.setMode(CanvasMode.Select) })
-            add(item("Node Mode") { canvas.setMode(CanvasMode.CreateNode) })
-            add(item("Link Mode") { canvas.setMode(CanvasMode.CreateLink) })
-            add(item("Delete Selection") { deleteSelection() })
+            add(commandItem("graph.mode.select"))
+            add(commandItem("graph.mode.node"))
+            add(commandItem("graph.mode.link"))
+            add(commandItem("graph.deleteSelection"))
+            add(commandItem("commands.palette"))
         })
         add(JMenu("Help").apply {
-            add(item("About") { showAbout() })
+            add(commandItem("help.about"))
         })
     }
 
     private fun installKeyBindings(component: JComponent) {
         val inputMap = component.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
         val actionMap = component.actionMap
-        val shortcutMask = Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx
-
-        fun bind(name: String, key: KeyStroke, action: () -> Unit) {
-            inputMap.put(key, name)
-            actionMap.put(name, object : AbstractAction() {
-                override fun actionPerformed(e: java.awt.event.ActionEvent?) = action()
-            })
+        commands.values.forEach { command ->
+            command.keyStroke?.let { keyStroke ->
+                inputMap.put(keyStroke, command.id)
+                actionMap.put(command.id, object : AbstractAction() {
+                    override fun actionPerformed(e: java.awt.event.ActionEvent?) {
+                        executeCommand(command.id)
+                    }
+                })
+            }
         }
+    }
 
-        bind("select-mode", KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0)) {
-            canvas.setMode(CanvasMode.Select)
-        }
-        bind("delete-selection", KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0)) {
+    private fun registerBuiltInCommands() {
+        if (commands.isNotEmpty()) return
+        val shortcut = Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx
+        val shiftShortcut = shortcut or InputEvent.SHIFT_DOWN_MASK
+        registerCommand(AppCommand("file.new", "File: New", KeyStroke.getKeyStroke(KeyEvent.VK_N, shortcut)) { newFile() })
+        registerCommand(AppCommand("file.open", "File: Open...", KeyStroke.getKeyStroke(KeyEvent.VK_O, shortcut)) { openFile() })
+        registerCommand(AppCommand("file.save", "File: Save", KeyStroke.getKeyStroke(KeyEvent.VK_S, shortcut)) { saveFile() })
+        registerCommand(AppCommand("file.saveAs", "File: Save As...", KeyStroke.getKeyStroke(KeyEvent.VK_S, shiftShortcut)) { saveAsFile() })
+        registerCommand(AppCommand("file.quit", "File: Quit", KeyStroke.getKeyStroke(KeyEvent.VK_Q, shortcut)) { quit() })
+        registerCommand(AppCommand("edit.undo", "Edit: Undo", KeyStroke.getKeyStroke(KeyEvent.VK_Z, shortcut)) { undo() })
+        registerCommand(AppCommand("edit.redo", "Edit: Redo", KeyStroke.getKeyStroke(KeyEvent.VK_Y, shortcut)) { redo() })
+        registerCommand(AppCommand("edit.redoAlt", "Edit: Redo", KeyStroke.getKeyStroke(KeyEvent.VK_Z, shiftShortcut)) { redo() })
+        registerCommand(AppCommand("edit.cut", "Edit: Cut", KeyStroke.getKeyStroke(KeyEvent.VK_X, shortcut)) { cut() })
+        registerCommand(AppCommand("edit.copy", "Edit: Copy", KeyStroke.getKeyStroke(KeyEvent.VK_C, shortcut)) { copy() })
+        registerCommand(AppCommand("edit.paste", "Edit: Paste", KeyStroke.getKeyStroke(KeyEvent.VK_V, shortcut)) { paste() })
+        registerCommand(AppCommand("graph.mode.select", "Graph: Select Mode", KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0)) { canvas.setMode(CanvasMode.Select) })
+        registerCommand(AppCommand("graph.mode.node", "Graph: Node Mode") { canvas.setMode(CanvasMode.CreateNode) })
+        registerCommand(AppCommand("graph.mode.link", "Graph: Link Mode") { canvas.setMode(CanvasMode.CreateLink) })
+        registerCommand(AppCommand("graph.deleteSelection", "Graph: Delete Selection", KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0)) {
             if (graphShortcutEnabled()) deleteSelection()
+        })
+        registerCommand(AppCommand("sheet.toggle", "Sheet: Toggle Preview") { canvas.toggleSheet() })
+        registerCommand(AppCommand("sheet.export", "Sheet: Export...") { canvas.exportSheet(frame) })
+        registerCommand(AppCommand("commands.palette", "Commands: Open Palette", KeyStroke.getKeyStroke(KeyEvent.VK_P, shiftShortcut)) { showCommandPalette() })
+        registerCommand(AppCommand("help.about", "Help: About") { showAbout() })
+    }
+
+    private fun registerCommand(command: AppCommand) {
+        commands[command.id] = command
+    }
+
+    private fun configurePlugins() {
+        if (uiPlugins.isEmpty()) return
+        val context = object : OrchestraPluginContext {
+            override fun document(): InflowDocument = repository.getDocument()
+
+            override fun postModelUpdate(label: String, update: (DocumentRepository) -> Unit) {
+                update(repository)
+                status.text = label
+                refreshAll()
+            }
+
+            override fun addToolbarButton(label: String, action: () -> Unit) {
+                pluginToolbarButtons += PluginToolbarButton(label, action)
+            }
+
+            override fun addContentTab(title: String, createPanel: () -> JComponent) {
+                pluginContentTabs += PluginContentTab(title, createPanel)
+            }
+
+            override fun addCommand(id: String, title: String, keyStroke: KeyStroke?, action: () -> Unit) {
+                registerCommand(AppCommand("plugin.$id", title, keyStroke, action = action))
+            }
         }
-        bind("copy-selection", KeyStroke.getKeyStroke(KeyEvent.VK_C, shortcutMask)) {
-            if (graphShortcutEnabled()) canvas.copySelection()
+        uiPlugins.forEach { plugin ->
+            runCatching { plugin.configure(context) }
+                .onFailure { status.text = "Plugin ${plugin.id} failed: ${it.message}" }
         }
-        bind("cut-selection", KeyStroke.getKeyStroke(KeyEvent.VK_X, shortcutMask)) {
-            if (graphShortcutEnabled()) {
+    }
+
+    private fun executeCommand(id: String) {
+        val command = commands[id] ?: return
+        if (!command.enabled()) return
+        command.action()
+    }
+
+    private fun commandItem(id: String): JMenuItem {
+        val command = commands.getValue(id)
+        return JMenuItem(command.title.substringAfter(": ")).apply {
+            accelerator = command.keyStroke
+            isEnabled = command.enabled()
+            addActionListener { executeCommand(id) }
+        }
+    }
+
+    private fun newFile() {
+        autosave()
+        repository.replaceDocument(newDocument("Untitled Orchestra"))
+        selection.clear()
+        currentFile = null
+        resetHistory()
+        refreshAll()
+        updateWindowTitle()
+    }
+
+    private fun quit() {
+        autosave()
+        frame.dispose()
+        kotlin.system.exitProcess(0)
+    }
+
+    private fun cut() {
+        val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+        when (focusOwner) {
+            is GridCodeEditorAdapter -> focusOwner.commandCut()
+            is JTextComponent -> focusOwner.cut()
+            else -> if (graphShortcutEnabled()) {
                 canvas.copySelection()
                 deleteSelection()
             }
         }
-        bind("paste-selection", KeyStroke.getKeyStroke(KeyEvent.VK_V, shortcutMask)) {
-            if (graphShortcutEnabled()) canvas.pasteSelection()
+    }
+
+    private fun copy() {
+        val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+        when (focusOwner) {
+            is GridCodeEditorAdapter -> focusOwner.commandCopy()
+            is JTextComponent -> focusOwner.copy()
+            else -> if (graphShortcutEnabled()) canvas.copySelection()
         }
+    }
+
+    private fun paste() {
+        val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+        when (focusOwner) {
+            is GridCodeEditorAdapter -> focusOwner.commandPaste()
+            is JTextComponent -> focusOwner.paste()
+            else -> if (graphShortcutEnabled()) canvas.pasteSelection()
+        }
+    }
+
+    private fun undo() {
+        val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+        if (focusOwner is GridCodeEditorAdapter) {
+            focusOwner.commandUndo()
+            return
+        }
+        undoDocument()
+    }
+
+    private fun redo() {
+        val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+        if (focusOwner is GridCodeEditorAdapter) {
+            focusOwner.commandRedo()
+            return
+        }
+        redoDocument()
+    }
+
+    private fun showCommandPalette() {
+        val dialog = JDialog(frame, "Command Palette", true)
+        val query = JTextField()
+        val model = DefaultListModel<AppCommand>()
+        val list = JList(model).apply {
+            visibleRowCount = 12
+            cellRenderer = CommandListCellRenderer()
+        }
+
+        fun refresh() {
+            val text = query.text.trim().lowercase()
+            model.clear()
+            commands.values
+                .filter { it.enabled() }
+                .filter { command ->
+                    text.isBlank() ||
+                        command.title.lowercase().contains(text) ||
+                        command.id.lowercase().contains(text)
+                }
+                .distinctBy { it.title }
+                .forEach(model::addElement)
+            if (model.size() > 0) list.selectedIndex = 0
+        }
+
+        fun executeSelected() {
+            val command = list.selectedValue ?: return
+            dialog.dispose()
+            executeCommand(command.id)
+        }
+
+        query.document.addDocumentListener(SimpleDocumentListener { refresh() })
+        query.addActionListener { executeSelected() }
+        list.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.clickCount >= 2) executeSelected()
+            }
+        })
+        dialog.rootPane.registerKeyboardAction(
+            { dialog.dispose() },
+            KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+            JComponent.WHEN_IN_FOCUSED_WINDOW,
+        )
+        refresh()
+        dialog.contentPane = JPanel(BorderLayout(6, 6)).apply {
+            border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
+            add(query, BorderLayout.NORTH)
+            add(JScrollPane(list), BorderLayout.CENTER)
+        }
+        dialog.setSize(520, 360)
+        dialog.setLocationRelativeTo(frame)
+        SwingUtilities.invokeLater { query.requestFocusInWindow() }
+        dialog.isVisible = true
     }
 
     private fun graphShortcutEnabled(): Boolean {
@@ -310,9 +521,11 @@ class OrchestraDesktopApp(
 
     private fun openFile() {
         val path = chooseDocumentPath("Open .orch", FileDialog.LOAD) ?: return
+        autosave()
         repository.replaceDocument(store.load(path))
         currentFile = path
         selection.clear()
+        resetHistory()
         refreshAll()
         updateWindowTitle()
     }
@@ -331,6 +544,74 @@ class OrchestraDesktopApp(
         currentFile = path
         repository.clearDirty()
         updateWindowTitle()
+    }
+
+    private fun autosave() {
+        val path = currentFile ?: return
+        if (!repository.isDirty()) return
+        runCatching {
+            store.save(repository.getDocument(), path)
+            repository.clearDirty()
+            status.text = "Autosaved ${path.fileName}"
+        }.onFailure {
+            status.text = "Autosave failed: ${it.message}"
+        }
+    }
+
+    private fun documentSnapshot(): String =
+        historyJson.encodeToString(InflowDocument.serializer(), repository.getDocument())
+
+    private fun documentFromSnapshot(snapshot: String): InflowDocument =
+        historyJson.decodeFromString(InflowDocument.serializer(), snapshot)
+
+    private fun resetHistory() {
+        undoStack.clear()
+        redoStack.clear()
+        currentSnapshot = documentSnapshot()
+    }
+
+    private fun checkpointHistory() {
+        if (applyingHistory) return
+        val snapshot = documentSnapshot()
+        if (snapshot == currentSnapshot) return
+        undoStack.addLast(currentSnapshot)
+        while (undoStack.size > MAX_HISTORY_SNAPSHOTS) undoStack.removeFirst()
+        redoStack.clear()
+        currentSnapshot = snapshot
+    }
+
+    private fun undoDocument() {
+        val previous = undoStack.removeLastOrNull() ?: return
+        val current = documentSnapshot()
+        redoStack.addLast(current)
+        applyingHistory = true
+        try {
+            repository.replaceDocument(documentFromSnapshot(previous))
+            repository.markDirty()
+            currentSnapshot = previous
+            selection.clear()
+            refreshAll()
+        } finally {
+            applyingHistory = false
+        }
+        status.text = "Undo"
+    }
+
+    private fun redoDocument() {
+        val next = redoStack.removeLastOrNull() ?: return
+        val current = documentSnapshot()
+        undoStack.addLast(current)
+        applyingHistory = true
+        try {
+            repository.replaceDocument(documentFromSnapshot(next))
+            repository.markDirty()
+            currentSnapshot = next
+            selection.clear()
+            refreshAll()
+        } finally {
+            applyingHistory = false
+        }
+        status.text = "Redo"
     }
 
     private fun chooseDocumentPath(title: String, mode: Int): Path? {
@@ -371,6 +652,7 @@ class OrchestraDesktopApp(
         canvas.refreshBoundsFromChildren()
         canvas.repaint()
         onSelectionChanged()
+        checkpointHistory()
     }
 
     private fun refreshTree() {
@@ -2481,6 +2763,7 @@ private class InspectorPanel(
 private class NodeEditorTabs(
     private val repository: DocumentRepository,
     private val refreshAll: () -> Unit,
+    private val checkpointHistory: () -> Unit,
 ) : JTabbedPane() {
     private var boundIds: List<NodeId> = emptyList()
 
@@ -2488,7 +2771,7 @@ private class NodeEditorTabs(
         if (ids != boundIds) {
             removeAll()
             ids.mapNotNull(repository::getNode).forEach { node ->
-                addTab(node.name, NodeTextEditor(repository, node.id, refreshAll))
+                addTab(node.name, NodeTextEditor(repository, node.id, refreshAll, checkpointHistory))
             }
             boundIds = ids
         } else {
@@ -2523,6 +2806,7 @@ private class NodeTextEditor(
     private val repository: DocumentRepository,
     val nodeId: NodeId,
     private val refreshAll: () -> Unit,
+    private val checkpointHistory: () -> Unit,
 ) : JTabbedPane() {
     private val completionService = ModelAwareCompletionService(repository::getDocument)
     private val editorsBySection = mutableMapOf<NodeTextSection, GridCodeEditorAdapter>()
@@ -2635,6 +2919,7 @@ private class NodeTextEditor(
         val timer = Timer(250) {
             val current = repository.requireNode(nodeId)
             repository.updateNodeText(nodeId, spec.textSetter(current.text, editor.getText()))
+            checkpointHistory()
         }
         timer.isRepeats = false
         editor.onTextChanged = { timer.restart() }
@@ -2680,6 +2965,7 @@ private class NodeTextEditor(
         val timer = Timer(250) {
             val current = repository.requireNode(nodeId)
             repository.updateNodeText(nodeId, current.text.copy(tests = editor.getText()))
+            checkpointHistory()
         }
         timer.isRepeats = false
         editor.onTextChanged = { timer.restart() }
@@ -2695,6 +2981,7 @@ private class NodeTextEditor(
         val panel = TestTextEditorPanel(repository, nodeId, editor, languageSelector) { value ->
             val current = repository.requireNode(nodeId)
             repository.updateNodeText(nodeId, current.text.copy(tests = value))
+            checkpointHistory()
         }
         testsPanel = panel
         editorsBySection[NodeTextSection.Tests] = editor
@@ -3189,6 +3476,60 @@ interface PluginUiProvider {
     val id: String
     val displayName: String
     fun createPanel(repository: DocumentRepository, selectedNodeIds: List<NodeId>): JComponent
+}
+
+private data class AppCommand(
+    val id: String,
+    val title: String,
+    val keyStroke: KeyStroke? = null,
+    val enabled: () -> Boolean = { true },
+    val action: () -> Unit,
+)
+
+private data class PluginToolbarButton(
+    val label: String,
+    val action: () -> Unit,
+)
+
+private data class PluginContentTab(
+    val title: String,
+    val createPanel: () -> JComponent,
+)
+
+interface OrchestraDesktopPlugin {
+    val id: String
+    val displayName: String
+    fun configure(context: OrchestraPluginContext)
+}
+
+interface OrchestraPluginContext {
+    fun document(): InflowDocument
+    fun postModelUpdate(label: String, update: (DocumentRepository) -> Unit)
+    fun addToolbarButton(label: String, action: () -> Unit)
+    fun addContentTab(title: String, createPanel: () -> JComponent)
+    fun addCommand(id: String, title: String, keyStroke: KeyStroke? = null, action: () -> Unit)
+}
+
+private class CommandListCellRenderer : DefaultListCellRenderer() {
+    override fun getListCellRendererComponent(
+        list: javax.swing.JList<*>?,
+        value: Any?,
+        index: Int,
+        isSelected: Boolean,
+        cellHasFocus: Boolean,
+    ): Component {
+        val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+        if (component is JLabel && value is AppCommand) {
+            component.text = value.title
+        }
+        return component
+    }
+}
+
+private class SimpleDocumentListener(private val onChange: () -> Unit) : DocumentListener {
+    override fun insertUpdate(e: DocumentEvent) = onChange()
+    override fun removeUpdate(e: DocumentEvent) = onChange()
+    override fun changedUpdate(e: DocumentEvent) = onChange()
 }
 
 private fun NodeLayout.rect(): Rectangle = Rectangle(x.toInt(), y.toInt(), width.toInt(), height.toInt())
