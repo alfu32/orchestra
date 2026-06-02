@@ -1,6 +1,7 @@
 package com.orchestra.app
 
 import com.orchestra.compiler.api.CompilerOptions
+import com.orchestra.compiler.api.CompilerPlugin
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
 import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.core.model.NodeId
@@ -9,7 +10,9 @@ import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.core.validation.DocumentValidator
+import com.orchestra.app.ui.defaultPluginsFolder
 import com.orchestra.app.ui.launchDesktopApp
+import com.orchestra.app.ui.loadCompilerPlugins
 import com.orchestra.storage.InMemoryDocumentRepository
 import com.orchestra.storage.KotlinxJsonDocumentStore
 import com.orchestra.storage.newDocument
@@ -37,8 +40,10 @@ private fun printHelp() {
 
         Commands:
           new <file.orch>                     Create a sample document
-          validate <file.orch>                Validate document references
-          compile <file.orch> <dir>           Export a naive Kotlin/JVM project
+          validate <file.orch> [--plugins <dir>]
+                                              Validate document references and compiler plugins
+          compile <file.orch> <dir> [--plugins <dir>]
+                                              Export with the first matching compiler plugin
           desktop [--plugins <dir>]           Open the graphical desktop editor
         """.trimIndent(),
     )
@@ -77,9 +82,15 @@ private fun createSample(args: Array<String>) {
 }
 
 private fun validate(args: Array<String>) {
-    val file = args.getOrNull(1)?.let(Path::of) ?: error("Usage: validate <file.orch>")
+    val commandArgs = args.drop(1)
+    val positionals = positionalArgs(commandArgs)
+    val file = positionals.getOrNull(0)?.let(Path::of) ?: error("Usage: validate <file.orch> [--plugins <dir>]")
+    val pluginsFolder = parsePluginsFolderOrDefault(commandArgs)
     val document = KotlinxJsonDocumentStore().load(file)
-    val diagnostics = DocumentValidator.validate(document)
+    val compilerDiagnostics = compilersFrom(pluginsFolder)
+        .filter { compiler -> runCatching { compiler.supports(document) }.getOrDefault(false) }
+        .flatMap { compiler -> compiler.validate(document) }
+    val diagnostics = DocumentValidator.validate(document) + compilerDiagnostics
     diagnostics.forEach { println("${it.severity}: ${it.message}") }
     if (diagnostics.none { it.severity == DiagnosticSeverity.Error }) {
         println("Document is valid")
@@ -87,16 +98,46 @@ private fun validate(args: Array<String>) {
 }
 
 private fun compile(args: Array<String>) {
-    val file = args.getOrNull(1)?.let(Path::of) ?: error("Usage: compile <file.orch> <dir>")
-    val output = args.getOrNull(2)?.let(Path::of) ?: error("Usage: compile <file.inflow.json> <dir>")
+    val commandArgs = args.drop(1)
+    val positionals = positionalArgs(commandArgs)
+    val file = positionals.getOrNull(0)?.let(Path::of) ?: error("Usage: compile <file.orch> <dir> [--plugins <dir>]")
+    val output = positionals.getOrNull(1)?.let(Path::of) ?: error("Usage: compile <file.orch> <dir> [--plugins <dir>]")
+    val pluginsFolder = parsePluginsFolderOrDefault(commandArgs)
     val document = KotlinxJsonDocumentStore().load(file)
-    val result = NaiveKotlinCompiler().compile(document, CompilerOptions(projectName = document.name))
+    val compiler = compilersFrom(pluginsFolder).firstOrNull { it.supports(document) }
+        ?: error("No compiler plugin supports ${file.fileName}")
+    val result = compiler.compile(document, CompilerOptions(projectName = document.name))
     result.diagnostics.forEach { println("${it.severity}: ${it.message}") }
     val generatedProject = result.generatedProject
     if (!result.success || generatedProject == null) error("Compilation failed")
     output.createDirectories()
     generatedProject.writeTo(output)
     println("Wrote ${generatedProject.files.size} files to ${output.toAbsolutePath()}")
+}
+
+private fun compilersFrom(pluginsFolder: Path): List<CompilerPlugin> =
+    loadCompilerPlugins(pluginsFolder) + NaiveKotlinCompiler()
+
+private fun parsePluginsFolderOrDefault(args: List<String>): Path {
+    val index = args.indexOfFirst { it == "--plugins" || it == "--plugins-dir" }
+    if (index < 0) return defaultPluginsFolder()
+    return args.getOrNull(index + 1)?.let(Path::of) ?: error("Missing plugins directory after ${args[index]}")
+}
+
+private fun positionalArgs(args: List<String>): List<String> {
+    val result = mutableListOf<String>()
+    var index = 0
+    while (index < args.size) {
+        when (args[index]) {
+            "--plugins",
+            "--plugins-dir" -> index += 2
+            else -> {
+                result += args[index]
+                index += 1
+            }
+        }
+    }
+    return result
 }
 
 private fun kotlinTechnology() = TechnologyMetadata(

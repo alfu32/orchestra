@@ -96,6 +96,8 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     override var onTextChanged: ((String) -> Unit)? = null
     override var onCursorChanged: ((EditorCursor) -> Unit)? = null
     override var onCompletionRequested: ((CompletionRequest) -> List<CompletionSuggestion>)? = null
+    var onUndoRequested: (() -> Unit)? = null
+    var onRedoRequested: (() -> Unit)? = null
 
     init {
         isFocusable = true
@@ -275,12 +277,16 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                     return
                 }
                 KeyEvent.VK_Z -> {
-                    if (e.isShiftDown) redo() else undo()
+                    if (e.isShiftDown) {
+                        onRedoRequested?.invoke() ?: redo()
+                    } else {
+                        onUndoRequested?.invoke() ?: undo()
+                    }
                     e.consume()
                     return
                 }
                 KeyEvent.VK_Y -> {
-                    redo()
+                    onRedoRequested?.invoke() ?: redo()
                     e.consume()
                     return
                 }

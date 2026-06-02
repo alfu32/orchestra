@@ -143,17 +143,25 @@ class OrchestraDesktopApp(
 
     private val frame = JFrame()
     private val selection = linkedSetOf<NodeId>()
-    private val canvas = GraphCanvas(repository, selection, { onSelectionChanged() }, ::refreshAll, ::onCanvasModeChanged)
+    private val canvas = GraphCanvas(
+        repository,
+        selection,
+        { onSelectionChanged() },
+        ::refreshAll,
+        ::onCanvasModeChanged,
+        ::openNodeInEntityEditor,
+    )
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
     private val selectedEntitiesTree = JTree()
-    private val compilerPlugins: List<CompilerPlugin> = listOf(NaiveKotlinCompiler())
+    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + NaiveKotlinCompiler()
     private val languageIds = availableLanguageIds()
     private val inspector = InspectorPanel(repository, ::refreshAll, languageIds)
-    private val editorTabs = NodeEditorTabs(repository, ::refreshAll, ::checkpointHistory)
+    private val editorTabs = NodeEditorTabs(repository, ::refreshAll, ::checkpointHistory, ::undoDocument, ::redoDocument, languageIds)
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
     }
+    private lateinit var workflows: JTabbedPane
     private val modeButtons = mutableMapOf<CanvasMode, JToggleButton>()
     private val commands = linkedMapOf<String, AppCommand>()
     private val pluginToolbarButtons = mutableListOf<PluginToolbarButton>()
@@ -242,7 +250,7 @@ class OrchestraDesktopApp(
             resizeWeight = 0.18
         }
 
-        val workflows = JTabbedPane().apply {
+        workflows = JTabbedPane().apply {
             addTab("Flow Designer", flowDesigner)
             addTab("Entities Edit(IDE)", detailsEditor)
             pluginContentTabs.forEach { tab ->
@@ -512,7 +520,8 @@ class OrchestraDesktopApp(
             appendLine("Git tag: ${version.gitTag ?: "-"}")
             appendLine("Build date: ${version.buildDate}")
             appendLine("Plugins folder: ${pluginsFolder.toAbsolutePath().normalize()}")
-            appendLine("Loaded plugins: ${uiPlugins.size}")
+            appendLine("Loaded UI plugins: ${uiPlugins.size}")
+            appendLine("Loaded compiler plugins: ${compilerPlugins.size}")
         }
         JOptionPane.showMessageDialog(frame, details, "About orchestra", JOptionPane.INFORMATION_MESSAGE)
     }
@@ -594,7 +603,7 @@ class OrchestraDesktopApp(
             repository.replaceDocument(documentFromSnapshot(previous))
             repository.markDirty()
             currentSnapshot = previous
-            selection.clear()
+            selection.retainAll(repository.getDocument().nodes.keys)
             refreshAll()
         } finally {
             applyingHistory = false
@@ -611,7 +620,7 @@ class OrchestraDesktopApp(
             repository.replaceDocument(documentFromSnapshot(next))
             repository.markDirty()
             currentSnapshot = next
-            selection.clear()
+            selection.retainAll(repository.getDocument().nodes.keys)
             refreshAll()
         } finally {
             applyingHistory = false
@@ -650,6 +659,15 @@ class OrchestraDesktopApp(
         editorTabs.bind(selection.toList(), activeSection)
         refreshSelectedEntitiesTree()
         canvas.repaint()
+    }
+
+    private fun openNodeInEntityEditor(id: NodeId) {
+        selection.clear()
+        selection += id
+        onSelectionChanged()
+        if (::workflows.isInitialized) {
+            workflows.selectedIndex = 1
+        }
     }
 
     private fun refreshAll() {
@@ -881,6 +899,7 @@ class GraphCanvas(
     private val onSelectionChanged: () -> Unit,
     private val refreshAll: () -> Unit,
     private val onModeChanged: (CanvasMode) -> Unit,
+    private val onNodeDoubleClicked: (NodeId) -> Unit = {},
 ) : JPanel() {
     var mode: CanvasMode = CanvasMode.Select
         private set
@@ -969,6 +988,7 @@ class GraphCanvas(
             override fun mousePressed(e: MouseEvent) = handlePressed(e)
             override fun mouseDragged(e: MouseEvent) = handleDragged(e)
             override fun mouseReleased(e: MouseEvent) = handleReleased(e)
+            override fun mouseClicked(e: MouseEvent) = handleClicked(e)
             override fun mouseWheelMoved(e: MouseWheelEvent) {
                 val before = modelPoint(e.point)
                 zoom = (zoom - e.preciseWheelRotation * 0.08).coerceIn(0.25, 2.5)
@@ -1882,7 +1902,7 @@ class GraphCanvas(
         g2.color = color
         drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
         drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
-        drawLinkLabel(g2, node.name, route.points, color)
+        drawEndpointLinkLabels(g2, node.name, route.points, color)
         g2.font = previousFont
         g2.stroke = previousStroke
     }
@@ -2175,18 +2195,25 @@ class GraphCanvas(
             acc
         }
 
-    private fun drawLinkLabel(g2: Graphics2D, label: String, points: List<Point>, color: Color) {
+    private fun drawEndpointLinkLabels(g2: Graphics2D, label: String, points: List<Point>, color: Color) {
         val text = label.take(24)
         if (text.isBlank()) return
-        val anchor = pointAlongRoute(points, 0.5) ?: return
         g2.font = g2.font.deriveFont(10f)
+        g2.color = color
+        drawEndpointLinkLabel(g2, text, points, fromSource = true)
+        drawEndpointLinkLabel(g2, text, points, fromSource = false)
+    }
+
+    private fun drawEndpointLinkLabel(g2: Graphics2D, text: String, points: List<Point>, fromSource: Boolean) {
+        if (points.isEmpty()) return
         val metrics = g2.fontMetrics
         val width = metrics.stringWidth(text)
-        val x = anchor.x - width / 2
-        val y = anchor.y - metrics.height - 2
-        g2.color = Color(0xfdfdfd)
-        g2.fillRect(x - 3, y, width + 6, metrics.height + 2)
-        g2.color = color
+        val index = if (fromSource) 0 else points.lastIndex
+        val anchor = points[index]
+        val neighbor = if (fromSource) points.getOrNull(1) ?: anchor else points.getOrNull(points.lastIndex - 1) ?: anchor
+        val dx = if (fromSource) neighbor.x - anchor.x else anchor.x - neighbor.x
+        val x = if (dx >= 0) anchor.x + 8 else anchor.x - width - 8
+        val y = anchor.y - metrics.height - 4
         g2.drawString(text, x, y + metrics.ascent)
     }
 
@@ -2213,6 +2240,12 @@ class GraphCanvas(
         this > 0 -> 1
         this < 0 -> -1
         else -> 0
+    }
+
+    private fun handleClicked(e: MouseEvent) {
+        if (e.clickCount < 2 || !SwingUtilities.isLeftMouseButton(e)) return
+        val id = hitNode(modelPoint(e.point)) ?: return
+        onNodeDoubleClicked(id)
     }
 
     private fun handlePressed(e: MouseEvent) {
@@ -2769,6 +2802,9 @@ private class NodeEditorTabs(
     private val repository: DocumentRepository,
     private val refreshAll: () -> Unit,
     private val checkpointHistory: () -> Unit,
+    private val undoDocument: () -> Unit,
+    private val redoDocument: () -> Unit,
+    private val languageIds: List<String>,
 ) : JTabbedPane() {
     private var boundIds: List<NodeId> = emptyList()
 
@@ -2776,7 +2812,7 @@ private class NodeEditorTabs(
         if (ids != boundIds) {
             removeAll()
             ids.mapNotNull(repository::getNode).forEach { node ->
-                addTab(node.name, NodeTextEditor(repository, node.id, refreshAll, checkpointHistory))
+                addTab(node.name, NodeTextEditor(repository, node.id, refreshAll, checkpointHistory, undoDocument, redoDocument, languageIds))
             }
             boundIds = ids
         } else {
@@ -2812,6 +2848,9 @@ private class NodeTextEditor(
     val nodeId: NodeId,
     private val refreshAll: () -> Unit,
     private val checkpointHistory: () -> Unit,
+    private val undoDocument: () -> Unit,
+    private val redoDocument: () -> Unit,
+    languageIds: List<String>,
 ) : JTabbedPane() {
     private val completionService = ModelAwareCompletionService(repository::getDocument)
     private val editorsBySection = mutableMapOf<NodeTextSection, GridCodeEditorAdapter>()
@@ -2820,7 +2859,7 @@ private class NodeTextEditor(
     private var testsPanel: TestTextEditorPanel? = null
     private var binding = false
     private val inheritedLanguageChoice = "Inherited"
-    private val selectableLanguages = listOf(VOID_LANGUAGE_ID) + RegexSyntaxHighlighter.availableLanguageIds()
+    private val selectableLanguages = (listOf(VOID_LANGUAGE_ID) + languageIds).distinct()
     private val textTabs = listOf(
         TextTabSpec(
             label = "Initialization",
@@ -2890,10 +2929,12 @@ private class NodeTextEditor(
                     selector.selectedItem = languageDisplayFor(spec, node.text, effectiveLanguage)
                 }
                 editorsBySection[spec.section]?.let { editor ->
+                    editor.setText(spec.textGetter(node.text))
                     editor.setTechnology(technology.copy(languageId = effectiveLanguage))
                     editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
                 }
             }
+            editorsBySection[NodeTextSection.Tests]?.setText(node.text.tests)
             testsPanel?.bindLanguage(effectiveTextLanguage(NodeTextSection.Tests))
             testsPanel?.refreshTopology()
         } finally {
@@ -2921,13 +2962,29 @@ private class NodeTextEditor(
         editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
         editor.onCompletionRequested = completionService::getSuggestions
         editor.setText(spec.textGetter(node.text))
-        val timer = Timer(250) {
+        fun saveNow() {
             val current = repository.requireNode(nodeId)
-            repository.updateNodeText(nodeId, spec.textSetter(current.text, editor.getText()))
-            checkpointHistory()
+            val next = spec.textSetter(current.text, editor.getText())
+            if (next != current.text) {
+                repository.updateNodeText(nodeId, next)
+                checkpointHistory()
+            }
+        }
+        val timer = Timer(250) {
+            saveNow()
         }
         timer.isRepeats = false
         editor.onTextChanged = { timer.restart() }
+        editor.onUndoRequested = {
+            timer.stop()
+            saveNow()
+            undoDocument()
+        }
+        editor.onRedoRequested = {
+            timer.stop()
+            saveNow()
+            redoDocument()
+        }
         languageSelector.addActionListener {
             if (binding) return@addActionListener
             val current = repository.requireNode(nodeId)
@@ -2967,13 +3024,29 @@ private class NodeTextEditor(
         editor.setCompletionContext(EditorCompletionContext(node.id.value, NodeTextSection.Tests))
         editor.onCompletionRequested = completionService::getSuggestions
         editor.setText(node.text.tests)
-        val timer = Timer(250) {
+        fun saveNow() {
             val current = repository.requireNode(nodeId)
-            repository.updateNodeText(nodeId, current.text.copy(tests = editor.getText()))
-            checkpointHistory()
+            val next = current.text.copy(tests = editor.getText())
+            if (next != current.text) {
+                repository.updateNodeText(nodeId, next)
+                checkpointHistory()
+            }
+        }
+        val timer = Timer(250) {
+            saveNow()
         }
         timer.isRepeats = false
         editor.onTextChanged = { timer.restart() }
+        editor.onUndoRequested = {
+            timer.stop()
+            saveNow()
+            undoDocument()
+        }
+        editor.onRedoRequested = {
+            timer.stop()
+            saveNow()
+            redoDocument()
+        }
         languageSelector.addActionListener {
             if (binding) return@addActionListener
             val current = repository.requireNode(nodeId)
@@ -3527,6 +3600,20 @@ fun defaultPluginsFolder(): Path {
 }
 
 fun loadDesktopPlugins(folder: Path): List<OrchestraDesktopPlugin> {
+    val urls = pluginJarUrls(folder)
+    if (urls.isEmpty()) return emptyList()
+    val classLoader = URLClassLoader(urls, OrchestraDesktopPlugin::class.java.classLoader)
+    return ServiceLoader.load(OrchestraDesktopPlugin::class.java, classLoader).toList()
+}
+
+fun loadCompilerPlugins(folder: Path): List<CompilerPlugin> {
+    val urls = pluginJarUrls(folder)
+    if (urls.isEmpty()) return emptyList()
+    val classLoader = URLClassLoader(urls, CompilerPlugin::class.java.classLoader)
+    return ServiceLoader.load(CompilerPlugin::class.java, classLoader).toList()
+}
+
+private fun pluginJarUrls(folder: Path): Array<java.net.URL> {
     Files.createDirectories(folder)
     val jars = Files.list(folder).use { stream ->
         stream
@@ -3534,10 +3621,7 @@ fun loadDesktopPlugins(folder: Path): List<OrchestraDesktopPlugin> {
             .sorted()
             .toList()
     }
-    if (jars.isEmpty()) return emptyList()
-    val urls = jars.map { it.toUri().toURL() }.toTypedArray()
-    val classLoader = URLClassLoader(urls, OrchestraDesktopPlugin::class.java.classLoader)
-    return ServiceLoader.load(OrchestraDesktopPlugin::class.java, classLoader).toList()
+    return jars.map { it.toUri().toURL() }.toTypedArray()
 }
 
 private class CommandListCellRenderer : DefaultListCellRenderer() {
