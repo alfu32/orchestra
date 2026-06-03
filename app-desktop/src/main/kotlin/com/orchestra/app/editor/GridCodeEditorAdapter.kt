@@ -78,6 +78,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private var diagnostics: List<Diagnostic> = emptyList()
     private var completionItems: List<CompletionSuggestion> = emptyList()
     private var completionIndex = 0
+    private var completionScrollOffset = 0
     private var cursorVisible = true
     private val menuMask = runCatching { Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx }
         .getOrDefault(InputEvent.CTRL_DOWN_MASK)
@@ -156,6 +157,11 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             }
         })
         addMouseWheelListener { e: MouseWheelEvent ->
+            if (completionItems.isNotEmpty()) {
+                scrollCompletions((e.preciseWheelRotation * 3).toInt())
+                e.consume()
+                return@addMouseWheelListener
+            }
             if (e.isShiftDown) {
                 scrollColumn = (scrollColumn + e.preciseWheelRotation.toInt() * 4).coerceAtLeast(0)
             } else {
@@ -359,8 +365,22 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private fun handleCompletionKey(e: KeyEvent): Boolean {
         when (e.keyCode) {
             KeyEvent.VK_ESCAPE -> hideCompletions()
-            KeyEvent.VK_UP -> completionIndex = (completionIndex - 1).coerceAtLeast(0)
-            KeyEvent.VK_DOWN -> completionIndex = (completionIndex + 1).coerceAtMost(completionItems.lastIndex)
+            KeyEvent.VK_UP -> {
+                completionIndex = (completionIndex - 1).coerceAtLeast(0)
+                ensureCompletionVisible()
+            }
+            KeyEvent.VK_DOWN -> {
+                completionIndex = (completionIndex + 1).coerceAtMost(completionItems.lastIndex)
+                ensureCompletionVisible()
+            }
+            KeyEvent.VK_PAGE_UP -> {
+                completionIndex = (completionIndex - visibleCompletionRows()).coerceAtLeast(0)
+                ensureCompletionVisible()
+            }
+            KeyEvent.VK_PAGE_DOWN -> {
+                completionIndex = (completionIndex + visibleCompletionRows()).coerceAtMost(completionItems.lastIndex)
+                ensureCompletionVisible()
+            }
             KeyEvent.VK_ENTER, KeyEvent.VK_TAB -> applyCompletion(completionItems[completionIndex])
             else -> return false
         }
@@ -383,8 +403,9 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             currentLine = line,
             prefix = prefix,
         )
-        completionItems = onCompletionRequested?.invoke(request).orEmpty().take(12)
+        completionItems = onCompletionRequested?.invoke(request).orEmpty()
         completionIndex = 0
+        completionScrollOffset = 0
         repaint()
     }
 
@@ -756,12 +777,16 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val popupHeight = geometry.height
         val labelColumnWidth = geometry.labelColumnWidth
         val detailX = x + 14 + labelColumnWidth + 16
+        val visibleItems = completionItems
+            .drop(completionScrollOffset)
+            .take(geometry.visibleItemCount)
         g2.color = Color(0x252526)
         g2.fillRect(x, y, popupWidth, popupHeight)
         g2.color = Color(0x5f5f5f)
         g2.drawRect(x, y, popupWidth, popupHeight)
-        completionItems.forEachIndexed { index, item ->
-            val rowY = y + 3 + index * lineHeight
+        visibleItems.forEachIndexed { visibleIndex, item ->
+            val index = completionScrollOffset + visibleIndex
+            val rowY = y + 3 + visibleIndex * lineHeight
             if (index == completionIndex) {
                 g2.color = Color(0x094771)
                 g2.fillRect(x + 1, rowY, popupWidth - 2, lineHeight)
@@ -773,6 +798,22 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                 g2.drawString(item.detail.take(52), detailX, rowY + metrics.ascent)
             }
         }
+        drawCompletionScrollbar(g2, geometry)
+    }
+
+    private fun drawCompletionScrollbar(g2: Graphics2D, geometry: CompletionPopupGeometry) {
+        if (completionItems.size <= geometry.visibleItemCount) return
+        val trackX = geometry.x + geometry.width - 7
+        val trackY = geometry.y + 3
+        val trackHeight = geometry.visibleItemCount * geometry.lineHeight
+        val thumbHeight = max(12, trackHeight * geometry.visibleItemCount / completionItems.size)
+        val maxOffset = maxCompletionScrollOffset()
+        val thumbTravel = (trackHeight - thumbHeight).coerceAtLeast(1)
+        val thumbY = trackY + if (maxOffset == 0) 0 else thumbTravel * completionScrollOffset / maxOffset
+        g2.color = Color(0x3c3c3c)
+        g2.fillRect(trackX, trackY, 4, trackHeight)
+        g2.color = Color(0x858585)
+        g2.fillRect(trackX, thumbY, 4, thumbHeight)
     }
 
     private fun drawEditorStatus(g2: Graphics2D, metrics: FontMetrics) {
@@ -921,6 +962,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private fun hideCompletions() {
         completionItems = emptyList()
         completionIndex = 0
+        completionScrollOffset = 0
     }
 
     private fun updateToolTip() {
@@ -1077,6 +1119,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val height: Int,
         val labelColumnWidth: Int,
         val lineHeight: Int,
+        val visibleItemCount: Int,
     )
 
     private fun completionPopupGeometry(
@@ -1093,10 +1136,11 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val detailColumnWidth = completionItems.maxOf { metrics.stringWidth(it.detail.take(52)) }.coerceIn(120, 320)
         val desiredWidth = labelColumnWidth + detailColumnWidth + 36
         val popupWidth = min(max(320, desiredWidth), max(320, width - gutterWidth - 16))
-        val popupHeight = completionItems.size * lineHeight + 6
+        val visibleItemCount = visibleCompletionRows(lineHeight)
+        val popupHeight = visibleItemCount * lineHeight + 6
         val x = (gutterWidth + col * charWidth).coerceIn(0, max(0, width - popupWidth - 4))
         val y = (row * lineHeight).coerceIn(0, max(0, height - popupHeight - 4))
-        return CompletionPopupGeometry(x, y, popupWidth, popupHeight, labelColumnWidth, lineHeight)
+        return CompletionPopupGeometry(x, y, popupWidth, popupHeight, labelColumnWidth, lineHeight, visibleItemCount)
     }
 
     private fun completionIndexAt(point: Point): Int? {
@@ -1108,8 +1152,37 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val geometry = completionPopupGeometry(metrics, lineHeight, charWidth, gutter, visibleRowCount()) ?: return null
         if (point.x !in geometry.x..(geometry.x + geometry.width)) return null
         if (point.y !in geometry.y..(geometry.y + geometry.height)) return null
-        val index = (point.y - geometry.y - 3) / geometry.lineHeight
+        val index = completionScrollOffset + (point.y - geometry.y - 3) / geometry.lineHeight
         return index.takeIf { it in completionItems.indices }
+    }
+
+    private fun visibleCompletionRows(lineHeight: Int = getFontMetrics(editorFont).height.coerceAtLeast(1)): Int {
+        if (completionItems.isEmpty()) return 0
+        val maxByHeight = ((height - 12) / lineHeight).coerceAtLeast(3)
+        return min(completionItems.size, min(20, maxByHeight))
+    }
+
+    private fun maxCompletionScrollOffset(): Int =
+        (completionItems.size - visibleCompletionRows()).coerceAtLeast(0)
+
+    private fun ensureCompletionVisible() {
+        val visibleRows = visibleCompletionRows()
+        if (visibleRows <= 0) return
+        if (completionIndex < completionScrollOffset) completionScrollOffset = completionIndex
+        if (completionIndex >= completionScrollOffset + visibleRows) {
+            completionScrollOffset = completionIndex - visibleRows + 1
+        }
+        completionScrollOffset = completionScrollOffset.coerceIn(0, maxCompletionScrollOffset())
+    }
+
+    private fun scrollCompletions(delta: Int) {
+        if (delta == 0) return
+        completionScrollOffset = (completionScrollOffset + delta).coerceIn(0, maxCompletionScrollOffset())
+        completionIndex = completionIndex.coerceIn(
+            completionScrollOffset,
+            min(completionItems.lastIndex, completionScrollOffset + visibleCompletionRows() - 1),
+        )
+        repaint()
     }
 }
 

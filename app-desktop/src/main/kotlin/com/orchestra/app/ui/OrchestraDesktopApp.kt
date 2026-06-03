@@ -8,6 +8,7 @@ import com.orchestra.Version
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerPlugin
 import com.orchestra.compiler.api.CompilerTechnology
+import com.orchestra.compiler.generated.nodejs.JSCompiler
 import com.orchestra.compiler.generic.CompilerCompiler
 import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
@@ -68,6 +69,7 @@ import java.awt.datatransfer.Transferable
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
 import java.awt.event.InputEvent
+import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -102,6 +104,7 @@ import javax.swing.JMenuBar
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
 import javax.swing.JScrollPane
 import javax.swing.JSplitPane
 import javax.swing.JTabbedPane
@@ -162,7 +165,7 @@ class OrchestraDesktopApp(
     private val detailsHierarchyTree = JTree()
     private val selectedEntitiesTree = JTree()
     private val compilerCompiler = CompilerCompiler()
-    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + GenericCompiler() + NaiveKotlinCompiler()
+    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + JSCompiler() + GenericCompiler() + NaiveKotlinCompiler()
     private val compilerTechnologies = availableCompilerTechnologies()
     private val languageIds = availableLanguageIds(compilerTechnologies)
     private val technologyIds = availableTechnologyIds(compilerTechnologies)
@@ -3018,6 +3021,20 @@ private class InspectorPanel(
     private var binding = false
     private var compilerTechnologyProposal = "generated"
     private val nameField = JTextField()
+    private val compilerTemplateNames = NodeStereotype.entries
+        .map { "@${it.name}" }
+        .distinct()
+        .sorted()
+    private val nameCompletionModel = DefaultListModel<String>()
+    private val nameCompletionList = JList(nameCompletionModel).apply {
+        visibleRowCount = 10
+        fixedCellWidth = 180
+    }
+    private val nameCompletionPopup = JPopupMenu().apply {
+        add(JScrollPane(nameCompletionList).apply {
+            preferredSize = Dimension(220, 180)
+        })
+    }
     private val language = JComboBox(languageOptions.toTypedArray()).apply { isEditable = false }
     private val customLanguage = JTextField()
     private val customLanguagePanel = JPanel(BorderLayout(0, 4)).apply {
@@ -3053,6 +3070,7 @@ private class InspectorPanel(
     private val metadataRow = fieldRow("Metadata key=value", JScrollPane(metadata))
 
     init {
+        installNameCompletions()
         listOf(nameField, customLanguage, customTechnology, state, linkTypeName, customTransportKind).forEach(::applyOnCommit)
         applyOnCommit(language)
         applyOnCommit(technology)
@@ -3079,6 +3097,7 @@ private class InspectorPanel(
 
     fun bind(id: NodeId?) {
         if (nodeId == id && isEditing()) return
+        hideNameCompletions()
         binding = true
         nodeId = id
         val node = id?.let(repository::getNode)
@@ -3101,9 +3120,88 @@ private class InspectorPanel(
     private fun applyOnCommit(field: JTextField) {
         field.addActionListener { apply() }
         field.addFocusListener(object : FocusAdapter() {
-            override fun focusLost(e: FocusEvent) = apply()
+            override fun focusLost(e: FocusEvent) {
+                if (field == nameField && !isNameCompletionFocusTarget(e.oppositeComponent)) hideNameCompletions()
+                apply()
+            }
         })
     }
+
+    private fun installNameCompletions() {
+        nameField.addKeyListener(object : KeyAdapter() {
+            override fun keyPressed(e: KeyEvent) {
+                if (!nameCompletionPopup.isVisible) return
+                when (e.keyCode) {
+                    KeyEvent.VK_UP -> {
+                        nameCompletionList.selectedIndex = (nameCompletionList.selectedIndex - 1).coerceAtLeast(0)
+                        nameCompletionList.ensureIndexIsVisible(nameCompletionList.selectedIndex)
+                        e.consume()
+                    }
+                    KeyEvent.VK_DOWN -> {
+                        nameCompletionList.selectedIndex = (nameCompletionList.selectedIndex + 1).coerceAtMost(nameCompletionModel.size() - 1)
+                        nameCompletionList.ensureIndexIsVisible(nameCompletionList.selectedIndex)
+                        e.consume()
+                    }
+                    KeyEvent.VK_ENTER, KeyEvent.VK_TAB -> {
+                        applyNameCompletion()
+                        e.consume()
+                    }
+                    KeyEvent.VK_ESCAPE -> {
+                        hideNameCompletions()
+                        e.consume()
+                    }
+                }
+            }
+
+            override fun keyReleased(e: KeyEvent) {
+                if (e.keyCode in setOf(KeyEvent.VK_UP, KeyEvent.VK_DOWN, KeyEvent.VK_ENTER, KeyEvent.VK_TAB, KeyEvent.VK_ESCAPE)) return
+                updateNameCompletions()
+            }
+        })
+        nameCompletionList.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.clickCount >= 1) applyNameCompletion()
+            }
+        })
+    }
+
+    private fun updateNameCompletions() {
+        if (binding || boundNodeIsLink) {
+            hideNameCompletions()
+            return
+        }
+        val prefix = nameField.text.trim()
+        if (!prefix.startsWith("@")) {
+            hideNameCompletions()
+            return
+        }
+        val matches = compilerTemplateNames.filter { it.startsWith(prefix, ignoreCase = true) }
+        if (matches.isEmpty()) {
+            hideNameCompletions()
+            return
+        }
+        nameCompletionModel.clear()
+        matches.forEach(nameCompletionModel::addElement)
+        nameCompletionList.selectedIndex = 0
+        if (!nameCompletionPopup.isVisible) {
+            nameCompletionPopup.show(nameField, 0, nameField.height)
+        }
+    }
+
+    private fun applyNameCompletion() {
+        val value = nameCompletionList.selectedValue ?: return
+        nameField.text = value
+        nameField.caretPosition = value.length
+        hideNameCompletions()
+        apply()
+    }
+
+    private fun hideNameCompletions() {
+        if (nameCompletionPopup.isVisible) nameCompletionPopup.isVisible = false
+    }
+
+    private fun isNameCompletionFocusTarget(component: Component?): Boolean =
+        component != null && SwingUtilities.isDescendingFrom(component, nameCompletionPopup)
 
     private fun applyOnCommit(field: JComboBox<String>) {
         field.addActionListener {
@@ -3173,11 +3271,11 @@ private class InspectorPanel(
         if (boundNodeIsCompiler) {
             customTechnology.text.trim().ifBlank { compilerTechnologyProposal }
         } else {
-        when (val selected = technology.selectedItem?.toString().orEmpty()) {
-            NoneTechnologyChoice -> ""
-            OtherTechnologyChoice -> customTechnology.text.trim()
-            else -> selected.trim()
-        }
+            when (val selected = technology.selectedItem?.toString().orEmpty()) {
+                NoneTechnologyChoice -> ""
+                OtherTechnologyChoice -> customTechnology.text.trim()
+                else -> selected.trim()
+            }
         }
 
     private fun selectedTransportKind(): String =
