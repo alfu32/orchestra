@@ -2,6 +2,7 @@ package com.orchestra.app
 
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerPlugin
+import com.orchestra.compiler.generic.CompilerCompiler
 import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
 import com.orchestra.core.diagnostics.DiagnosticSeverity
@@ -10,6 +11,8 @@ import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.TechnologyMetadata
+import com.orchestra.core.model.effectiveTechnologyId
+import com.orchestra.core.model.rootNode
 import com.orchestra.core.validation.DocumentValidator
 import com.orchestra.app.ui.defaultPluginsFolder
 import com.orchestra.app.ui.launchDesktopApp
@@ -105,7 +108,7 @@ private fun compile(args: Array<String>) {
     val output = positionals.getOrNull(1)?.let(Path::of) ?: error("Usage: compile <file.orch> <dir> [--plugins <dir>]")
     val pluginsFolder = parsePluginsFolderOrDefault(commandArgs)
     val document = KotlinxJsonDocumentStore().load(file)
-    val compiler = compilersFrom(pluginsFolder).firstOrNull { it.supports(document) }
+    val compiler = selectCompiler(document, compilersFrom(pluginsFolder))
         ?: error("No compiler plugin supports ${file.fileName}")
     val result = compiler.compile(document, CompilerOptions(projectName = document.name))
     result.diagnostics.forEach { println("${it.severity}: ${it.message}") }
@@ -117,7 +120,18 @@ private fun compile(args: Array<String>) {
 }
 
 private fun compilersFrom(pluginsFolder: Path): List<CompilerPlugin> =
-    loadCompilerPlugins(pluginsFolder) + GenericCompiler() + NaiveKotlinCompiler()
+    loadCompilerPlugins(pluginsFolder) + CompilerCompiler() + GenericCompiler() + NaiveKotlinCompiler()
+
+private fun selectCompiler(document: com.orchestra.core.model.InflowDocument, compilers: List<CompilerPlugin>): CompilerPlugin? {
+    val root = document.rootNode()
+    val requestedCompilerId = root.technology.compilerId.trim()
+    val requestedTechnologyId = document.effectiveTechnologyId(root.id)
+    val supporting = compilers.filter { compiler -> runCatching { compiler.supports(document) }.getOrDefault(false) }
+    return supporting.firstOrNull { it.id == requestedCompilerId } ?:
+        supporting.firstOrNull { requestedTechnologyId.isNotBlank() && requestedTechnologyId in it.supportedTechnologyIds } ?:
+        supporting.firstOrNull { requestedTechnologyId.isNotBlank() && it.providedTechnologies.any { tech -> tech.technologyId == requestedTechnologyId } } ?:
+        supporting.firstOrNull()
+}
 
 private fun parsePluginsFolderOrDefault(args: List<String>): Path {
     val index = args.indexOfFirst { it == "--plugins" || it == "--plugins-dir" }

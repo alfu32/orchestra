@@ -1,9 +1,11 @@
 package com.orchestra.compiler.naivekotlin
 
 import com.orchestra.compiler.api.GeneratedElementKind
+import com.orchestra.compiler.generic.CompilerCompiler
 import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.NodePort
+import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.core.model.PortDirection
 import com.orchestra.storage.InMemoryDocumentRepository
 import com.orchestra.storage.newDocument
@@ -46,5 +48,55 @@ class NaiveKotlinCompilerTest {
         val file = assertNotNull(project.files.singleOrNull { it.path == "config/app.json" })
         assertEquals("""{"enabled":true}""", file.content)
         assertEquals(GeneratedElementKind.StaticFile, file.elementKind)
+    }
+
+    @Test
+    fun `generic compiler applies override templates to nodes and links`() {
+        val repository = InMemoryDocumentRepository(newDocument("Generic Sample"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "generic"))
+        val generatorTemplate = repository.createNode(root, "@Generator", NodeKind.Processor)
+        repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(source = "generate ${'$'}{node.name} -> ${'$'}{outgoingLinks}"))
+        val sinkTemplate = repository.createNode(root, "@Sink", NodeKind.Processor)
+        repository.updateNodeText(sinkTemplate.id, sinkTemplate.text.copy(source = "sink ${'$'}{node.name} <- ${'$'}{incomingLinks}"))
+        val linkTemplate = repository.createNode(root, "@Transport", NodeKind.Processor)
+        repository.updateNodeText(linkTemplate.id, linkTemplate.text.copy(source = "pipe ${'$'}{link.sourcePortName} to ${'$'}{link.targetPortName}"))
+        val source = repository.createNode(root, "read_file", NodeKind.Processor)
+        val target = repository.createNode(root, "write_file", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "record", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "record", PortDirection.Input))
+        repository.createLink(root, "record", source.id, "record", target.id, "record")
+
+        val result = GenericCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success)
+        val project = assertNotNull(result.generatedProject)
+        assertTrue(project.files.none { it.path.endsWith(".template") })
+        assertTrue(project.files.any { it.path == "nodes/read_file.md" && it.content == "generate read_file -> record" })
+        assertTrue(project.files.any { it.path == "nodes/write_file.md" && it.content == "sink write_file <- record" })
+        assertTrue(project.files.any { it.path == "links/record.md" && it.content == "pipe record to record" })
+    }
+
+    @Test
+    fun `compiler compiler emits compiler class from a single compiler node`() {
+        val repository = InMemoryDocumentRepository(newDocument("Compiler Design"))
+        val root = repository.getDocument().rootNodeId
+        val compiler = repository.createNode(root, "@Compiler", NodeKind.Processor)
+        repository.updateNodeTechnology(compiler.id, TechnologyMetadata(languageId = "kotlin", technologyId = "generated-kotlin"))
+        compiler.metadata["className"] = "FlowGeneratedCompiler"
+        val generatorTemplate = repository.createNode(compiler.id, "@Generator", NodeKind.Processor)
+        repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(source = "generated ${'$'}{node.name}"))
+        val staticFilesTemplate = repository.createNode(compiler.id, "@StaticFile", NodeKind.Processor)
+        repository.updateNodeText(staticFilesTemplate.id, staticFilesTemplate.text.copy(source = "settings.gradle.kts\nbuild.gradle.kts"))
+
+        val result = CompilerCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success)
+        val project = assertNotNull(result.generatedProject)
+        val file = assertNotNull(project.files.singleOrNull { it.path == "src/main/kotlin/generated/compiler/FlowGeneratedCompiler.kt" })
+        assertTrue(file.content.contains("class FlowGeneratedCompiler : CompilerPlugin"))
+        assertTrue(file.content.contains("override fun getGenerator"))
+        assertTrue(file.content.contains("generated ${'$'}{node.name}"))
+        assertTrue(file.content.contains("listOf(\"settings.gradle.kts\", \"build.gradle.kts\")"))
     }
 }

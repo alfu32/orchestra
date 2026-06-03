@@ -83,15 +83,15 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         .getOrDefault(InputEvent.CTRL_DOWN_MASK)
 
     private var caret: BufferPosition
-        get() = cursors.first().caret
+        get() = primaryCursor().caret
         set(value) {
-            cursors.first().caret = value
+            primaryCursor().caret = value
         }
 
     private var selectionAnchor: BufferPosition?
-        get() = cursors.first().anchor
+        get() = primaryCursor().anchor
         set(value) {
-            cursors.first().anchor = value
+            primaryCursor().anchor = value
         }
 
     override var onTextChanged: ((String) -> Unit)? = null
@@ -114,9 +114,17 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         addMouseListener(object : MouseAdapter() {
             override fun mousePressed(e: MouseEvent) {
                 requestFocusInWindow()
+                completionIndexAt(e.point)?.let { index ->
+                    completionIndex = index
+                    applyCompletion(completionItems[index])
+                    e.consume()
+                    return
+                }
                 val pos = positionAt(e.point)
                 if (e.isAltDown) {
                     toggleCursor(pos)
+                } else if (e.clickCount >= 2) {
+                    selectWordAt(pos)
                 } else if (e.isShiftDown) {
                     cursorStates().forEach { state ->
                         if (state.anchor == null) state.anchor = state.caret
@@ -381,10 +389,11 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     }
 
     private fun applyCompletion(suggestion: CompletionSuggestion) {
+        val currentCaret = caret
         val prefix = currentPrefix()
-        val start = BufferPosition(caret.line, (caret.column - prefix.length).coerceAtLeast(0))
+        val start = BufferPosition(currentCaret.line, (currentCaret.column - prefix.length).coerceAtLeast(0))
         cursors.clear()
-        cursors += CaretState(caret = caret, anchor = start)
+        cursors += CaretState(caret = currentCaret, anchor = start)
         edit { insertTextAtCursors(suggestion.insertText) }
         hideCompletions()
     }
@@ -740,15 +749,12 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         visibleRows: Int,
     ) {
         if (completionItems.isEmpty()) return
-        val row = (caret.line - scrollLine + 1).coerceIn(0, visibleRows - 1)
-        val col = (caret.column - scrollColumn).coerceAtLeast(0)
-        val labelColumnWidth = completionItems.maxOf { metrics.stringWidth(it.label.take(40)) }.coerceIn(120, 260)
-        val detailColumnWidth = completionItems.maxOf { metrics.stringWidth(it.detail.take(52)) }.coerceIn(120, 320)
-        val desiredWidth = labelColumnWidth + detailColumnWidth + 36
-        val popupWidth = min(max(320, desiredWidth), max(320, width - gutterWidth - 16))
-        val popupHeight = completionItems.size * lineHeight + 6
-        val x = (gutterWidth + col * charWidth).coerceIn(0, max(0, width - popupWidth - 4))
-        val y = (row * lineHeight).coerceIn(0, max(0, height - popupHeight - 4))
+        val geometry = completionPopupGeometry(metrics, lineHeight, charWidth, gutterWidth, visibleRows) ?: return
+        val x = geometry.x
+        val y = geometry.y
+        val popupWidth = geometry.width
+        val popupHeight = geometry.height
+        val labelColumnWidth = geometry.labelColumnWidth
         val detailX = x + 14 + labelColumnWidth + 16
         g2.color = Color(0x252526)
         g2.fillRect(x, y, popupWidth, popupHeight)
@@ -796,6 +802,33 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val start = if (lineIndex == range.first.line) range.first.column else 0
         val end = if (lineIndex == range.second.line) range.second.column else lines[lineIndex].length
         return start..end
+    }
+
+    private fun primaryCursor(): CaretState {
+        if (cursors.isEmpty()) cursors += CaretState(BufferPosition(0, 0))
+        return cursors.first()
+    }
+
+    private fun selectWordAt(position: BufferPosition) {
+        val line = lines[position.line]
+        if (line.isEmpty()) {
+            cursors.clear()
+            cursors += CaretState(position)
+            return
+        }
+        val index = position.column.coerceIn(0, line.length - 1)
+        val probe = if (!line[index].isWordChar() && index > 0 && line[index - 1].isWordChar()) index - 1 else index
+        if (!line[probe].isWordChar()) {
+            cursors.clear()
+            cursors += CaretState(position)
+            return
+        }
+        var start = probe
+        var end = probe + 1
+        while (start > 0 && line[start - 1].isWordChar()) start--
+        while (end < line.length && line[end].isWordChar()) end++
+        cursors.clear()
+        cursors += CaretState(BufferPosition(position.line, end), BufferPosition(position.line, start))
     }
 
     private fun selectionRange(): Pair<BufferPosition, BufferPosition>? {
@@ -1036,4 +1069,48 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         }
         return offset
     }
+
+    private data class CompletionPopupGeometry(
+        val x: Int,
+        val y: Int,
+        val width: Int,
+        val height: Int,
+        val labelColumnWidth: Int,
+        val lineHeight: Int,
+    )
+
+    private fun completionPopupGeometry(
+        metrics: FontMetrics,
+        lineHeight: Int,
+        charWidth: Int,
+        gutterWidth: Int,
+        visibleRows: Int,
+    ): CompletionPopupGeometry? {
+        if (completionItems.isEmpty()) return null
+        val row = (caret.line - scrollLine + 1).coerceIn(0, visibleRows - 1)
+        val col = (caret.column - scrollColumn).coerceAtLeast(0)
+        val labelColumnWidth = completionItems.maxOf { metrics.stringWidth(it.label.take(40)) }.coerceIn(120, 260)
+        val detailColumnWidth = completionItems.maxOf { metrics.stringWidth(it.detail.take(52)) }.coerceIn(120, 320)
+        val desiredWidth = labelColumnWidth + detailColumnWidth + 36
+        val popupWidth = min(max(320, desiredWidth), max(320, width - gutterWidth - 16))
+        val popupHeight = completionItems.size * lineHeight + 6
+        val x = (gutterWidth + col * charWidth).coerceIn(0, max(0, width - popupWidth - 4))
+        val y = (row * lineHeight).coerceIn(0, max(0, height - popupHeight - 4))
+        return CompletionPopupGeometry(x, y, popupWidth, popupHeight, labelColumnWidth, lineHeight)
+    }
+
+    private fun completionIndexAt(point: Point): Int? {
+        if (completionItems.isEmpty()) return null
+        val metrics = getFontMetrics(editorFont)
+        val charWidth = max(1, metrics.charWidth('M'))
+        val lineHeight = metrics.height.coerceAtLeast(1)
+        val gutter = gutterWidth(metrics, charWidth)
+        val geometry = completionPopupGeometry(metrics, lineHeight, charWidth, gutter, visibleRowCount()) ?: return null
+        if (point.x !in geometry.x..(geometry.x + geometry.width)) return null
+        if (point.y !in geometry.y..(geometry.y + geometry.height)) return null
+        val index = (point.y - geometry.y - 3) / geometry.lineHeight
+        return index.takeIf { it in completionItems.indices }
+    }
 }
+
+private fun Char.isWordChar(): Boolean = isLetterOrDigit() || this == '_'

@@ -149,7 +149,7 @@ fun InflowDocument.effectiveTextLanguageId(nodeId: NodeId, section: NodeTextSect
     }
     return when (section) {
         NodeTextSection.Initialization,
-        NodeTextSection.Source -> VOID_LANGUAGE_ID
+        NodeTextSection.Source -> effectiveLanguageId(nodeId)
         NodeTextSection.Specification,
         NodeTextSection.AiInstructions -> defaultTextLanguageId(section)
         NodeTextSection.Tests -> defaultTextLanguageId(section)

@@ -37,9 +37,9 @@
             "outgoingLinks": [],
             "layout": {
                 "x": -592.0,
-                "y": -742.0,
-                "width": 1479.0,
-                "height": 1134.0
+                "y": -759.0,
+                "width": 1567.0,
+                "height": 1151.0
             },
             "text": {
                 "initialization": "",
@@ -82,13 +82,13 @@
             "layout": {
                 "x": -554.0,
                 "y": -33.0,
-                "width": 180.0,
+                "width": 268.0,
                 "height": 138.0
             },
             "text": {
                 "initialization": "this is the init sequence of read_file\n\ni see the folowing ports/links\ninput_record\n",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "this is the loop sequence of read_file\n\ni see the folowing ports/links\ninput_record",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -140,13 +140,13 @@
             "layout": {
                 "x": 54.0,
                 "y": -5.0,
-                "width": 180.0,
+                "width": 268.0,
                 "height": 108.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "this is the init sequence of transform_data\n\ni see the folowing ports/links\ninput_record\nout_record",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "this is the loop sequence of transform_data\n\ni see the folowing ports/links\ninput_record\nout_record",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -198,13 +198,13 @@
             "layout": {
                 "x": 675.0,
                 "y": -39.0,
-                "width": 180.0,
+                "width": 268.0,
                 "height": 168.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "this is the init sequence of write_response_file\n\ni see the folowing ports/links\n\nout_record",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "this is the loop sequence of write_response_file\n\ni see the folowing ports/links\n\nout_record",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -341,13 +341,13 @@
             "layout": {
                 "x": -538.0,
                 "y": 206.0,
-                "width": 180.0,
+                "width": 268.0,
                 "height": 138.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "{\n   \"file_location\":\"./data\",\n   \"source\":\"init\"\n}",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "{\n   \"file_location\":\"./data\",\n   \"source\":\"loop\"\n}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -357,7 +357,7 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "",
+                "languageId": "json",
                 "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
@@ -385,15 +385,15 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -88.0,
-                "y": -662.0,
-                "width": 180.0,
+                "x": -33.0,
+                "y": -679.0,
+                "width": 300.0,
                 "height": 90.0
             },
             "text": {
-                "initialization": "// generic override for transformer generation\n  template: generator\n  node: ${name}",
+                "initialization": "// generic override for generator generation\n  template: generator init\n  node: ${name}\n\n",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "// generic override for generator generation\n  template: generator loop\n  node: ${name}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -404,7 +404,7 @@
             },
             "technology": {
                 "languageId": "",
-                "technologyId": "",
+                "technologyId": "my-new-tech",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -425,15 +425,15 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 152.0,
-                "y": -662.0,
-                "width": 180.0,
+                "x": 285.0,
+                "y": -678.0,
+                "width": 268.0,
                 "height": 90.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "// generic override for transformer generation\n  template: transformer init\n  node: ${name}",
                 "initializationLanguageId": "",
-                "source": "// generic override for transformer generation\n  template: transformer\n  node: ${name}",
+                "source": "// generic override for transformer generation\n  template: transformer loop\n  node: ${name}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -463,15 +463,15 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -84.0,
-                "y": -535.0,
-                "width": 180.0,
+                "x": 48.0,
+                "y": -560.0,
+                "width": 268.0,
                 "height": 90.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "// generic override for sink generation\n  template: sink init\n  node: ${name}",
                 "initializationLanguageId": "",
-                "source": "// generic override for transformer generation\n  template: sink\n  node: ${name}",
+                "source": "// generic override for sink generation\n  template: sink loop\n  node: ${name}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -509,13 +509,13 @@
             "layout": {
                 "x": -560.0,
                 "y": -320.0,
-                "width": 180.0,
+                "width": 268.0,
                 "height": 168.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "// lib_error_logging init sequence",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "// lib_error_logging loop sequence",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -565,15 +565,15 @@
                 "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e"
             ],
             "layout": {
-                "x": -160.0,
-                "y": -320.0,
-                "width": 180.0,
+                "x": -48.0,
+                "y": -318.0,
+                "width": 268.0,
                 "height": 108.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "// lib_config init sequence",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "// lib_config loop sequence",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -625,13 +625,13 @@
             "layout": {
                 "x": -560.0,
                 "y": -560.0,
-                "width": 180.0,
+                "width": 268.0,
                 "height": 168.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "// lib_file init sequence",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "// lib_file loop sequence",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -1074,15 +1074,15 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 167.0,
-                "y": -533.0,
-                "width": 180.0,
+                "x": 365.0,
+                "y": -558.0,
+                "width": 268.0,
                 "height": 90.0
             },
             "text": {
-                "initialization": "// generic override for transformer generation\n  template: service library\n  node: ${name}\n\n",
+                "initialization": "// generic override for service library generation\n  template: service library init\n  node: ${name}\n\n",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "// generic override for service library generation\n  template: service library loop\n  node: ${name}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -1112,15 +1112,15 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 368.0,
-                "y": -660.0,
-                "width": 180.0,
+                "x": 365.0,
+                "y": -438.0,
+                "width": 268.0,
                 "height": 90.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "// generic override for static file generation\n  template: static file init\n  node: ${name}",
                 "initializationLanguageId": "",
-                "source": "// generic override for transformer generation\n  template: static file\n  node: ${name}",
+                "source": "// generic override for static file generation\n  template: static file loop\n  node: ${name}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",

@@ -8,6 +8,7 @@ import com.orchestra.Version
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerPlugin
 import com.orchestra.compiler.api.CompilerTechnology
+import com.orchestra.compiler.generic.CompilerCompiler
 import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
 import com.orchestra.core.diagnostics.DiagnosticSeverity
@@ -31,6 +32,7 @@ import com.orchestra.core.model.VOID_LANGUAGE_ID
 import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.model.effectiveTextLanguageId
+import com.orchestra.core.model.rootNode
 import com.orchestra.storage.DocumentRepository
 import com.orchestra.storage.InMemoryDocumentRepository
 import com.orchestra.storage.KotlinxJsonDocumentStore
@@ -159,7 +161,7 @@ class OrchestraDesktopApp(
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
     private val selectedEntitiesTree = JTree()
-    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + GenericCompiler() + NaiveKotlinCompiler()
+    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + CompilerCompiler() + GenericCompiler() + NaiveKotlinCompiler()
     private val compilerTechnologies = availableCompilerTechnologies()
     private val languageIds = availableLanguageIds(compilerTechnologies)
     private val technologyIds = availableTechnologyIds(compilerTechnologies)
@@ -632,9 +634,7 @@ class OrchestraDesktopApp(
     private fun compileProject() {
         autosave()
         val document = repository.getDocument()
-        val compiler = compilerPlugins.firstOrNull { compiler ->
-            runCatching { compiler.supports(document) }.getOrDefault(false)
-        }
+        val compiler = selectCompiler(document)
         if (compiler == null) {
             JOptionPane.showMessageDialog(frame, "No compiler plugin supports this project.", "Compile", JOptionPane.ERROR_MESSAGE)
             return
@@ -678,6 +678,17 @@ class OrchestraDesktopApp(
             JOptionPane.showMessageDialog(frame, it.message ?: "Compilation failed.", "Compile", JOptionPane.ERROR_MESSAGE)
             status.text = "Compilation failed: ${it.message}"
         }
+    }
+
+    private fun selectCompiler(document: InflowDocument): CompilerPlugin? {
+        val root = document.rootNode()
+        val requestedCompilerId = root.technology.compilerId.trim()
+        val requestedTechnologyId = document.effectiveTechnologyId(root.id)
+        val supporting = compilerPlugins.filter { compiler -> runCatching { compiler.supports(document) }.getOrDefault(false) }
+        return supporting.firstOrNull { it.id == requestedCompilerId } ?:
+            supporting.firstOrNull { requestedTechnologyId.isNotBlank() && requestedTechnologyId in it.supportedTechnologyIds } ?:
+            supporting.firstOrNull { requestedTechnologyId.isNotBlank() && it.providedTechnologies.any { tech -> tech.technologyId == requestedTechnologyId } } ?:
+            supporting.firstOrNull()
     }
 
     private fun chooseOutputDirectory(): Path? {
