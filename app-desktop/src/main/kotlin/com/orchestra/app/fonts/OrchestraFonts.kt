@@ -15,7 +15,7 @@ object OrchestraFonts {
     private const val PREF_NODE = "com/orchestra/app/fonts"
     private const val DESIGNER_KEY = "designerFont"
     private const val CODE_KEY = "codeFont"
-    private const val DEFAULT_DESIGNER = "monaspace-krypton-regular"
+    private const val DEFAULT_DESIGNER = "d-din-regular"
     private const val DEFAULT_CODE = "monaspace-neon-regular"
 
     private val preferences: Preferences = Preferences.userRoot().node(PREF_NODE)
@@ -23,6 +23,11 @@ object OrchestraFonts {
 
     val designerOptions = listOf(
         systemMonospace(),
+        fontOption("d-din-regular", "D-DIN Regular", "fonts/d-din/D-DIN.otf"),
+        fontOption("d-din-bold", "D-DIN Bold", "fonts/d-din/D-DIN-Bold.otf"),
+        fontOption("d-din-italic", "D-DIN Italic", "fonts/d-din/D-DIN-Italic.otf"),
+        fontOption("alte-din-regular", "Alte DIN 1451 Mittelschrift", "fonts/alte-din-1451-mittelschrift/din1451alt.ttf"),
+        fontOption("alte-din-grid", "Alte DIN 1451 Mittelschrift G", "fonts/alte-din-1451-mittelschrift/din1451alt G.ttf"),
         fontOption("monaspace-krypton-regular", "Monaspace Krypton Regular", "fonts/Monaspace Krypton/MonaspaceKrypton-Regular.otf"),
         fontOption("monaspace-krypton-light", "Monaspace Krypton Light", "fonts/Monaspace Krypton/MonaspaceKrypton-Light.otf"),
         fontOption("monaspace-krypton-bold", "Monaspace Krypton Bold", "fonts/Monaspace Krypton/MonaspaceKrypton-Bold.otf"),
