@@ -991,8 +991,6 @@ class GraphCanvas(
         const val PORT_BOTTOM_SPACING = 20
         const val PORT_STUB_LENGTH = 46
         const val PORT_OUTSIDE_OFFSET = 20
-        const val SHORT_LINK_MAX_DISTANCE = 360.0
-        const val SHORT_LINK_MAX_VERTICAL_DELTA = 120
         const val ROUTING_STEP = 40
         const val ROUTING_CHAMFER = 22
         const val ROUTING_OBSTACLE_PADDING = 24
@@ -2164,7 +2162,7 @@ class GraphCanvas(
         routeCache[linkNode.id]
             ?.takeIf { it.source == anchors.source.point && it.target == anchors.target.point }
             ?.let { return it }
-        return simpleRoute(linkNode, anchors)
+        return routedRoute(linkNode, anchors, emptyList())
     }
 
     private fun linkAnchors(linkNode: Node): LinkAnchors? {
@@ -2174,29 +2172,6 @@ class GraphCanvas(
         val source = portAnchor(sourceNode, linkNode, outgoing = true) ?: return null
         val target = portAnchor(targetNode, linkNode, outgoing = false) ?: return null
         return LinkAnchors(source, target, sourceNode.id, targetNode.id)
-    }
-
-    private fun simpleRoute(linkNode: Node, anchors: LinkAnchors): LinkRoute {
-        val source = anchors.source
-        val target = anchors.target
-        val points = if (isShortFacingLink(source, target)) {
-            listOf(source.point, target.point)
-        } else {
-            val sourceStub = Point(source.point.x + PORT_STUB_LENGTH * source.xDirection, source.point.y)
-            val targetStub = Point(target.point.x + PORT_STUB_LENGTH * target.xDirection, target.point.y)
-            val midX = (sourceStub.x + targetStub.x) / 2
-            compact(
-                listOf(
-                    source.point,
-                    sourceStub,
-                    Point(midX, sourceStub.y),
-                    Point(midX, targetStub.y),
-                    targetStub,
-                    target.point,
-                ),
-            )
-        }
-        return LinkRoute(source.point, target.point, source.xDirection, target.xDirection, points)
     }
 
     private fun rebuildRouteCache() {
@@ -2222,10 +2197,6 @@ class GraphCanvas(
     private fun routedRoute(linkNode: Node, anchors: LinkAnchors, routedSegments: List<RouteSegment>): LinkRoute {
         val source = anchors.source
         val target = anchors.target
-        if (isShortFacingLink(source, target)) {
-            return LinkRoute(source.point, target.point, source.xDirection, target.xDirection, listOf(source.point, target.point))
-        }
-
         val sourceStub = Point(source.point.x + PORT_STUB_LENGTH * source.xDirection, source.point.y)
         val targetStub = Point(target.point.x + PORT_STUB_LENGTH * target.xDirection, target.point.y)
         val obstacles = routeObstacles(anchors.sourceNodeId, anchors.targetNodeId)
@@ -2236,7 +2207,7 @@ class GraphCanvas(
 
         val best = candidates.minWithOrNull(compareBy<List<Point>> {
             routeCost(it, obstacles, routedSegments, linkNode.id)
-        }.thenBy { routeLength(it) }) ?: simpleRoute(linkNode, anchors).points.drop(1).dropLast(1)
+        }.thenBy { routeLength(it) }) ?: listOf(sourceStub, targetStub)
 
         return LinkRoute(
             source.point,
@@ -2389,15 +2360,6 @@ class GraphCanvas(
             }
             .forEach { routeCache.remove(it.id) }
         scheduleReroute()
-    }
-
-    private fun isShortFacingLink(source: PortAnchor, target: PortAnchor): Boolean {
-        val dx = target.point.x - source.point.x
-        val dy = kotlin.math.abs(target.point.y - source.point.y)
-        val portsFaceEachOther = source.xDirection == -target.xDirection && dx.sign() == source.xDirection
-        return portsFaceEachOther &&
-            source.point.distance(target.point) <= SHORT_LINK_MAX_DISTANCE &&
-            dy <= SHORT_LINK_MAX_VERTICAL_DELTA
     }
 
     private fun portAnchor(node: Node, linkNode: Node, outgoing: Boolean): PortAnchor? {
