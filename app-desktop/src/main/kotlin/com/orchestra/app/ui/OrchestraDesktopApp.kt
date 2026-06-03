@@ -55,6 +55,7 @@ import java.awt.RenderingHints
 import java.awt.Stroke
 import java.awt.Toolkit
 import java.awt.geom.Path2D
+import java.awt.geom.Line2D
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.awt.datatransfer.Transferable
@@ -949,8 +950,11 @@ class GraphCanvas(
     private var showSheet = false
     private var sheetFormatChoice = AUTO_SHEET_FORMAT
     private var designerFont: Font = OrchestraFonts.designerFont(13f)
+    private val routeCache = mutableMapOf<NodeId, LinkRoute>()
+    private val rerouteTimer = Timer(180) { rebuildRouteCache() }.apply { isRepeats = false }
 
     private data class PortAnchor(val point: Point, val xDirection: Int)
+    private data class LinkAnchors(val source: PortAnchor, val target: PortAnchor, val sourceNodeId: NodeId, val targetNodeId: NodeId)
     private data class LinkRoute(
         val source: Point,
         val target: Point,
@@ -970,6 +974,7 @@ class GraphCanvas(
         val scopeIds: Set<NodeId>,
         val bomRows: List<BomRow>,
     )
+    private data class RouteSegment(val a: Point, val b: Point, val linkId: NodeId)
     private data class SheetCandidate(
         val format: SheetFormat,
         val width: Int,
@@ -984,10 +989,14 @@ class GraphCanvas(
         const val PORT_TOP_SPACING = 28
         const val PORT_SPACING = 30
         const val PORT_BOTTOM_SPACING = 20
-        const val PORT_STUB_LENGTH = 28
+        const val PORT_STUB_LENGTH = 46
         const val PORT_OUTSIDE_OFFSET = 20
         const val SHORT_LINK_MAX_DISTANCE = 360.0
         const val SHORT_LINK_MAX_VERTICAL_DELTA = 120
+        const val ROUTING_STEP = 40
+        const val ROUTING_CHAMFER = 22
+        const val ROUTING_OBSTACLE_PADDING = 24
+        const val ROUTING_LANE_SPAN = 7
         const val COMPOSITE_TOP_PADDING = 80
         const val SHEET_UNITS_PER_MM = 4.0
         const val SHEET_MARGIN_MM = 10.0
@@ -1139,6 +1148,7 @@ class GraphCanvas(
                 )
             }
         }
+        scheduleReroute()
     }
 
     private fun ensureLayoutCanHoldPorts(node: Node) {
@@ -2150,11 +2160,25 @@ class GraphCanvas(
         }
 
     private fun routeLink(linkNode: Node): LinkRoute? {
+        val anchors = linkAnchors(linkNode) ?: return null
+        routeCache[linkNode.id]
+            ?.takeIf { it.source == anchors.source.point && it.target == anchors.target.point }
+            ?.let { return it }
+        return simpleRoute(linkNode, anchors)
+    }
+
+    private fun linkAnchors(linkNode: Node): LinkAnchors? {
         val link = linkNode.link ?: return null
         val sourceNode = repository.getNode(link.sourceNodeId) ?: return null
         val targetNode = repository.getNode(link.targetNodeId) ?: return null
         val source = portAnchor(sourceNode, linkNode, outgoing = true) ?: return null
         val target = portAnchor(targetNode, linkNode, outgoing = false) ?: return null
+        return LinkAnchors(source, target, sourceNode.id, targetNode.id)
+    }
+
+    private fun simpleRoute(linkNode: Node, anchors: LinkAnchors): LinkRoute {
+        val source = anchors.source
+        val target = anchors.target
         val points = if (isShortFacingLink(source, target)) {
             listOf(source.point, target.point)
         } else {
@@ -2173,6 +2197,198 @@ class GraphCanvas(
             )
         }
         return LinkRoute(source.point, target.point, source.xDirection, target.xDirection, points)
+    }
+
+    private fun rebuildRouteCache() {
+        val document = repository.getDocument()
+        val routedSegments = mutableListOf<RouteSegment>()
+        val nextCache = mutableMapOf<NodeId, LinkRoute>()
+        document.nodes.values
+            .filter { it.isLink && !isDependencyAnnotation(it) }
+            .sortedWith(compareBy<Node> { it.layout.y }.thenBy { it.layout.x }.thenBy { it.id.value })
+            .forEach { linkNode ->
+                val anchors = linkAnchors(linkNode) ?: return@forEach
+                val route = routedRoute(linkNode, anchors, routedSegments)
+                nextCache[linkNode.id] = route
+                route.points.zipWithNext().forEach { (a, b) ->
+                    routedSegments += RouteSegment(a, b, linkNode.id)
+                }
+            }
+        routeCache.clear()
+        routeCache.putAll(nextCache)
+        repaint()
+    }
+
+    private fun routedRoute(linkNode: Node, anchors: LinkAnchors, routedSegments: List<RouteSegment>): LinkRoute {
+        val source = anchors.source
+        val target = anchors.target
+        if (isShortFacingLink(source, target)) {
+            return LinkRoute(source.point, target.point, source.xDirection, target.xDirection, listOf(source.point, target.point))
+        }
+
+        val sourceStub = Point(source.point.x + PORT_STUB_LENGTH * source.xDirection, source.point.y)
+        val targetStub = Point(target.point.x + PORT_STUB_LENGTH * target.xDirection, target.point.y)
+        val obstacles = routeObstacles(anchors.sourceNodeId, anchors.targetNodeId)
+        val candidates = routeCandidates(sourceStub, targetStub)
+            .map { compact(chamferOrthogonalTurns(it)) }
+            .filter { it.size >= 2 }
+            .filter(::isOctilinearPath)
+
+        val best = candidates.minWithOrNull(compareBy<List<Point>> {
+            routeCost(it, obstacles, routedSegments, linkNode.id)
+        }.thenBy { routeLength(it) }) ?: simpleRoute(linkNode, anchors).points.drop(1).dropLast(1)
+
+        return LinkRoute(
+            source.point,
+            target.point,
+            source.xDirection,
+            target.xDirection,
+            compact(listOf(source.point, sourceStub) + best + listOf(targetStub, target.point)),
+        )
+    }
+
+    private fun routeCandidates(start: Point, end: Point): List<List<Point>> {
+        val candidates = mutableListOf<List<Point>>()
+        candidates += listOf(start, end)
+
+        routingLanes(start.x, end.x).forEach { laneX ->
+            candidates += listOf(start, Point(laneX, start.y), Point(laneX, end.y), end)
+        }
+        routingLanes(start.y, end.y).forEach { laneY ->
+            candidates += listOf(start, Point(start.x, laneY), Point(end.x, laneY), end)
+        }
+        val dx = end.x - start.x
+        val dy = end.y - start.y
+        val diagonal = min(abs(dx), abs(dy))
+        if (diagonal > ROUTING_STEP) {
+            val sx = dx.sign()
+            val sy = dy.sign()
+            val firstDiagonal = Point(start.x + sx * diagonal, start.y + sy * diagonal)
+            val lastDiagonal = Point(end.x - sx * diagonal, end.y - sy * diagonal)
+            candidates += listOf(start, firstDiagonal, end)
+            candidates += listOf(start, lastDiagonal, end)
+        }
+        return candidates
+    }
+
+    private fun routingLanes(start: Int, end: Int): List<Int> {
+        val midpoint = ((start + end) / 2.0).roundToInt()
+        return (-ROUTING_LANE_SPAN..ROUTING_LANE_SPAN)
+            .map { midpoint + it * ROUTING_STEP }
+            .plus(listOf(start + ROUTING_STEP, start - ROUTING_STEP, end + ROUTING_STEP, end - ROUTING_STEP))
+            .distinct()
+            .sortedBy { abs(it - midpoint) }
+    }
+
+    private fun chamferOrthogonalTurns(points: List<Point>): List<Point> {
+        if (points.size < 3) return points
+        val result = mutableListOf(points.first())
+        for (index in 1 until points.lastIndex) {
+            val previous = points[index - 1]
+            val current = points[index]
+            val next = points[index + 1]
+            val incomingHorizontal = previous.y == current.y
+            val incomingVertical = previous.x == current.x
+            val outgoingHorizontal = current.y == next.y
+            val outgoingVertical = current.x == next.x
+            if ((incomingHorizontal && outgoingVertical) || (incomingVertical && outgoingHorizontal)) {
+                val incomingLength = current.distance(previous)
+                val outgoingLength = current.distance(next)
+                val chamfer = min(ROUTING_CHAMFER.toDouble(), min(incomingLength, outgoingLength) / 2.0).roundToInt()
+                if (chamfer >= 4) {
+                    val before = Point(
+                        current.x - (current.x - previous.x).sign() * chamfer,
+                        current.y - (current.y - previous.y).sign() * chamfer,
+                    )
+                    val after = Point(
+                        current.x + (next.x - current.x).sign() * chamfer,
+                        current.y + (next.y - current.y).sign() * chamfer,
+                    )
+                    result += before
+                    result += after
+                } else {
+                    result += current
+                }
+            } else {
+                result += current
+            }
+        }
+        result += points.last()
+        return result
+    }
+
+    private fun routeCost(points: List<Point>, obstacles: List<Rectangle>, routedSegments: List<RouteSegment>, linkId: NodeId): Double {
+        var cost = routeLength(points)
+        cost += max(0, points.size - 2) * 18.0
+        points.zipWithNext().forEach { (a, b) ->
+            obstacles.forEach { obstacle ->
+                if (obstacle.intersectsLine(a.x.toDouble(), a.y.toDouble(), b.x.toDouble(), b.y.toDouble())) {
+                    cost += 75_000.0
+                }
+            }
+            routedSegments.filter { it.linkId != linkId }.forEach { segment ->
+                if (segmentsCross(a, b, segment.a, segment.b)) cost += 2_500.0
+            }
+        }
+        return cost
+    }
+
+    private fun routeLength(points: List<Point>): Double =
+        points.zipWithNext().sumOf { (a, b) -> a.distance(b) }
+
+    private fun isOctilinearPath(points: List<Point>): Boolean =
+        points.zipWithNext().all { (a, b) ->
+            val dx = abs(b.x - a.x)
+            val dy = abs(b.y - a.y)
+            dx == 0 || dy == 0 || dx == dy
+        }
+
+    private fun routeObstacles(sourceId: NodeId, targetId: NodeId): List<Rectangle> =
+        repository.getDocument().nodes.values
+            .filter { !it.isLink && it.id != repository.getDocument().rootNodeId && it.id != sourceId && it.id != targetId }
+            .map {
+                val r = it.layout.rect()
+                Rectangle(
+                    r.x - ROUTING_OBSTACLE_PADDING,
+                    r.y - ROUTING_OBSTACLE_PADDING,
+                    r.width + ROUTING_OBSTACLE_PADDING * 2,
+                    r.height + ROUTING_OBSTACLE_PADDING * 2,
+                )
+            }
+
+    private fun segmentsCross(a: Point, b: Point, c: Point, d: Point): Boolean {
+        if (a == c || a == d || b == c || b == d) return false
+        return Line2D.linesIntersect(
+            a.x.toDouble(), a.y.toDouble(), b.x.toDouble(), b.y.toDouble(),
+            c.x.toDouble(), c.y.toDouble(), d.x.toDouble(), d.y.toDouble(),
+        )
+    }
+
+    private fun scheduleReroute() {
+        rerouteTimer.restart()
+    }
+
+    private fun invalidateRoutesFor(nodeIds: Collection<NodeId>) {
+        if (nodeIds.isEmpty()) return
+        val document = repository.getDocument()
+        val affectedNodes = linkedSetOf<NodeId>().apply {
+            addAll(nodeIds)
+            nodeIds.forEach { nodeId ->
+                val node = document.nodes[nodeId] ?: return@forEach
+                (node.incomingLinks + node.outgoingLinks).mapNotNull(document.nodes::get).forEach { linkNode ->
+                    val link = linkNode.link ?: return@forEach
+                    add(link.sourceNodeId)
+                    add(link.targetNodeId)
+                }
+            }
+        }
+        document.nodes.values
+            .filter { linkNode ->
+                val link = linkNode.link ?: return@filter false
+                link.sourceNodeId in affectedNodes || link.targetNodeId in affectedNodes
+            }
+            .forEach { routeCache.remove(it.id) }
+        scheduleReroute()
     }
 
     private fun isShortFacingLink(source: PortAnchor, target: PortAnchor): Boolean {
@@ -2303,6 +2519,7 @@ class GraphCanvas(
                 repository.updateNodeLayout(node.id, NodeLayout(point.x.toDouble(), point.y.toDouble(), 180.0, 90.0))
                 selection.clear()
                 selection += node.id
+                invalidateRoutesFor(listOf(node.id))
                 refreshAll()
             }
             CanvasMode.CreateLink -> {
@@ -2362,9 +2579,11 @@ class GraphCanvas(
         } else if (selection.isNotEmpty() && mode == CanvasMode.Select) {
             val dx = point.x - start.x
             val dy = point.y - start.y
-            selectedMoveRoots().forEach { moved ->
+            val movedNodes = selectedMoveRoots()
+            movedNodes.forEach { moved ->
                 moveNodeAndDescendants(moved, dx.toDouble(), dy.toDouble())
             }
+            invalidateRoutesFor(movedNodes.map { it.id })
             repository.markDirty()
             dragStart = point
         }
@@ -2398,6 +2617,8 @@ class GraphCanvas(
         link.link?.transportKind = LinkTransportKinds.Default
         selection.clear()
         selection += link.id
+        routeCache.remove(link.id)
+        invalidateRoutesFor(listOf(sourceId, targetId))
         repository.markDirty()
     }
 
@@ -2457,6 +2678,7 @@ class GraphCanvas(
         selectedMoveRoots().filter { it.id != root }.forEach { moved ->
             if (moved.parentId != newParent) {
                 runCatching { repository.moveNode(moved.id, newParent) }
+                invalidateRoutesFor(listOf(moved.id))
             }
         }
     }
