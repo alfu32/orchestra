@@ -5,8 +5,11 @@ import com.orchestra.app.editor.GridCodeEditorAdapter
 import com.orchestra.app.editor.RegexSyntaxHighlighter
 import com.orchestra.app.fonts.OrchestraFonts
 import com.orchestra.Version
+import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerPlugin
+import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
+import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.completion.ModelAwareCompletionService
 import com.orchestra.core.classification.LinkClassifier
 import com.orchestra.core.classification.LinkStereotype
@@ -157,7 +160,7 @@ class OrchestraDesktopApp(
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
     private val selectedEntitiesTree = JTree()
-    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + NaiveKotlinCompiler()
+    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + GenericCompiler() + NaiveKotlinCompiler()
     private val languageIds = availableLanguageIds()
     private val inspector = InspectorPanel(repository, ::refreshAll, languageIds)
     private val editorTabs = NodeEditorTabs(repository, ::refreshAll, ::checkpointHistory, ::undoDocument, ::redoDocument, languageIds)
@@ -217,6 +220,7 @@ class OrchestraDesktopApp(
                 preferredSize = Dimension(120, preferredSize.height)
                 maximumSize = preferredSize
             })
+            add(button("Compile") { executeCommand("compile.project") })
             pluginToolbarButtons.forEach { button ->
                 add(JButton(button.label).apply { addActionListener { button.action() } })
             }
@@ -275,6 +279,7 @@ class OrchestraDesktopApp(
             add(commandItem("file.save"))
             add(commandItem("file.saveAs"))
             add(commandItem("sheet.export"))
+            add(commandItem("compile.project"))
             add(commandItem("app.options"))
             add(commandItem("file.quit"))
         })
@@ -337,6 +342,7 @@ class OrchestraDesktopApp(
         })
         registerCommand(AppCommand("sheet.toggle", "Sheet: Toggle Preview") { canvas.toggleSheet() })
         registerCommand(AppCommand("sheet.export", "Sheet: Export...") { canvas.exportSheet(frame) })
+        registerCommand(AppCommand("compile.project", "Compile: Project or Selection") { compileProject() })
         registerCommand(AppCommand("commands.palette", "Commands: Open Palette", KeyStroke.getKeyStroke(KeyEvent.VK_P, shiftShortcut)) { showCommandPalette() })
         registerCommand(AppCommand("help.about", "Help: About") { showAbout() })
     }
@@ -605,6 +611,68 @@ class OrchestraDesktopApp(
         }.onFailure {
             status.text = "Autosave failed: ${it.message}"
         }
+    }
+
+    private fun compileProject() {
+        autosave()
+        val document = repository.getDocument()
+        val compiler = compilerPlugins.firstOrNull { compiler ->
+            runCatching { compiler.supports(document) }.getOrDefault(false)
+        }
+        if (compiler == null) {
+            JOptionPane.showMessageDialog(frame, "No compiler plugin supports this project.", "Compile", JOptionPane.ERROR_MESSAGE)
+            return
+        }
+        val output = chooseOutputDirectory() ?: return
+        val scopedSelection = selection
+            .filter { it in document.nodes }
+            .toSet()
+        val result = compiler.compile(
+            document,
+            CompilerOptions(
+                projectName = document.name,
+                scopeNodeIds = scopedSelection,
+            ),
+        )
+        val diagnostics = result.diagnostics.joinToString(separator = "\n") { "${it.severity}: ${it.message}" }
+        val generatedProject = result.generatedProject
+        if (!result.success || generatedProject == null || result.diagnostics.any { it.severity == DiagnosticSeverity.Error }) {
+            JOptionPane.showMessageDialog(
+                frame,
+                diagnostics.ifBlank { "Compilation failed." },
+                "Compile",
+                JOptionPane.ERROR_MESSAGE,
+            )
+            status.text = "Compilation failed with ${compiler.displayName}"
+            return
+        }
+        runCatching {
+            Files.createDirectories(output)
+            generatedProject.writeTo(output)
+        }.onSuccess {
+            val scope = if (scopedSelection.isEmpty()) "project" else "${scopedSelection.size} selected entities"
+            status.text = "Compiled $scope with ${compiler.displayName} to ${output.toAbsolutePath()}"
+            JOptionPane.showMessageDialog(
+                frame,
+                "Generated ${generatedProject.files.size} files in ${output.toAbsolutePath()}",
+                "Compile",
+                JOptionPane.INFORMATION_MESSAGE,
+            )
+        }.onFailure {
+            JOptionPane.showMessageDialog(frame, it.message ?: "Compilation failed.", "Compile", JOptionPane.ERROR_MESSAGE)
+            status.text = "Compilation failed: ${it.message}"
+        }
+    }
+
+    private fun chooseOutputDirectory(): Path? {
+        val chooser = JFileChooser().apply {
+            dialogTitle = "Choose compile output directory"
+            fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+            isAcceptAllFileFilterUsed = false
+            selectedFile = currentFile?.parent?.resolve("generated")?.toFile() ?: File("generated")
+        }
+        if (chooser.showSaveDialog(frame) != JFileChooser.APPROVE_OPTION) return null
+        return chooser.selectedFile.toPath()
     }
 
     private fun documentSnapshot(): String =
@@ -1005,6 +1073,7 @@ class GraphCanvas(
         const val TITLE_BLOCK_WIDTH_MM = 180.0
         const val TITLE_BLOCK_HEIGHT_MM = 36.0
         const val PARTS_LIST_WIDTH_MM = 72.0
+        val compilerDesignStereotypes = setOf(NodeStereotype.CompilerTemplate, NodeStereotype.StaticFile)
         const val PARTS_ROW_HEIGHT = 20
         const val ROLL_MAX_LENGTH_MM = 1500.0
 
@@ -1578,14 +1647,24 @@ class GraphCanvas(
             stereotype in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> 2.2
             else -> 2.0
         }
-        svgRect(
-            svg,
-            r,
-            fill = hex(fillFor(node)),
-            stroke = hex(strokeFor(node, selected = false)),
-            strokeWidth = strokeWidth,
-            dashArray = strokeDash,
-        )
+        if (stereotype in compilerDesignStereotypes) {
+            svgEllipse(
+                svg,
+                r,
+                fill = hex(fillFor(node)),
+                stroke = hex(strokeFor(node, selected = false)),
+                strokeWidth = strokeWidth,
+            )
+        } else {
+            svgRect(
+                svg,
+                r,
+                fill = hex(fillFor(node)),
+                stroke = hex(strokeFor(node, selected = false)),
+                strokeWidth = strokeWidth,
+                dashArray = strokeDash,
+            )
+        }
         svgText(svg, node.name, r.x + 12, r.y + 22, if (node.children.isEmpty()) 13 else 12, "#222222")
         svgText(svg, stereotype.name, r.x + 12, r.y + 42, 12, "#555555")
         technologyLabel(node)?.let { svgText(svg, it, r.x + 12, r.y + 58, 11, "#666666") }
@@ -1752,6 +1831,22 @@ class GraphCanvas(
         if (stroke != "none") svg.append(" stroke-width=\"${fmt(strokeWidth)}\"")
         dashArray?.let { svg.append(" stroke-dasharray=\"$it\"") }
         svg.appendLine("/>")
+    }
+
+    private fun svgEllipse(
+        svg: StringBuilder,
+        rect: Rectangle,
+        fill: String,
+        stroke: String,
+        strokeWidth: Double = 1.0,
+    ) {
+        val cx = rect.x + rect.width / 2.0
+        val cy = rect.y + rect.height / 2.0
+        val rx = rect.width / 2.0
+        val ry = rect.height / 2.0
+        svg.appendLine(
+            "    <ellipse cx=\"${fmt(cx)}\" cy=\"${fmt(cy)}\" rx=\"${fmt(rx)}\" ry=\"${fmt(ry)}\" fill=\"$fill\" stroke=\"$stroke\" stroke-width=\"${fmt(strokeWidth)}\"/>",
+        )
     }
 
     private fun svgLine(
@@ -1923,10 +2018,18 @@ class GraphCanvas(
         val stereotype = nodeStereotype(node)
         val previousStroke = g2.stroke
         g2.color = fillFor(node)
-        g2.fillRect(r.x, r.y, r.width, r.height)
+        if (stereotype in compilerDesignStereotypes) {
+            g2.fillOval(r.x, r.y, r.width, r.height)
+        } else {
+            g2.fillRect(r.x, r.y, r.width, r.height)
+        }
         g2.color = strokeFor(node, selected)
         g2.stroke = nodeStroke(node, selected)
-        g2.drawRect(r.x, r.y, r.width, r.height)
+        if (stereotype in compilerDesignStereotypes) {
+            g2.drawOval(r.x, r.y, r.width, r.height)
+        } else {
+            g2.drawRect(r.x, r.y, r.width, r.height)
+        }
         g2.color = Color(0x222222)
         g2.font = g2.font.deriveFont(if (node.children.isEmpty()) 13f else 12f)
         g2.drawString(node.name, r.x + 12, r.y + 22)
@@ -2728,6 +2831,7 @@ class GraphCanvas(
     private fun modelPoint(point: Point): Point = Point(((point.x / zoom) - panX).toInt(), ((point.y / zoom) - panY).toInt())
 
     private fun fillFor(node: Node): Color = when {
+        nodeStereotype(node) in compilerDesignStereotypes -> Color(0xfff4dc)
         node.children.isNotEmpty() -> Color(0xfafafa)
         nodeStereotype(node) == NodeStereotype.ServiceLibrary -> Color(0xf6f7ff)
         nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> Color(0xfffbfb)
@@ -2737,6 +2841,7 @@ class GraphCanvas(
 
     private fun strokeFor(node: Node, selected: Boolean): Color = when {
         selected -> Color(0x3366cc)
+        nodeStereotype(node) in compilerDesignStereotypes -> Color(0xaa6a00)
         nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> Color(0xcc3333)
         nodeStereotype(node) in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> Color(0x33aa33)
         nodeStereotype(node) == NodeStereotype.ServiceLibrary -> Color(0x3333cc)
@@ -2745,6 +2850,7 @@ class GraphCanvas(
 
     private fun nodeStroke(node: Node, selected: Boolean): Stroke = when {
         selected -> BasicStroke(3f, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER)
+        nodeStereotype(node) in compilerDesignStereotypes -> BasicStroke(2.4f)
         node.children.isNotEmpty() -> BasicStroke(2.2f, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10f, floatArrayOf(24f, 8f, 4f, 8f), 0f)
         nodeStereotype(node) == NodeStereotype.ServiceLibrary -> BasicStroke(2.2f)
         nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> BasicStroke(2.2f)

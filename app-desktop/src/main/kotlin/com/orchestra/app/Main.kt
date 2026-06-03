@@ -2,6 +2,7 @@ package com.orchestra.app
 
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerPlugin
+import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
 import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.core.model.NodeId
@@ -116,7 +117,7 @@ private fun compile(args: Array<String>) {
 }
 
 private fun compilersFrom(pluginsFolder: Path): List<CompilerPlugin> =
-    loadCompilerPlugins(pluginsFolder) + NaiveKotlinCompiler()
+    loadCompilerPlugins(pluginsFolder) + GenericCompiler() + NaiveKotlinCompiler()
 
 private fun parsePluginsFolderOrDefault(args: List<String>): Path {
     val index = args.indexOfFirst { it == "--plugins" || it == "--plugins-dir" }

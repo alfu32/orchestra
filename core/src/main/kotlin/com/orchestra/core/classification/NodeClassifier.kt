@@ -23,6 +23,8 @@ enum class NodeStereotype {
     TestSuite,
     InputPort,
     OutputPort,
+    StaticFile,
+    CompilerTemplate,
 }
 
 enum class LinkStereotype {
@@ -52,6 +54,8 @@ object NodeClassifier {
         return when {
             node.kind == NodeKind.Link || node.link != null -> NodeStereotype.Link
             node.kind == NodeKind.Node -> NodeStereotype.Node
+            name.isStaticFileTemplateName() -> NodeStereotype.StaticFile
+            name.isCompilerTemplateName() -> NodeStereotype.CompilerTemplate
             node.children.isNotEmpty() && name.startsOrEndsWith("error") -> NodeStereotype.CompositeErrorHandler
             node.children.isNotEmpty() && name.startsOrEndsWith("test") -> NodeStereotype.TestSuite
             node.children.isNotEmpty() -> NodeStereotype.CompositeWorker
@@ -144,3 +148,11 @@ private fun String.containsToken(token: String): Boolean {
         normalized.contains(" $t") ||
         normalized.contains("$t ")
 }
+
+fun String.isCompilerTemplateName(): Boolean {
+    val normalized = trim().lowercase()
+    return NodeStereotype.entries.any { normalized == "@${it.name}".lowercase() }
+}
+
+private fun String.isStaticFileTemplateName(): Boolean =
+    trim().equals("@StaticFile", ignoreCase = true)

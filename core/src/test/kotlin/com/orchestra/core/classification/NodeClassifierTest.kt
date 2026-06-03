@@ -41,6 +41,20 @@ class NodeClassifierTest {
     }
 
     @Test
+    fun `classifies compiler template names`() {
+        val node = Node(NodeId("n1"), "@transport", NodeKind.Processor)
+
+        assertEquals(NodeStereotype.CompilerTemplate, NodeClassifier.classify(node))
+    }
+
+    @Test
+    fun `classifies static file template name`() {
+        val node = Node(NodeId("n1"), "@StaticFile", NodeKind.Processor)
+
+        assertEquals(NodeStereotype.StaticFile, NodeClassifier.classify(node))
+    }
+
+    @Test
     fun `ignores inbound library dependencies when classifying data inputs`() {
         val root = Node(NodeId("root"), "root", NodeKind.Group)
         val library = Node(NodeId("lib"), "lib_io_file", NodeKind.Processor)
@@ -106,7 +120,7 @@ class NodeClassifierTest {
     fun `link kind takes precedence over name`() {
         val node = Node(
             id = NodeId("l1"),
-            name = "error_test_service",
+            name = "@transport",
             kind = NodeKind.Link,
             link = LinkData(NodeId("source"), "out", NodeId("target"), "in"),
         )

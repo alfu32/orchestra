@@ -3,8 +3,10 @@ package com.orchestra.compiler.naivekotlin
 import com.orchestra.compiler.api.CompilationResult
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerPlugin
+import com.orchestra.compiler.api.GeneratedElementKind
 import com.orchestra.compiler.api.GeneratedFile
 import com.orchestra.compiler.api.GeneratedProject
+import com.orchestra.core.classification.NodeStereotype
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.core.model.InflowDocument
@@ -18,6 +20,11 @@ class NaiveKotlinCompiler : CompilerPlugin {
     override val displayName: String = "Naive Kotlin/JVM Compiler"
     override val supportedLanguageIds: Set<String> = setOf("kotlin")
     override val supportedTechnologyIds: Set<String> = setOf("kotlin-jvm")
+    override val magicFileNames: Set<String> = setOf(
+        "build.gradle.kts",
+        "settings.gradle.kts",
+        "gradle.properties",
+    )
 
     override fun supports(document: InflowDocument): Boolean = true
 
@@ -32,23 +39,147 @@ class NaiveKotlinCompiler : CompilerPlugin {
 
         val projectName = sanitizeIdentifier(options.projectName ?: document.name).ifBlank { "generated_project" }
         val names = FunctionNames(document)
+        val scopeIds = compileScopeIds(document, options.scopeNodeIds)
+        val executableIds = executableScopeRoots(document, scopeIds)
         val files = mutableListOf<GeneratedFile>()
         files += settings(projectName)
         files += buildFile()
         files += runtimeFile()
-        files += mainFile(document, names)
+        files += mainFile(document, names, executableIds)
 
         document.nodes.values
-            .filter { !it.isLink }
+            .filter { !it.isLink && it.id in scopeIds }
             .sortedBy { it.id.value }
-            .forEach { node -> files += nodeFile(document, node, names) }
+            .forEach { node ->
+                generateMagicFile(document, node, options)?.let { files += it }
+                files += if (node.children.isEmpty()) {
+                    generateTerminalEntity(document, node, options)
+                } else {
+                    generateCompositeEntity(document, node, options)
+                }
+                files += nodeFile(document, node, names)
+            }
+
+        document.nodes.values
+            .filter { it.isLink && it.id in scopeIds }
+            .sortedBy { it.id.value }
+            .forEach { linkNode -> files += generateLink(document, linkNode, options) }
 
         return CompilationResult(
-            generatedProject = GeneratedProject(projectName, files),
+            generatedProject = layoutStrategy(options).layout(projectName, files.distinctBy { it.path }, options),
             diagnostics = diagnostics,
             success = true,
         )
     }
+
+    override fun generateTerminalEntity(document: InflowDocument, node: Node, options: CompilerOptions): List<GeneratedFile> =
+        listOf(
+            GeneratedFile(
+                path = "src/main/kotlin/generated/metadata/${sanitizeIdentifier(node.name)}_${node.id.value.takeLast(8)}.entity.txt",
+                content = generatedTextFor(document, node, options),
+                originNodeId = node.id,
+                reason = "Terminal entity generation metadata",
+                elementKind = GeneratedElementKind.TerminalEntity,
+            ),
+        )
+
+    override fun generateCompositeEntity(document: InflowDocument, node: Node, options: CompilerOptions): List<GeneratedFile> =
+        listOf(
+            GeneratedFile(
+                path = "src/main/kotlin/generated/metadata/${sanitizeIdentifier(node.name)}_${node.id.value.takeLast(8)}.composite.txt",
+                content = generatedTextFor(document, node, options) + "children=${node.children.joinToString(",")}\n",
+                originNodeId = node.id,
+                reason = "Composite entity generation metadata",
+                elementKind = GeneratedElementKind.CompositeEntity,
+            ),
+        )
+
+    override fun generateLink(document: InflowDocument, linkNode: Node, options: CompilerOptions): List<GeneratedFile> =
+        listOf(
+            GeneratedFile(
+                path = "src/main/kotlin/generated/metadata/${sanitizeIdentifier(linkNode.name)}_${linkNode.id.value.takeLast(8)}.link.txt",
+                content = generatedTextFor(document, linkNode, options) + "linkStereotype=${linkStereotype(document, linkNode)}\n",
+                originNodeId = linkNode.id,
+                reason = "Link generation metadata",
+                elementKind = GeneratedElementKind.Link,
+            ),
+        )
+
+    override fun generateMagicFile(document: InflowDocument, node: Node, options: CompilerOptions): GeneratedFile? {
+        val name = node.name.trim()
+        if (name !in getStaticFiles(document, options)) return null
+        val content = node.text.source.ifBlank { node.text.specification }
+        return GeneratedFile(
+            path = name,
+            content = content,
+            originNodeId = node.id,
+            reason = "Magic project file",
+            elementKind = GeneratedElementKind.MagicFile,
+        )
+    }
+
+    override fun getNode(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.Node)
+
+    override fun getLink(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.Link)
+
+    override fun getProcessingUnit(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.ProcessingUnit)
+
+    override fun getCompositeWorker(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.CompositeWorker)
+
+    override fun getCompositeErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.CompositeErrorHandler)
+
+    override fun getGenerator(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.Generator)
+
+    override fun getTransformer(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.Transformer)
+
+    override fun getSink(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.Sink)
+
+    override fun getScript(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.Script)
+
+    override fun getErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.ErrorHandler)
+
+    override fun getServiceLibrary(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.ServiceLibrary)
+
+    override fun getTransport(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.Transport)
+
+    override fun getErrorPipe(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.ErrorPipe)
+
+    override fun getDependencyInjection(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.DependencyInjection)
+
+    override fun getTest(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.Test)
+
+    override fun getTestSuite(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.TestSuite)
+
+    override fun getInputPort(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.InputPort)
+
+    override fun getOutputPort(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.OutputPort)
+
+    override fun getStaticFile(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.StaticFile)
+
+    override fun getCompilerTemplate(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        stereotypeText(document, node, NodeStereotype.CompilerTemplate)
+
+    private fun stereotypeText(document: InflowDocument, node: Node, expected: NodeStereotype): String =
+        "name=${node.name}\nstereotype=${entityStereotype(document, node)}\ncompilerMethod=get${expected.name}\n"
 
     private fun settings(projectName: String) = GeneratedFile(
         path = "settings.gradle.kts",
@@ -56,6 +187,7 @@ class NaiveKotlinCompiler : CompilerPlugin {
 """,
         originNodeId = null,
         reason = "Gradle settings",
+        elementKind = GeneratedElementKind.ProjectLayout,
     )
 
     private fun buildFile() = GeneratedFile(
@@ -80,6 +212,7 @@ application {
 """.trimStart(),
         originNodeId = null,
         reason = "Gradle build file",
+        elementKind = GeneratedElementKind.ProjectLayout,
     )
 
     private fun runtimeFile() = GeneratedFile(
@@ -104,21 +237,23 @@ fun runLink(context: RuntimeContext, source: String, target: String) {
 """.trimStart(),
         originNodeId = null,
         reason = "Runtime support",
+        elementKind = GeneratedElementKind.Runtime,
     )
 
-    private fun mainFile(document: InflowDocument, names: FunctionNames) = GeneratedFile(
+    private fun mainFile(document: InflowDocument, names: FunctionNames, executableIds: List<NodeId>) = GeneratedFile(
         path = "src/main/kotlin/generated/Main.kt",
         content = """
 package generated
 
 fun main() {
     val context = RuntimeContext()
-    generated.nodes.${names.initializerFor(document.rootNodeId)}(context)
-    generated.nodes.${names.functionFor(document.rootNodeId)}(context)
+${executableIds.joinToString(separator = "\n") { "    generated.nodes.${names.initializerFor(it)}(context)" }}
+${executableIds.joinToString(separator = "\n") { "    generated.nodes.${names.functionFor(it)}(context)" }}
 }
 """.trimStart(),
         originNodeId = document.rootNodeId,
         reason = "Application entry point",
+        elementKind = GeneratedElementKind.ProjectLayout,
     )
 
     private fun nodeFile(document: InflowDocument, node: Node, names: FunctionNames): GeneratedFile {
@@ -141,6 +276,7 @@ $body
 """.trimStart(),
             originNodeId = node.id,
             reason = if (node.children.isEmpty()) "Terminal processor node" else "Composite node runner",
+            elementKind = if (node.children.isEmpty()) GeneratedElementKind.TerminalEntity else GeneratedElementKind.CompositeEntity,
         )
     }
 
@@ -189,6 +325,31 @@ $body
         return listOf(calls, linkCalls).filter { it.isNotBlank() }.joinToString(separator = "\n", postfix = "\n")
             .ifBlank { "    // Composite node '${node.name}' has no executable children.\n" }
     }
+}
+
+private fun compileScopeIds(document: InflowDocument, requested: Set<NodeId>): Set<NodeId> {
+    if (requested.isEmpty()) return document.nodes.keys
+    val result = linkedSetOf<NodeId>()
+    fun include(id: NodeId) {
+        val node = document.nodes[id] ?: return
+        if (result.add(id) && !node.isLink) node.children.forEach(::include)
+    }
+    requested.forEach(::include)
+    val selectedNodes = result.mapNotNull(document.nodes::get).filterNot { it.isLink }.map { it.id }.toSet()
+    document.nodes.values.filter { it.isLink }.forEach { linkNode ->
+        val link = linkNode.link ?: return@forEach
+        if (link.sourceNodeId in selectedNodes && link.targetNodeId in selectedNodes) result += linkNode.id
+    }
+    return result
+}
+
+private fun executableScopeRoots(document: InflowDocument, scopeIds: Set<NodeId>): List<NodeId> {
+    if (scopeIds.contains(document.rootNodeId)) return listOf(document.rootNodeId)
+    val nodes = scopeIds.mapNotNull(document.nodes::get).filterNot { it.isLink }
+    return nodes
+        .filter { node -> node.parentId !in scopeIds }
+        .map { it.id }
+        .ifEmpty { listOf(document.rootNodeId) }
 }
 
 private class FunctionNames(document: InflowDocument) {
