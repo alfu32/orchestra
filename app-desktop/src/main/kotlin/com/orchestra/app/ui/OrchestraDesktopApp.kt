@@ -161,7 +161,8 @@ class OrchestraDesktopApp(
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
     private val selectedEntitiesTree = JTree()
-    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + CompilerCompiler() + GenericCompiler() + NaiveKotlinCompiler()
+    private val compilerCompiler = CompilerCompiler()
+    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + GenericCompiler() + NaiveKotlinCompiler()
     private val compilerTechnologies = availableCompilerTechnologies()
     private val languageIds = availableLanguageIds(compilerTechnologies)
     private val technologyIds = availableTechnologyIds(compilerTechnologies)
@@ -224,6 +225,7 @@ class OrchestraDesktopApp(
                 maximumSize = preferredSize
             })
             add(button("Compile") { executeCommand("compile.project") })
+            add(button("Gen Compiler") { executeCommand("compile.compiler") })
             pluginToolbarButtons.forEach { button ->
                 add(JButton(button.label).apply { addActionListener { button.action() } })
             }
@@ -283,6 +285,7 @@ class OrchestraDesktopApp(
             add(commandItem("file.saveAs"))
             add(commandItem("sheet.export"))
             add(commandItem("compile.project"))
+            add(commandItem("compile.compiler"))
             add(commandItem("app.options"))
             add(commandItem("file.quit"))
         })
@@ -346,6 +349,7 @@ class OrchestraDesktopApp(
         registerCommand(AppCommand("sheet.toggle", "Sheet: Toggle Preview") { canvas.toggleSheet() })
         registerCommand(AppCommand("sheet.export", "Sheet: Export...") { canvas.exportSheet(frame) })
         registerCommand(AppCommand("compile.project", "Compile: Project or Selection") { compileProject() })
+        registerCommand(AppCommand("compile.compiler", "Compile: Generate Compiler From @Compiler") { generateCompilerFromDesign() })
         registerCommand(AppCommand("commands.palette", "Commands: Open Palette", KeyStroke.getKeyStroke(KeyEvent.VK_P, shiftShortcut)) { showCommandPalette() })
         registerCommand(AppCommand("help.about", "Help: About") { showAbout() })
     }
@@ -677,6 +681,44 @@ class OrchestraDesktopApp(
         }.onFailure {
             JOptionPane.showMessageDialog(frame, it.message ?: "Compilation failed.", "Compile", JOptionPane.ERROR_MESSAGE)
             status.text = "Compilation failed: ${it.message}"
+        }
+    }
+
+    private fun generateCompilerFromDesign() {
+        autosave()
+        val document = repository.getDocument()
+        if (!compilerCompiler.supports(document)) {
+            JOptionPane.showMessageDialog(frame, "No @Compiler node found.", "Generate Compiler", JOptionPane.ERROR_MESSAGE)
+            return
+        }
+        val output = chooseOutputDirectory() ?: return
+        val result = compilerCompiler.compile(document, CompilerOptions(projectName = document.name))
+        val diagnostics = result.diagnostics.joinToString(separator = "\n") { "${it.severity}: ${it.message}" }
+        val generatedProject = result.generatedProject
+        if (!result.success || generatedProject == null || result.diagnostics.any { it.severity == DiagnosticSeverity.Error }) {
+            JOptionPane.showMessageDialog(
+                frame,
+                diagnostics.ifBlank { "Compiler generation failed." },
+                "Generate Compiler",
+                JOptionPane.ERROR_MESSAGE,
+            )
+            status.text = "Compiler generation failed"
+            return
+        }
+        runCatching {
+            Files.createDirectories(output)
+            generatedProject.writeTo(output)
+        }.onSuccess {
+            status.text = "Generated compiler to ${output.toAbsolutePath()}"
+            JOptionPane.showMessageDialog(
+                frame,
+                "Generated ${generatedProject.files.size} files in ${output.toAbsolutePath()}",
+                "Generate Compiler",
+                JOptionPane.INFORMATION_MESSAGE,
+            )
+        }.onFailure {
+            JOptionPane.showMessageDialog(frame, it.message ?: "Compiler generation failed.", "Generate Compiler", JOptionPane.ERROR_MESSAGE)
+            status.text = "Compiler generation failed: ${it.message}"
         }
     }
 
@@ -2607,7 +2649,8 @@ class GraphCanvas(
 
     private fun handleClicked(e: MouseEvent) {
         if (e.clickCount < 2 || !SwingUtilities.isLeftMouseButton(e)) return
-        val id = hitNode(modelPoint(e.point)) ?: return
+        val point = modelPoint(e.point)
+        val id = hitNode(point) ?: hitLink(point) ?: return
         onNodeDoubleClicked(id)
     }
 
@@ -2970,8 +3013,10 @@ private class InspectorPanel(
     private val transportKindOptions = LinkTransportKinds.catalog.map { transportDisplayById.getValue(it.id) } + OtherTransportChoice
     private var nodeId: NodeId? = null
     private var boundNodeIsLink = false
+    private var boundNodeIsCompiler = false
     private var boundHasNode = false
     private var binding = false
+    private var compilerTechnologyProposal = "generated"
     private val nameField = JTextField()
     private val language = JComboBox(languageOptions.toTypedArray()).apply { isEditable = false }
     private val customLanguage = JTextField()
@@ -3039,9 +3084,11 @@ private class InspectorPanel(
         val node = id?.let(repository::getNode)
         boundHasNode = node != null
         boundNodeIsLink = node?.isLink == true
+        boundNodeIsCompiler = node?.name?.trim()?.equals("@Compiler", ignoreCase = true) == true
+        compilerTechnologyProposal = proposedCompilerTechnologyId()
         nameField.text = node?.name.orEmpty()
         bindLanguage(node?.technology?.languageId.orEmpty())
-        bindTechnology(node?.technology?.technologyId.orEmpty())
+        bindTechnology(node?.technology?.technologyId.orEmpty(), forceCustom = boundNodeIsCompiler)
         state.text = node?.metadata?.get("state").orEmpty()
         bindTransportKind(node?.link?.transportKind.orEmpty())
         linkTypeName.text = node?.link?.typeName.orEmpty()
@@ -3123,10 +3170,14 @@ private class InspectorPanel(
         }
 
     private fun selectedTechnology(): String =
+        if (boundNodeIsCompiler) {
+            customTechnology.text.trim().ifBlank { compilerTechnologyProposal }
+        } else {
         when (val selected = technology.selectedItem?.toString().orEmpty()) {
             NoneTechnologyChoice -> ""
             OtherTechnologyChoice -> customTechnology.text.trim()
             else -> selected.trim()
+        }
         }
 
     private fun selectedTransportKind(): String =
@@ -3154,9 +3205,13 @@ private class InspectorPanel(
         updateConditionalChoiceVisibility()
     }
 
-    private fun bindTechnology(technologyId: String) {
+    private fun bindTechnology(technologyId: String, forceCustom: Boolean = false) {
         val value = technologyId.trim()
         when {
+            forceCustom -> {
+                technology.selectedItem = OtherTechnologyChoice
+                customTechnology.text = value.ifBlank { compilerTechnologyProposal }
+            }
             value.isBlank() -> {
                 technology.selectedItem = NoneTechnologyChoice
                 customTechnology.text = ""
@@ -3196,7 +3251,7 @@ private class InspectorPanel(
     private fun updateConditionalChoiceVisibility() {
         customLanguagePanel.isVisible = languageRow.isVisible && language.selectedItem == OtherLanguageChoice
         customLanguage.isEnabled = customLanguagePanel.isVisible
-        customTechnologyPanel.isVisible = technologyRow.isVisible && technology.selectedItem == OtherTechnologyChoice
+        customTechnologyPanel.isVisible = technologyRow.isVisible && (boundNodeIsCompiler || technology.selectedItem == OtherTechnologyChoice)
         customTechnology.isEnabled = customTechnologyPanel.isVisible
         customTransportKindPanel.isVisible = linkTransportKindRow.isVisible && linkTransportKind.selectedItem == OtherTransportChoice
         customTransportKind.isEnabled = customTransportKindPanel.isVisible
@@ -3209,7 +3264,7 @@ private class InspectorPanel(
         val showLinkFields = boundHasNode && boundNodeIsLink
         languageRow.isVisible = showNodeFields
         technologyRow.isVisible = showNodeFields
-        customTechnologyPanel.isVisible = showNodeFields && technology.selectedItem == OtherTechnologyChoice
+        customTechnologyPanel.isVisible = showNodeFields && (boundNodeIsCompiler || technology.selectedItem == OtherTechnologyChoice)
         stateRow.isVisible = showNodeFields
         linkTransportKindRow.isVisible = showLinkFields
         linkTypeNameRow.isVisible = showLinkFields
@@ -3223,6 +3278,13 @@ private class InspectorPanel(
             ?.filterNot { (key, _) -> !node.isLink && key == "state" }
             ?.joinToString("\n") { "${it.key}=${it.value}" }
             .orEmpty()
+
+    private fun proposedCompilerTechnologyId(): String =
+        repository.getDocument().name
+            .lowercase()
+            .replace(Regex("[^a-z0-9_.-]+"), "-")
+            .trim('-', '.', '_')
+            .ifBlank { "generated" }
 
     private fun fieldRow(label: String, component: JComponent): JPanel =
         JPanel(BorderLayout(0, 4)).apply {

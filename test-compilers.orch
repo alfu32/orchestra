@@ -33,9 +33,9 @@
             "outgoingLinks": [],
             "layout": {
                 "x": -592.0,
-                "y": -1003.0,
-                "width": 1668.0,
-                "height": 1395.0
+                "y": -1000.0,
+                "width": 1812.0,
+                "height": 1392.0
             },
             "text": {
                 "initialization": "",
@@ -50,7 +50,7 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "markdown",
+                "languageId": "javascript",
                 "technologyId": "generic",
                 "compilerId": "",
                 "fileExtension": "",
@@ -78,11 +78,11 @@
             "layout": {
                 "x": -554.0,
                 "y": -33.0,
-                "width": 268.0,
+                "width": 284.0,
                 "height": 138.0
             },
             "text": {
-                "initialization": "this is the init sequence of read_file\n\ni see the folowing ports/links\ninput_record\n",
+                "initialization": "this is the init sequence of read_file\n\ni see the folowing ports/links\ninput_record",
                 "initializationLanguageId": "",
                 "source": "this is the loop sequence of read_file\n\ni see the folowing ports/links\ninput_record",
                 "sourceLanguageId": "",
@@ -136,7 +136,7 @@
             "layout": {
                 "x": 54.0,
                 "y": -5.0,
-                "width": 268.0,
+                "width": 284.0,
                 "height": 108.0
             },
             "text": {
@@ -194,7 +194,7 @@
             "layout": {
                 "x": 675.0,
                 "y": -39.0,
-                "width": 268.0,
+                "width": 284.0,
                 "height": 168.0
             },
             "text": {
@@ -276,7 +276,8 @@
                 "targetNodeId": "node_3a5a9d7b-5664-423a-8e25-c7f7bcbc2e5d",
                 "targetPortName": "in",
                 "transportKind": "in-process",
-                "payloadDefinition": ""
+                "typeName": "WorkOrder",
+                "payloadDefinition": "class WorkOrder{\n  id:String\n  name:String\n  encodingDate:Date\n  numberOfItems:Number\n}"
             },
             "metadata": {},
             "pluginData": {}
@@ -321,7 +322,8 @@
                 "targetNodeId": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
                 "targetPortName": "in",
                 "transportKind": "in-process",
-                "payloadDefinition": ""
+                "typeName": "",
+                "payloadDefinition": "class WorkOrderConfirmation{\n  workOrder:WorkOrder\n  is_confirmed:Boolean\n}"
             },
             "metadata": {},
             "pluginData": {}
@@ -389,7 +391,7 @@
             "layout": {
                 "x": -560.0,
                 "y": -320.0,
-                "width": 268.0,
+                "width": 284.0,
                 "height": 168.0
             },
             "text": {
@@ -447,7 +449,7 @@
             "layout": {
                 "x": -48.0,
                 "y": -318.0,
-                "width": 268.0,
+                "width": 284.0,
                 "height": 108.0
             },
             "text": {
@@ -505,7 +507,7 @@
             "layout": {
                 "x": -560.0,
                 "y": -560.0,
-                "width": 268.0,
+                "width": 284.0,
                 "height": 168.0
             },
             "text": {
@@ -580,6 +582,7 @@
                 "targetNodeId": "node_5772414e-3ad3-40c3-b011-436bc5c81626",
                 "targetPortName": "in",
                 "transportKind": "in-process",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -625,6 +628,7 @@
                 "targetNodeId": "node_c1b4fcd5-1c2b-4c6a-bb04-080f595c7657",
                 "targetPortName": "in",
                 "transportKind": "in-process",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -670,6 +674,7 @@
                 "targetNodeId": "node_34f90565-e16e-4590-a0ae-948e4ec26e94",
                 "targetPortName": "in",
                 "transportKind": "in-process",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -715,6 +720,7 @@
                 "targetNodeId": "node_34f90565-e16e-4590-a0ae-948e4ec26e94",
                 "targetPortName": "in",
                 "transportKind": "in-process",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -760,6 +766,7 @@
                 "targetNodeId": "node_34f90565-e16e-4590-a0ae-948e4ec26e94",
                 "targetPortName": "in",
                 "transportKind": "in-process",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -805,6 +812,7 @@
                 "targetNodeId": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
                 "targetPortName": "in",
                 "transportKind": "in-process",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -850,6 +858,7 @@
                 "targetNodeId": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
                 "targetPortName": "in",
                 "transportKind": "in-process",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -895,6 +904,7 @@
                 "targetNodeId": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
                 "targetPortName": "in",
                 "transportKind": "in-process",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -940,6 +950,7 @@
                 "targetNodeId": "node_3a5a9d7b-5664-423a-8e25-c7f7bcbc2e5d",
                 "targetPortName": "in",
                 "transportKind": "in-process",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -960,10 +971,10 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 108.0,
-                "y": -923.0,
-                "width": 936.0,
-                "height": 457.0
+                "x": 105.0,
+                "y": -920.0,
+                "width": 1083.0,
+                "height": 454.0
             },
             "text": {
                 "initialization": "",
@@ -1004,9 +1015,9 @@
                 "height": 90.0
             },
             "text": {
-                "initialization": "// generic override for generator generation\n  template: generator init\n  node: ${name}\n\n",
+                "initialization": "// generic override for generator generation\n  template: generator init\n  node: ${name}\n${document}\n\n",
                 "initializationLanguageId": "",
-                "source": "// generic override for generator generation\n  template: generator loop\n  node: ${name}",
+                "source": "// generic override for generator generation\n  template: generator loop\n  node: ${name}\n\n${document}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -1038,15 +1049,15 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 572.0,
-                "y": -843.0,
+                "x": 786.0,
+                "y": -839.0,
                 "width": 364.0,
                 "height": 90.0
             },
             "text": {
-                "initialization": "// generic override for transformer generation\n  template: transformer init\n  node: ${name}",
+                "initialization": "// generic override for transformer generation\n  template: transformer init\n  node: ${name}\n\n${document}",
                 "initializationLanguageId": "",
-                "source": "// generic override for transformer generation\n  template: transformer loop\n  node: ${name}",
+                "source": "// generic override for transformer generation\n  template: transformer loop\n  node: ${name}\n\n${document}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -1076,15 +1087,15 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 146.0,
-                "y": -711.0,
+                "x": 137.0,
+                "y": -738.0,
                 "width": 364.0,
                 "height": 90.0
             },
             "text": {
-                "initialization": "// generic override for sink generation\n  template: sink init\n  node: ${name}",
+                "initialization": "// generic override for sink generation\n  template: sink init\n  node: ${name}\n\n${document}",
                 "initializationLanguageId": "",
-                "source": "// generic override for sink generation\n  template: sink loop\n  node: ${name}",
+                "source": "// generic override for sink generation\n  template: sink loop\n  node: ${name}\n\n\n${document}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -1114,15 +1125,15 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 648.0,
-                "y": -720.0,
+                "x": 792.0,
+                "y": -732.0,
                 "width": 364.0,
                 "height": 90.0
             },
             "text": {
-                "initialization": "// generic override for service library generation\n  template: service library init\n  node: ${name}\n\n",
+                "initialization": "// generic override for service library generation\n  template: service library init\n  node: ${name}\n\ndocument:${document}\ndependencyInjectionArguments:${dependencyInjectionArguments}\ndependencyInjectionLinks:${dependencyInjectionLinks}\nincomingArguments:${incomingArguments}\nincomingLinks:${incomingLinks}\nincomingLinks.size:${incomingLinks.size}\nincomingLinkTypes:${incomingLinkTypes}\nincomingLinkVariables:${incomingLinkVariables}\nincomingTypeDefinitions:${incomingTypeDefinitions}\nlayout:${layout}",
                 "initializationLanguageId": "",
-                "source": "// generic override for service library generation\n  template: service library loop\n  node: ${name}",
+                "source": "// generic override for service library generation\n  template: service library init\n  node: ${name}\n\ndocument:${document}\ndependencyInjectionArguments:${dependencyInjectionArguments}\ndependencyInjectionLinks:${dependencyInjectionLinks}\nincomingArguments:${incomingArguments}\nincomingLinks:${incomingLinks}\nincomingLinks.size:${incomingLinks.size}\nincomingLinkTypes:${incomingLinkTypes}\nincomingLinkVariables:${incomingLinkVariables}\nincomingTypeDefinitions:${incomingTypeDefinitions}\nlayout:${layout}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -1158,9 +1169,9 @@
                 "height": 90.0
             },
             "text": {
-                "initialization": "// generic override for static file generation\n  template: static file init\n  node: ${name}",
+                "initialization": "// generic override for static file generation\n  template: static file init\n  node: ${name}\n\n${document}",
                 "initializationLanguageId": "",
-                "source": "// generic override for static file generation\n  template: static file loop\n  node: ${name}",
+                "source": "// generic override for static file generation\n  template: static file loop\n  node: ${name}\n\n${document}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",

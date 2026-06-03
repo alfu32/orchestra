@@ -391,7 +391,7 @@ ${NodeStereotype.entries.joinToString("\n\n") { method(it) }}
     private fun effectiveCompilerTechnology(document: InflowDocument, node: Node): TechnologyMetadata =
         node.technology.copy(
             languageId = document.effectiveLanguageId(node.id),
-            technologyId = document.effectiveTechnologyId(node.id),
+            technologyId = node.technology.technologyId.trim().ifBlank { safeCompilerId(document.name) },
         )
 }
 

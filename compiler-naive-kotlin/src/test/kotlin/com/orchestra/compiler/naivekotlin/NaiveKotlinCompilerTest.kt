@@ -101,4 +101,19 @@ class NaiveKotlinCompilerTest {
         assertTrue(file.content.contains("generated ${'$'}{node.name}"))
         assertTrue(file.content.contains("listOf(\"settings.gradle.kts\", \"build.gradle.kts\")"))
     }
+
+    @Test
+    fun `compiler compiler does not inherit generated technology id from project root`() {
+        val repository = InMemoryDocumentRepository(newDocument("Compiler Design"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "generic"))
+        val compiler = repository.createNode(root, "@Compiler", NodeKind.Processor)
+        repository.updateNodeTechnology(compiler.id, TechnologyMetadata(languageId = "kotlin"))
+
+        val result = CompilerCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success)
+        val file = assertNotNull(result.generatedProject?.files?.singleOrNull())
+        assertTrue(file.content.contains("override val supportedTechnologyIds: Set<String> = setOf(\"compiler-design\")"))
+    }
 }
