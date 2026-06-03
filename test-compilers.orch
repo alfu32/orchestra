@@ -1,0 +1,1146 @@
+{
+    "id": "document_1780505534009",
+    "name": "Untitled Orchestra",
+    "rootNodeId": "root",
+    "nodes": [
+        {
+            "id": "root",
+            "name": "CompilerOverridesTest",
+            "kind": "Group",
+            "parentId": null,
+            "children": [
+                "node_34f90565-e16e-4590-a0ae-948e4ec26e94",
+                "node_3a5a9d7b-5664-423a-8e25-c7f7bcbc2e5d",
+                "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
+                "link_39b12ed2-3672-4426-98c0-8ed86b109be3",
+                "link_164c6126-9a92-4720-8897-b4e18504129f",
+                "node_2027e426-f2f7-46ac-b927-0f0636161cb2",
+                "node_c7d36abb-d03d-4949-8361-fc612f2dc588",
+                "node_b7be9c26-feac-4785-a872-d1585d257433",
+                "node_42749a3c-c96e-4b98-9d23-e9535c545f4f",
+                "node_5772414e-3ad3-40c3-b011-436bc5c81626",
+                "node_c1b4fcd5-1c2b-4c6a-bb04-080f595c7657",
+                "node_9627fb51-0aec-4927-b583-662ba3e621fa",
+                "link_bacfb684-fbaf-40ea-812d-fec366aa2309",
+                "link_3fc0b423-9cb9-4c24-8931-df06ea1c7ca2",
+                "link_22fccfed-ab5c-45d8-a04e-783647c84194",
+                "link_37dad0c0-5e12-4bc7-9391-a91dcaa4d26a",
+                "link_558d2ac3-8c3e-473a-9b3f-88899bb7d6d8",
+                "link_c7b9a826-c940-4502-b758-ac529c55b61d",
+                "link_135fb536-8e1b-4157-ab41-ccb89b4ad623",
+                "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e",
+                "link_25598a03-e3eb-4c8d-a891-27996e3d6e18",
+                "node_97d9d061-3a88-4e82-ae8f-ca9e6f388018",
+                "node_e9460bfd-849c-4026-a5b4-9ccfbb0381fb"
+            ],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": -592.0,
+                "y": -742.0,
+                "width": 1479.0,
+                "height": 1134.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "markdown",
+                "technologyId": "generic",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_34f90565-e16e-4590-a0ae-948e4ec26e94",
+            "name": "read_file",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_22fccfed-ab5c-45d8-a04e-783647c84194",
+                "link_37dad0c0-5e12-4bc7-9391-a91dcaa4d26a",
+                "link_558d2ac3-8c3e-473a-9b3f-88899bb7d6d8"
+            ],
+            "outgoingLinks": [
+                "link_39b12ed2-3672-4426-98c0-8ed86b109be3"
+            ],
+            "layout": {
+                "x": -554.0,
+                "y": -33.0,
+                "width": 180.0,
+                "height": 138.0
+            },
+            "text": {
+                "initialization": "this is the init sequence of read_file\n\ni see the folowing ports/links\ninput_record\n",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_3a5a9d7b-5664-423a-8e25-c7f7bcbc2e5d",
+            "name": "transform_data",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_39b12ed2-3672-4426-98c0-8ed86b109be3",
+                "link_25598a03-e3eb-4c8d-a891-27996e3d6e18"
+            ],
+            "outgoingLinks": [
+                "link_164c6126-9a92-4720-8897-b4e18504129f"
+            ],
+            "layout": {
+                "x": 54.0,
+                "y": -5.0,
+                "width": 180.0,
+                "height": 108.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
+            "name": "write_response_file",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_164c6126-9a92-4720-8897-b4e18504129f",
+                "link_c7b9a826-c940-4502-b758-ac529c55b61d",
+                "link_135fb536-8e1b-4157-ab41-ccb89b4ad623",
+                "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e"
+            ],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 675.0,
+                "y": -39.0,
+                "width": 180.0,
+                "height": 168.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_39b12ed2-3672-4426-98c0-8ed86b109be3",
+            "name": "input_record",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_34f90565-e16e-4590-a0ae-948e4ec26e94",
+                "sourcePortName": "out",
+                "targetNodeId": "node_3a5a9d7b-5664-423a-8e25-c7f7bcbc2e5d",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_164c6126-9a92-4720-8897-b4e18504129f",
+            "name": "out_record",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_3a5a9d7b-5664-423a-8e25-c7f7bcbc2e5d",
+                "sourcePortName": "out",
+                "targetNodeId": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_2027e426-f2f7-46ac-b927-0f0636161cb2",
+            "name": "config.json",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": -538.0,
+                "y": 206.0,
+                "width": 180.0,
+                "height": 138.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_c7d36abb-d03d-4949-8361-fc612f2dc588",
+            "name": "@Generator",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": -88.0,
+                "y": -662.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "// generic override for transformer generation\n  template: generator\n  node: ${name}",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {
+                "path": "compiler-overrides/transformer.template"
+            },
+            "pluginData": {}
+        },
+        {
+            "id": "node_b7be9c26-feac-4785-a872-d1585d257433",
+            "name": "@Transformer",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 152.0,
+                "y": -662.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "// generic override for transformer generation\n  template: transformer\n  node: ${name}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_42749a3c-c96e-4b98-9d23-e9535c545f4f",
+            "name": "@Sink",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": -84.0,
+                "y": -535.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "// generic override for transformer generation\n  template: sink\n  node: ${name}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_5772414e-3ad3-40c3-b011-436bc5c81626",
+            "name": "lib_error_logging",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_bacfb684-fbaf-40ea-812d-fec366aa2309"
+            ],
+            "outgoingLinks": [
+                "link_558d2ac3-8c3e-473a-9b3f-88899bb7d6d8",
+                "link_135fb536-8e1b-4157-ab41-ccb89b4ad623",
+                "link_25598a03-e3eb-4c8d-a891-27996e3d6e18"
+            ],
+            "layout": {
+                "x": -560.0,
+                "y": -320.0,
+                "width": 180.0,
+                "height": 168.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_c1b4fcd5-1c2b-4c6a-bb04-080f595c7657",
+            "name": "lib_config",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_3fc0b423-9cb9-4c24-8931-df06ea1c7ca2"
+            ],
+            "outgoingLinks": [
+                "link_37dad0c0-5e12-4bc7-9391-a91dcaa4d26a",
+                "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e"
+            ],
+            "layout": {
+                "x": -160.0,
+                "y": -320.0,
+                "width": 180.0,
+                "height": 108.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_9627fb51-0aec-4927-b583-662ba3e621fa",
+            "name": "lib_file",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_bacfb684-fbaf-40ea-812d-fec366aa2309",
+                "link_3fc0b423-9cb9-4c24-8931-df06ea1c7ca2",
+                "link_22fccfed-ab5c-45d8-a04e-783647c84194",
+                "link_c7b9a826-c940-4502-b758-ac529c55b61d"
+            ],
+            "layout": {
+                "x": -560.0,
+                "y": -560.0,
+                "width": 180.0,
+                "height": 168.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_bacfb684-fbaf-40ea-812d-fec366aa2309",
+            "name": "lib_file -> lib_error_logging",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_9627fb51-0aec-4927-b583-662ba3e621fa",
+                "sourcePortName": "out",
+                "targetNodeId": "node_5772414e-3ad3-40c3-b011-436bc5c81626",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_3fc0b423-9cb9-4c24-8931-df06ea1c7ca2",
+            "name": "lib_file -> lib_config",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_9627fb51-0aec-4927-b583-662ba3e621fa",
+                "sourcePortName": "out",
+                "targetNodeId": "node_c1b4fcd5-1c2b-4c6a-bb04-080f595c7657",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_22fccfed-ab5c-45d8-a04e-783647c84194",
+            "name": "lib_file -> read_file",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_9627fb51-0aec-4927-b583-662ba3e621fa",
+                "sourcePortName": "out",
+                "targetNodeId": "node_34f90565-e16e-4590-a0ae-948e4ec26e94",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_37dad0c0-5e12-4bc7-9391-a91dcaa4d26a",
+            "name": "lib_config -> read_file",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_c1b4fcd5-1c2b-4c6a-bb04-080f595c7657",
+                "sourcePortName": "out",
+                "targetNodeId": "node_34f90565-e16e-4590-a0ae-948e4ec26e94",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_558d2ac3-8c3e-473a-9b3f-88899bb7d6d8",
+            "name": "lib_error_logging -> read_file",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_5772414e-3ad3-40c3-b011-436bc5c81626",
+                "sourcePortName": "out",
+                "targetNodeId": "node_34f90565-e16e-4590-a0ae-948e4ec26e94",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_c7b9a826-c940-4502-b758-ac529c55b61d",
+            "name": "lib_file -> write_response_file",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_9627fb51-0aec-4927-b583-662ba3e621fa",
+                "sourcePortName": "out",
+                "targetNodeId": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_135fb536-8e1b-4157-ab41-ccb89b4ad623",
+            "name": "lib_error_logging -> write_response_file",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_5772414e-3ad3-40c3-b011-436bc5c81626",
+                "sourcePortName": "out",
+                "targetNodeId": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e",
+            "name": "lib_config -> write_response_file",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_c1b4fcd5-1c2b-4c6a-bb04-080f595c7657",
+                "sourcePortName": "out",
+                "targetNodeId": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_25598a03-e3eb-4c8d-a891-27996e3d6e18",
+            "name": "lib_error_logging -> transform_data",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_5772414e-3ad3-40c3-b011-436bc5c81626",
+                "sourcePortName": "out",
+                "targetNodeId": "node_3a5a9d7b-5664-423a-8e25-c7f7bcbc2e5d",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_97d9d061-3a88-4e82-ae8f-ca9e6f388018",
+            "name": "@ServiceLibrary",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 167.0,
+                "y": -533.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "// generic override for transformer generation\n  template: service library\n  node: ${name}\n\n",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_e9460bfd-849c-4026-a5b4-9ccfbb0381fb",
+            "name": "@StaticFIle",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 368.0,
+                "y": -660.0,
+                "width": 180.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "// generic override for transformer generation\n  template: static file\n  node: ${name}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        }
+    ],
+    "metadata": {}
+}
