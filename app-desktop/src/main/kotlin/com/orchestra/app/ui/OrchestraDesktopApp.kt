@@ -997,7 +997,7 @@ class GraphCanvas(
         const val ROUTING_OBSTACLE_PADDING = 24
         const val ROUTING_LANE_SPAN = 7
         const val SNAP_GRID_STEP = 40
-        const val SNAP_GRAB_RADIUS_PX = 5.0
+        const val SNAP_RADIUS_PX = 5.0
         const val COMPOSITE_TOP_PADDING = 80
         const val SHEET_UNITS_PER_MM = 4.0
         const val SHEET_MARGIN_MM = 10.0
@@ -2616,7 +2616,7 @@ class GraphCanvas(
     }
 
     private fun initialMoveReference(point: Point, rect: Rectangle): Point {
-        val tolerance = SNAP_GRAB_RADIUS_PX / zoom
+        val tolerance = snapToleranceModelUnits()
         entityCorners(rect).minByOrNull { it.distance(point) }
             ?.takeIf { it.distance(point) <= tolerance }
             ?.let { return it }
@@ -2624,7 +2624,12 @@ class GraphCanvas(
         return if (grid.distance(point) <= tolerance) grid else point
     }
 
-    private fun snapMoveReferenceToGrid(point: Point): Point = nearestGridPoint(point)
+    private fun snapMoveReferenceToGrid(point: Point): Point {
+        val grid = nearestGridPoint(point)
+        return if (grid.distance(point) <= snapToleranceModelUnits()) grid else point
+    }
+
+    private fun snapToleranceModelUnits(): Double = SNAP_RADIUS_PX / zoom
 
     private fun nearestGridPoint(point: Point): Point =
         Point(
