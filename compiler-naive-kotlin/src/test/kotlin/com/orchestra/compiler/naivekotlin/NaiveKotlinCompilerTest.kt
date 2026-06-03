@@ -56,25 +56,27 @@ class NaiveKotlinCompilerTest {
         val root = repository.getDocument().rootNodeId
         repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "generic"))
         val generatorTemplate = repository.createNode(root, "@Generator", NodeKind.Processor)
-        repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(source = "generate ${'$'}{node.name} -> ${'$'}{outgoingLinks}"))
+        repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(source = "generate ${'$'}{node.name} -> ${'$'}{outgoingArguments}\n${'$'}{outgoingTypeDefinitions}"))
         val sinkTemplate = repository.createNode(root, "@Sink", NodeKind.Processor)
-        repository.updateNodeText(sinkTemplate.id, sinkTemplate.text.copy(source = "sink ${'$'}{node.name} <- ${'$'}{incomingLinks}"))
+        repository.updateNodeText(sinkTemplate.id, sinkTemplate.text.copy(source = "sink ${'$'}{node.name} <- ${'$'}{incomingArguments}\n${'$'}{incomingTypeDefinitions}"))
         val linkTemplate = repository.createNode(root, "@Transport", NodeKind.Processor)
-        repository.updateNodeText(linkTemplate.id, linkTemplate.text.copy(source = "pipe ${'$'}{link.sourcePortName} to ${'$'}{link.targetPortName}"))
+        repository.updateNodeText(linkTemplate.id, linkTemplate.text.copy(source = "pipe ${'$'}{link.variableName}:${'$'}{link.typeName}\n${'$'}{link.typeDefinition}"))
         val source = repository.createNode(root, "read_file", NodeKind.Processor)
         val target = repository.createNode(root, "write_file", NodeKind.Processor)
         repository.addPort(source.id, NodePort("out", "record", PortDirection.Output))
         repository.addPort(target.id, NodePort("in", "record", PortDirection.Input))
-        repository.createLink(root, "record", source.id, "record", target.id, "record")
+        val link = repository.createLink(root, "record", source.id, "record", target.id, "record")
+        link.link?.typeName = "InputRecord"
+        link.link?.payloadDefinition = "data class InputRecord(val value: String)"
 
         val result = GenericCompiler().compile(repository.getDocument())
 
         assertTrue(result.success)
         val project = assertNotNull(result.generatedProject)
         assertTrue(project.files.none { it.path.endsWith(".template") })
-        assertTrue(project.files.any { it.path == "nodes/read_file.md" && it.content == "generate read_file -> record" })
-        assertTrue(project.files.any { it.path == "nodes/write_file.md" && it.content == "sink write_file <- record" })
-        assertTrue(project.files.any { it.path == "links/record.md" && it.content == "pipe record to record" })
+        assertTrue(project.files.any { it.path == "nodes/read_file.md" && it.content == "generate read_file -> record:InputRecord\ndata class InputRecord(val value: String)" })
+        assertTrue(project.files.any { it.path == "nodes/write_file.md" && it.content == "sink write_file <- record:InputRecord\ndata class InputRecord(val value: String)" })
+        assertTrue(project.files.any { it.path == "links/record.md" && it.content == "pipe record:InputRecord\ndata class InputRecord(val value: String)" })
     }
 
     @Test

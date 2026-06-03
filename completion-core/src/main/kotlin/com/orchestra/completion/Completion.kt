@@ -259,6 +259,16 @@ class FlowTemplateCompletionProvider : TechnologyCompletionProvider {
         suggestions += fieldSuggestion("children.size", "number of child nodes")
         suggestions += fieldSuggestion("incomingLinks.size", "number of incoming links")
         suggestions += fieldSuggestion("outgoingLinks.size", "number of outgoing links")
+        suggestions += fieldSuggestion("incomingLinkVariables", "incoming link variable names")
+        suggestions += fieldSuggestion("outgoingLinkVariables", "outgoing link variable names")
+        suggestions += fieldSuggestion("incomingLinkTypes", "incoming link type names")
+        suggestions += fieldSuggestion("outgoingLinkTypes", "outgoing link type names")
+        suggestions += fieldSuggestion("incomingArguments", "incoming link name:typeName argument list")
+        suggestions += fieldSuggestion("outgoingArguments", "outgoing link name:typeName argument list")
+        suggestions += fieldSuggestion("incomingTypeDefinitions", "incoming link type definitions")
+        suggestions += fieldSuggestion("outgoingTypeDefinitions", "outgoing link type definitions")
+        suggestions += fieldSuggestion("dependencyInjectionLinks", "dependency injection link variable names")
+        suggestions += fieldSuggestion("dependencyInjectionArguments", "dependency injection name:typeName argument list")
         suggestions += fieldSuggestion("ports.size", "number of ports")
 
         if (node.isLink) {
@@ -270,6 +280,9 @@ class FlowTemplateCompletionProvider : TechnologyCompletionProvider {
             suggestions += fieldSuggestion("link.targetNodeId", "target node id")
             suggestions += fieldSuggestion("link.targetPortName", "target port name")
             suggestions += fieldSuggestion("link.transportKind", "link transport kind")
+            suggestions += fieldSuggestion("link.variableName", "link variable name")
+            suggestions += fieldSuggestion("link.typeName", "link type name")
+            suggestions += fieldSuggestion("link.typeDefinition", "link type definition")
             suggestions += fieldSuggestion("link.payloadDefinition", "link payload definition")
         }
 

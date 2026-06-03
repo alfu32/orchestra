@@ -125,6 +125,10 @@ class GenericCompiler : CompilerPlugin {
         val target = link?.targetNodeId?.let(document.nodes::get)
         val stereotype = stereotypeForTemplateContext(document, node)
         val technology = effectiveTechnology(document, node)
+        val incomingDescriptors = linkDescriptors(document, node.incomingLinks)
+        val outgoingDescriptors = linkDescriptors(document, node.outgoingLinks)
+        val dependencyInjectionDescriptors = incomingDescriptors
+            .filter { descriptor -> descriptor.stereotype == LinkStereotype.DependencyInjection }
         val values = linkedMapOf<String, String>(
             "id" to node.id.value,
             "name" to node.name,
@@ -151,6 +155,16 @@ class GenericCompiler : CompilerPlugin {
             "children" to node.children.joinToString(",") { document.nodes[it]?.name ?: it.value },
             "incomingLinks" to node.incomingLinks.joinToString(",") { document.nodes[it]?.name ?: it.value },
             "outgoingLinks" to node.outgoingLinks.joinToString(",") { document.nodes[it]?.name ?: it.value },
+            "incomingLinkVariables" to incomingDescriptors.joinToString(",") { it.variableName },
+            "outgoingLinkVariables" to outgoingDescriptors.joinToString(",") { it.variableName },
+            "incomingLinkTypes" to incomingDescriptors.joinToString(",") { it.typeName },
+            "outgoingLinkTypes" to outgoingDescriptors.joinToString(",") { it.typeName },
+            "incomingArguments" to incomingDescriptors.joinToString(", ") { it.argumentText() },
+            "outgoingArguments" to outgoingDescriptors.joinToString(", ") { it.argumentText() },
+            "incomingTypeDefinitions" to incomingDescriptors.joinToString("\n\n") { it.typeDefinition },
+            "outgoingTypeDefinitions" to outgoingDescriptors.joinToString("\n\n") { it.typeDefinition },
+            "dependencyInjectionLinks" to dependencyInjectionDescriptors.joinToString(",") { it.variableName },
+            "dependencyInjectionArguments" to dependencyInjectionDescriptors.joinToString(", ") { it.argumentText() },
             "ports" to node.ports.joinToString(",") { it.name },
         )
         node.metadata.forEach { (key, value) ->
@@ -163,6 +177,9 @@ class GenericCompiler : CompilerPlugin {
                 "link.sourcePortName" to link.sourcePortName,
                 "link.targetPortName" to link.targetPortName,
                 "link.transportKind" to link.transportKind,
+                "link.variableName" to node.name,
+                "link.typeName" to link.typeName,
+                "link.typeDefinition" to link.payloadDefinition,
                 "link.payloadDefinition" to link.payloadDefinition,
                 "sourceNode.name" to source?.name.orEmpty(),
                 "targetNode.name" to target?.name.orEmpty(),
@@ -170,6 +187,38 @@ class GenericCompiler : CompilerPlugin {
         }
         return values
     }
+
+    private data class TemplateLinkDescriptor(
+        val variableName: String,
+        val typeName: String,
+        val typeDefinition: String,
+        val sourceNodeName: String,
+        val sourcePortName: String,
+        val targetNodeName: String,
+        val targetPortName: String,
+        val stereotype: LinkStereotype,
+    ) {
+        fun argumentText(): String =
+            if (typeName.isBlank()) variableName else "$variableName:$typeName"
+    }
+
+    private fun linkDescriptors(document: InflowDocument, linkIds: List<NodeId>): List<TemplateLinkDescriptor> =
+        linkIds.mapNotNull { id ->
+            val node = document.nodes[id] ?: return@mapNotNull null
+            val link = node.link ?: return@mapNotNull null
+            val source = document.nodes[link.sourceNodeId]
+            val target = document.nodes[link.targetNodeId]
+            TemplateLinkDescriptor(
+                variableName = node.name,
+                typeName = link.typeName,
+                typeDefinition = link.payloadDefinition,
+                sourceNodeName = source?.name.orEmpty(),
+                sourcePortName = link.sourcePortName,
+                targetNodeName = target?.name.orEmpty(),
+                targetPortName = link.targetPortName,
+                stereotype = LinkClassifier.classify(document, node),
+            )
+        }
 
     private fun generatedPath(node: Node, stereotype: NodeStereotype, fallbackExtension: String): String {
         node.metadata["path"]?.takeIf { it.isNotBlank() }?.let { return it }

@@ -15,9 +15,6 @@
                 "link_39b12ed2-3672-4426-98c0-8ed86b109be3",
                 "link_164c6126-9a92-4720-8897-b4e18504129f",
                 "node_2027e426-f2f7-46ac-b927-0f0636161cb2",
-                "node_c7d36abb-d03d-4949-8361-fc612f2dc588",
-                "node_b7be9c26-feac-4785-a872-d1585d257433",
-                "node_42749a3c-c96e-4b98-9d23-e9535c545f4f",
                 "node_5772414e-3ad3-40c3-b011-436bc5c81626",
                 "node_c1b4fcd5-1c2b-4c6a-bb04-080f595c7657",
                 "node_9627fb51-0aec-4927-b583-662ba3e621fa",
@@ -30,16 +27,15 @@
                 "link_135fb536-8e1b-4157-ab41-ccb89b4ad623",
                 "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e",
                 "link_25598a03-e3eb-4c8d-a891-27996e3d6e18",
-                "node_97d9d061-3a88-4e82-ae8f-ca9e6f388018",
-                "node_e9460bfd-849c-4026-a5b4-9ccfbb0381fb"
+                "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552"
             ],
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
                 "x": -592.0,
-                "y": -759.0,
-                "width": 1567.0,
-                "height": 1151.0
+                "y": -1003.0,
+                "width": 1668.0,
+                "height": 1395.0
             },
             "text": {
                 "initialization": "",
@@ -372,122 +368,6 @@
                     "metadata": {}
                 }
             ],
-            "link": null,
-            "metadata": {},
-            "pluginData": {}
-        },
-        {
-            "id": "node_c7d36abb-d03d-4949-8361-fc612f2dc588",
-            "name": "@Generator",
-            "kind": "Processor",
-            "parentId": "root",
-            "children": [],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": -33.0,
-                "y": -679.0,
-                "width": 300.0,
-                "height": 90.0
-            },
-            "text": {
-                "initialization": "// generic override for generator generation\n  template: generator init\n  node: ${name}\n\n",
-                "initializationLanguageId": "",
-                "source": "// generic override for generator generation\n  template: generator loop\n  node: ${name}",
-                "sourceLanguageId": "",
-                "specification": "",
-                "specificationLanguageId": "markdown",
-                "tests": "",
-                "testsLanguageId": "json",
-                "aiInstructions": "",
-                "aiInstructionsLanguageId": "markdown"
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "my-new-tech",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "ports": [],
-            "link": null,
-            "metadata": {
-                "path": "compiler-overrides/transformer.template"
-            },
-            "pluginData": {}
-        },
-        {
-            "id": "node_b7be9c26-feac-4785-a872-d1585d257433",
-            "name": "@Transformer",
-            "kind": "Processor",
-            "parentId": "root",
-            "children": [],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": 285.0,
-                "y": -678.0,
-                "width": 268.0,
-                "height": 90.0
-            },
-            "text": {
-                "initialization": "// generic override for transformer generation\n  template: transformer init\n  node: ${name}",
-                "initializationLanguageId": "",
-                "source": "// generic override for transformer generation\n  template: transformer loop\n  node: ${name}",
-                "sourceLanguageId": "",
-                "specification": "",
-                "specificationLanguageId": "markdown",
-                "tests": "",
-                "testsLanguageId": "json",
-                "aiInstructions": "",
-                "aiInstructionsLanguageId": "markdown"
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "ports": [],
-            "link": null,
-            "metadata": {},
-            "pluginData": {}
-        },
-        {
-            "id": "node_42749a3c-c96e-4b98-9d23-e9535c545f4f",
-            "name": "@Sink",
-            "kind": "Processor",
-            "parentId": "root",
-            "children": [],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": 48.0,
-                "y": -560.0,
-                "width": 268.0,
-                "height": 90.0
-            },
-            "text": {
-                "initialization": "// generic override for sink generation\n  template: sink init\n  node: ${name}",
-                "initializationLanguageId": "",
-                "source": "// generic override for sink generation\n  template: sink loop\n  node: ${name}",
-                "sourceLanguageId": "",
-                "specification": "",
-                "specificationLanguageId": "markdown",
-                "tests": "",
-                "testsLanguageId": "json",
-                "aiInstructions": "",
-                "aiInstructionsLanguageId": "markdown"
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "ports": [],
             "link": null,
             "metadata": {},
             "pluginData": {}
@@ -1066,17 +946,177 @@
             "pluginData": {}
         },
         {
-            "id": "node_97d9d061-3a88-4e82-ae8f-ca9e6f388018",
-            "name": "@ServiceLibrary",
+            "id": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+            "name": "@Compiler",
             "kind": "Processor",
             "parentId": "root",
+            "children": [
+                "node_c7d36abb-d03d-4949-8361-fc612f2dc588",
+                "node_b7be9c26-feac-4785-a872-d1585d257433",
+                "node_42749a3c-c96e-4b98-9d23-e9535c545f4f",
+                "node_97d9d061-3a88-4e82-ae8f-ca9e6f388018",
+                "node_e9460bfd-849c-4026-a5b4-9ccfbb0381fb"
+            ],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 108.0,
+                "y": -923.0,
+                "width": 936.0,
+                "height": 457.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "javascript",
+                "technologyId": "nodejs",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_c7d36abb-d03d-4949-8361-fc612f2dc588",
+            "name": "@Generator",
+            "kind": "Processor",
+            "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
             "children": [],
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 365.0,
-                "y": -558.0,
-                "width": 268.0,
+                "x": 140.0,
+                "y": -840.0,
+                "width": 316.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "// generic override for generator generation\n  template: generator init\n  node: ${name}\n\n",
+                "initializationLanguageId": "",
+                "source": "// generic override for generator generation\n  template: generator loop\n  node: ${name}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "my-new-tech",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {
+                "path": "compiler-overrides/transformer.template"
+            },
+            "pluginData": {}
+        },
+        {
+            "id": "node_b7be9c26-feac-4785-a872-d1585d257433",
+            "name": "@Transformer",
+            "kind": "Processor",
+            "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 572.0,
+                "y": -843.0,
+                "width": 364.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "// generic override for transformer generation\n  template: transformer init\n  node: ${name}",
+                "initializationLanguageId": "",
+                "source": "// generic override for transformer generation\n  template: transformer loop\n  node: ${name}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_42749a3c-c96e-4b98-9d23-e9535c545f4f",
+            "name": "@Sink",
+            "kind": "Processor",
+            "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 146.0,
+                "y": -711.0,
+                "width": 364.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "// generic override for sink generation\n  template: sink init\n  node: ${name}",
+                "initializationLanguageId": "",
+                "source": "// generic override for sink generation\n  template: sink loop\n  node: ${name}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_97d9d061-3a88-4e82-ae8f-ca9e6f388018",
+            "name": "@ServiceLibrary",
+            "kind": "Processor",
+            "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 648.0,
+                "y": -720.0,
+                "width": 364.0,
                 "height": 90.0
             },
             "text": {
@@ -1107,14 +1147,14 @@
             "id": "node_e9460bfd-849c-4026-a5b4-9ccfbb0381fb",
             "name": "@StaticFIle",
             "kind": "Processor",
-            "parentId": "root",
+            "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
             "children": [],
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 365.0,
-                "y": -438.0,
-                "width": 268.0,
+                "x": 149.0,
+                "y": -604.0,
+                "width": 364.0,
                 "height": 90.0
             },
             "text": {

@@ -1125,6 +1125,7 @@ class GraphCanvas(
     init {
         background = Color(0xf7f7f7)
         preferredSize = Dimension(2400, 1800)
+        toolTipText = ""
         val mouse = object : MouseAdapter() {
             override fun mousePressed(e: MouseEvent) = handlePressed(e)
             override fun mouseDragged(e: MouseEvent) = handleDragged(e)
@@ -1141,6 +1142,14 @@ class GraphCanvas(
         addMouseListener(mouse)
         addMouseMotionListener(mouse)
         addMouseWheelListener(mouse)
+    }
+
+    override fun getToolTipText(event: MouseEvent): String? {
+        val linkId = hitLink(modelPoint(event.point)) ?: return null
+        val link = repository.getNode(linkId) ?: return null
+        val definition = link.link?.payloadDefinition?.trim().orEmpty()
+        if (definition.isBlank()) return null
+        return "<html><pre>${escapeHtml(definition)}</pre></html>"
     }
 
     fun setMode(nextMode: CanvasMode) {
@@ -2079,10 +2088,21 @@ class GraphCanvas(
         g2.color = color
         drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
         drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
-        drawEndpointLinkLabels(g2, node.name, route, color)
+        drawEndpointLinkLabels(g2, linkLabel(node), route, color)
         g2.font = previousFont
         g2.stroke = previousStroke
     }
+
+    private fun linkLabel(node: Node): String {
+        val typeName = node.link?.typeName?.trim().orEmpty()
+        return if (typeName.isBlank()) node.name else "${node.name}:$typeName"
+    }
+
+    private fun escapeHtml(text: String): String =
+        text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
 
     private fun drawPortMarker(g2: Graphics2D, point: Point, side: Int, outgoing: Boolean) {
         val previousStroke = g2.stroke
@@ -2969,6 +2989,7 @@ private class InspectorPanel(
     }
     private val state = JTextField()
     private val linkTransportKind = JComboBox(transportKindOptions.toTypedArray()).apply { isEditable = false }
+    private val linkTypeName = JTextField()
     private val customTransportKind = JTextField()
     private val customTransportKindPanel = JPanel(BorderLayout(0, 4)).apply {
         add(JLabel("Custom transport identifier"), BorderLayout.NORTH)
@@ -2982,11 +3003,12 @@ private class InspectorPanel(
     private val technologyRow = fieldRow("Technology", technology)
     private val stateRow = fieldRow("State", state)
     private val linkTransportKindRow = fieldRow("Link transport kind", linkTransportKind)
-    private val payloadDefinitionRow = fieldRow("Link payload definition", JScrollPane(payloadDefinition))
+    private val linkTypeNameRow = fieldRow("Link type name", linkTypeName)
+    private val payloadDefinitionRow = fieldRow("Link type definition", JScrollPane(payloadDefinition))
     private val metadataRow = fieldRow("Metadata key=value", JScrollPane(metadata))
 
     init {
-        listOf(nameField, customLanguage, customTechnology, state, customTransportKind).forEach(::applyOnCommit)
+        listOf(nameField, customLanguage, customTechnology, state, linkTypeName, customTransportKind).forEach(::applyOnCommit)
         applyOnCommit(language)
         applyOnCommit(technology)
         applyOnCommit(linkTransportKind)
@@ -3001,6 +3023,7 @@ private class InspectorPanel(
             add(customTechnologyPanel)
             add(stateRow)
             add(linkTransportKindRow)
+            add(linkTypeNameRow)
             add(customTransportKindPanel)
             add(payloadDefinitionRow)
             add(metadataRow)
@@ -3021,6 +3044,7 @@ private class InspectorPanel(
         bindTechnology(node?.technology?.technologyId.orEmpty())
         state.text = node?.metadata?.get("state").orEmpty()
         bindTransportKind(node?.link?.transportKind.orEmpty())
+        linkTypeName.text = node?.link?.typeName.orEmpty()
         payloadDefinition.text = node?.link?.payloadDefinition.orEmpty()
         metadata.text = metadataText(node)
         updateEntityFieldVisibility()
@@ -3055,6 +3079,7 @@ private class InspectorPanel(
             customTechnology.hasFocus() ||
             state.hasFocus() ||
             linkTransportKind.hasFocus() ||
+            linkTypeName.hasFocus() ||
             customTransportKind.hasFocus() ||
             payloadDefinition.hasFocus() ||
             metadata.hasFocus()
@@ -3083,6 +3108,7 @@ private class InspectorPanel(
         node.metadata.putAll(parseMetadata(includeState = !isLink))
         if (isLink) node.link?.let {
             it.transportKind = selectedTransportKind().ifBlank { LinkTransportKinds.Default }
+            it.typeName = linkTypeName.text.trim()
             it.payloadDefinition = payloadDefinition.text
         }
         repository.markDirty()
@@ -3186,6 +3212,7 @@ private class InspectorPanel(
         customTechnologyPanel.isVisible = showNodeFields && technology.selectedItem == OtherTechnologyChoice
         stateRow.isVisible = showNodeFields
         linkTransportKindRow.isVisible = showLinkFields
+        linkTypeNameRow.isVisible = showLinkFields
         payloadDefinitionRow.isVisible = showLinkFields
         updateConditionalChoiceVisibility()
     }
