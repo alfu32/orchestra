@@ -3,7 +3,6 @@ package com.orchestra.compiler.generated.nodejs
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerPlugin
 import com.orchestra.compiler.api.CompilerTechnology
-import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
@@ -18,7 +17,7 @@ class JSCompiler : CompilerPlugin {
     override fun supports(document: InflowDocument): Boolean = true
     override fun validate(document: InflowDocument) = emptyList<com.orchestra.core.diagnostics.Diagnostic>()
     override fun compile(document: InflowDocument, options: CompilerOptions) =
-        com.orchestra.compiler.generic.GenericCompiler().compile(document, options)
+        com.orchestra.compiler.generic.compileWithMethodDispatch(this, document, options)
 
     override fun getStaticFiles(document: InflowDocument, options: CompilerOptions): List<String> = listOf("package.json","config.json","tsconfig.json","vite.js")
 
@@ -356,7 +355,7 @@ node.kind.name:${node.kind.name}
 node.kind.ordinal:${node.kind.ordinal}
 node.children.size:${node.children.size}
 node.incomingLinks:${node.incomingLinks}
-node.incomingLinks:${node.incomingLinks.first().value}
+node.incomingLinks:${'$'}{node.incomingLinks.first().value}
 node.isComposite:${node.isComposite}
 node.isLink:${node.isLink}
 node.isTerminal:${node.isTerminal}

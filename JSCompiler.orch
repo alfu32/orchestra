@@ -1,0 +1,284 @@
+{
+    "id": "document_1780505534009",
+    "name": "Untitled Orchestra",
+    "rootNodeId": "root",
+    "nodes": [
+        {
+            "id": "root",
+            "name": "CompilerOverridesTest",
+            "kind": "Group",
+            "parentId": null,
+            "children": [
+                "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552"
+            ],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 73.0,
+                "y": -1000.0,
+                "width": 1147.0,
+                "height": 582.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "javascript",
+                "technologyId": "generic",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+            "name": "@Compiler",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [
+                "node_c7d36abb-d03d-4949-8361-fc612f2dc588",
+                "node_b7be9c26-feac-4785-a872-d1585d257433",
+                "node_42749a3c-c96e-4b98-9d23-e9535c545f4f",
+                "node_97d9d061-3a88-4e82-ae8f-ca9e6f388018",
+                "node_e9460bfd-849c-4026-a5b4-9ccfbb0381fb"
+            ],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 105.0,
+                "y": -920.0,
+                "width": 1083.0,
+                "height": 454.0
+            },
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "javascript",
+                "technologyId": "nodejs",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_c7d36abb-d03d-4949-8361-fc612f2dc588",
+            "name": "@Generator",
+            "kind": "Processor",
+            "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 140.0,
+                "y": -840.0,
+                "width": 316.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "// generic override for generator generation\n  template: generator init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
+                "initializationLanguageId": "",
+                "source": "// generic override for generator generation\n  template: generator loop\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "my-new-tech",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {
+                "path": "compiler-overrides/transformer.template"
+            },
+            "pluginData": {}
+        },
+        {
+            "id": "node_b7be9c26-feac-4785-a872-d1585d257433",
+            "name": "@Transformer",
+            "kind": "Processor",
+            "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 786.0,
+                "y": -839.0,
+                "width": 364.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "// generic override for transformer generation\n  template: transformer init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
+                "initializationLanguageId": "",
+                "source": "// generic override for transformer generation\n  template: transformer loop\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_42749a3c-c96e-4b98-9d23-e9535c545f4f",
+            "name": "@Sink",
+            "kind": "Processor",
+            "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 137.0,
+                "y": -738.0,
+                "width": 364.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "// generic override for sink generation\n  template: sink init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
+                "initializationLanguageId": "",
+                "source": "// generic override for sink generation\n  template: sink loop\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_97d9d061-3a88-4e82-ae8f-ca9e6f388018",
+            "name": "@ServiceLibrary",
+            "kind": "Processor",
+            "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 792.0,
+                "y": -732.0,
+                "width": 364.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "// generic override for service library generation\n  template: service library init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
+                "initializationLanguageId": "",
+                "source": "// generic override for service library generation\n  template: service library init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.incomingLinks:${node.incomingLinks.first().value}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_e9460bfd-849c-4026-a5b4-9ccfbb0381fb",
+            "name": "@StaticFIle",
+            "kind": "Processor",
+            "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 149.0,
+                "y": -604.0,
+                "width": 364.0,
+                "height": 90.0
+            },
+            "text": {
+                "initialization": "// generic override for static file generation\n  template: static file init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.incomingLinks:${node.incomingLinks.first().value}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
+                "initializationLanguageId": "",
+                "source": "// generic override for static file generation\n  template: static file loop\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.incomingLinks:${node.incomingLinks.first().value}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        }
+    ],
+    "metadata": {}
+}

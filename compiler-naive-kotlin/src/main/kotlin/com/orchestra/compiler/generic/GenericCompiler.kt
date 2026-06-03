@@ -389,7 +389,7 @@ class $className : CompilerPlugin {
     override fun supports(document: InflowDocument): Boolean = true
     override fun validate(document: InflowDocument) = emptyList<com.orchestra.core.diagnostics.Diagnostic>()
     override fun compile(document: InflowDocument, options: CompilerOptions) =
-        com.orchestra.compiler.generic.GenericCompiler().compile(document, options)
+        com.orchestra.compiler.generic.compileWithMethodDispatch(this, document, options)
 
     override fun getStaticFiles(document: InflowDocument, options: CompilerOptions): List<String> =
         $staticFiles
@@ -510,7 +510,7 @@ private fun String.toPascalCase(): String =
         .joinToString("") { token -> token.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
 
 private fun String.kotlinTripleQuoted(): String =
-    "\"\"\"\n${replace("\"\"\"", "\"\"\\\"")}\n\"\"\""
+    "\"\"\"\n${replace("\"\"\"", "\"\"\\\"").replace("$", "\${'$'}")}\n\"\"\""
 
 private fun String.escapeKotlinString(): String =
     flatMap { char ->
