@@ -225,13 +225,40 @@ class FlowTemplateCompletionProvider : TechnologyCompletionProvider {
         suggestions += objectSuggestion("incomingLinks", "incoming links")
         suggestions += objectSuggestion("outgoingLinks", "outgoing links")
 
+        suggestions += snippetSuggestion("node: \${node.name}", "node name line")
+        suggestions += snippetSuggestion("options.projectName:\${options.projectName}", "project name line")
+        suggestions += fieldSuggestion("options.projectName", "compile project name")
         suggestions += fieldSuggestion("node.id", "node identifier")
         suggestions += fieldSuggestion("node.name", "node name")
         suggestions += fieldSuggestion("node.kind", "node kind")
+        suggestions += fieldSuggestion("node.kind.name", "node kind name")
+        suggestions += fieldSuggestion("node.kind.ordinal", "node kind ordinal")
         suggestions += fieldSuggestion("node.parentId", "parent node id")
+        suggestions += fieldSuggestion("node.children.size", "number of child nodes")
+        suggestions += fieldSuggestion("node.incomingLinks", "incoming link ids")
         suggestions += fieldSuggestion("node.isLink", "true when the node is a link")
         suggestions += fieldSuggestion("node.isComposite", "true when the node has children")
         suggestions += fieldSuggestion("node.isTerminal", "true when the node has no children")
+        suggestions += fieldSuggestion("node.layout", "node layout geometry")
+        suggestions += fieldSuggestion("node.link.sourceNodeId", "link source node id")
+        suggestions += fieldSuggestion("node.link.targetNodeId", "link target node id")
+        suggestions += fieldSuggestion("node.link.sourcePortName", "link source port name")
+        suggestions += fieldSuggestion("node.link.targetPortName", "link target port name")
+        suggestions += fieldSuggestion("node.metadata.size", "node metadata entry count")
+        suggestions += fieldSuggestion("node.metadata", "node metadata map")
+        suggestions += fieldSuggestion("node.outgoingLinks", "outgoing link ids")
+        suggestions += fieldSuggestion("node.pluginData", "node plugin data")
+        suggestions += fieldSuggestion("node.ports", "node ports")
+        suggestions += fieldSuggestion("node.text.initializationLanguageId", "initialization language id")
+        suggestions += fieldSuggestion("node.text.initialization", "initialization text")
+        suggestions += fieldSuggestion("node.text.sourceLanguageId", "source language id")
+        suggestions += fieldSuggestion("node.text.source", "source text")
+        suggestions += fieldSuggestion("node.text.specificationLanguageId", "specification language id")
+        suggestions += fieldSuggestion("node.text.specification", "specification text")
+        suggestions += fieldSuggestion("node.text.aiInstructionsLanguageId", "usage instructions language id")
+        suggestions += fieldSuggestion("node.text.aiInstructions", "usage instructions text")
+        suggestions += fieldSuggestion("node.text.testsLanguageId", "tests language id")
+        suggestions += fieldSuggestion("node.text.tests", "tests text")
 
         suggestions += fieldSuggestion("metadata", "node metadata map")
         suggestions += fieldSuggestion("text.initialization", "initialization text")
@@ -299,6 +326,9 @@ class FlowTemplateCompletionProvider : TechnologyCompletionProvider {
 
     private fun fieldSuggestion(label: String, detail: String): CompletionSuggestion =
         CompletionSuggestion(label, label, CompletionSuggestionKind.TemplateField, detail)
+
+    private fun snippetSuggestion(insertText: String, detail: String): CompletionSuggestion =
+        CompletionSuggestion(insertText, insertText, CompletionSuggestionKind.Snippet, detail)
 
     private fun childNodeFields(node: Node, document: InflowDocument): List<CompletionSuggestion> =
         node.children.mapNotNull(document.nodes::get).flatMap { child ->

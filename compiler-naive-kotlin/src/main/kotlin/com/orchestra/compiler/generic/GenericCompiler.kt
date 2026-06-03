@@ -59,13 +59,13 @@ class GenericCompiler : CompilerPlugin {
                     node.isTemplateDefinition(document) -> Unit
                     node.isLink -> {
                         overrides.templateForLink(document, node)?.let { template ->
-                            files += generatedFileFor(document, node, template, GeneratedElementKind.Link)
+                            files += generatedFileFor(document, node, template, GeneratedElementKind.Link, options)
                         }
                     }
                     else -> {
                         overrides.templateForNode(document, node)?.let { template ->
                             val kind = if (node.children.isEmpty()) GeneratedElementKind.TerminalEntity else GeneratedElementKind.CompositeEntity
-                            files += generatedFileFor(document, node, template, kind)
+                            files += generatedFileFor(document, node, template, kind, options)
                         }
                     }
                 }
@@ -103,23 +103,24 @@ class GenericCompiler : CompilerPlugin {
         node: Node,
         template: Node,
         kind: GeneratedElementKind,
+        options: CompilerOptions,
     ): GeneratedFile {
         val stereotype = stereotypeForTemplateContext(document, node)
         return GeneratedFile(
             path = generatedPath(node, stereotype, fallbackExtension = extensionFor(document, node)),
-            content = renderTemplate(document, node, template),
+            content = renderTemplate(document, node, template, options),
             originNodeId = node.id,
             reason = "Generated from ${template.name} override",
             elementKind = kind,
         )
     }
 
-    private fun renderTemplate(document: InflowDocument, node: Node, template: Node): String {
-        val values = templateValues(document, node)
+    private fun renderTemplate(document: InflowDocument, node: Node, template: Node, options: CompilerOptions): String {
+        val values = templateValues(document, node, options)
         return templateText(template).replacePlaceholders(values)
     }
 
-    private fun templateValues(document: InflowDocument, node: Node): Map<String, String> {
+    private fun templateValues(document: InflowDocument, node: Node, options: CompilerOptions): Map<String, String> {
         val link = node.link
         val source = link?.sourceNodeId?.let(document.nodes::get)
         val target = link?.targetNodeId?.let(document.nodes::get)
@@ -132,9 +133,39 @@ class GenericCompiler : CompilerPlugin {
         val values = linkedMapOf<String, String>(
             "id" to node.id.value,
             "name" to node.name,
+            "options.projectName" to (options.projectName ?: document.name),
             "node.id" to node.id.value,
             "node.name" to node.name,
+            "node.kind.name" to node.kind.name,
+            "node.kind.ordinal" to node.kind.ordinal.toString(),
+            "node.kind" to node.kind.name,
+            "node.parentId" to node.parentId?.value.orEmpty(),
             "node.stereotype" to stereotype.name,
+            "node.children.size" to node.children.size.toString(),
+            "node.incomingLinks" to node.incomingLinks.joinToString(",") { it.value },
+            "node.isComposite" to node.children.isNotEmpty().toString(),
+            "node.isLink" to node.isLink.toString(),
+            "node.isTerminal" to node.children.isEmpty().toString(),
+            "node.layout" to node.layout.toString(),
+            "node.link.sourceNodeId" to link?.sourceNodeId?.value.orEmpty(),
+            "node.link.targetNodeId" to link?.targetNodeId?.value.orEmpty(),
+            "node.link.sourcePortName" to link?.sourcePortName.orEmpty(),
+            "node.link.targetPortName" to link?.targetPortName.orEmpty(),
+            "node.metadata.size" to node.metadata.size.toString(),
+            "node.metadata" to node.metadata.entries.joinToString(",") { "${it.key}=${it.value}" },
+            "node.outgoingLinks" to node.outgoingLinks.joinToString(",") { it.value },
+            "node.pluginData" to node.pluginData.entries.joinToString(",") { "${it.key}=${it.value}" },
+            "node.ports" to node.ports.joinToString(",") { it.name },
+            "node.text.initializationLanguageId" to node.text.initializationLanguageId,
+            "node.text.initialization" to node.text.initialization,
+            "node.text.sourceLanguageId" to node.text.sourceLanguageId,
+            "node.text.source" to node.text.source,
+            "node.text.specificationLanguageId" to node.text.specificationLanguageId,
+            "node.text.specification" to node.text.specification,
+            "node.text.aiInstructionsLanguageId" to node.text.aiInstructionsLanguageId,
+            "node.text.aiInstructions" to node.text.aiInstructions,
+            "node.text.testsLanguageId" to node.text.testsLanguageId,
+            "node.text.tests" to node.text.tests,
             "stereotype" to stereotype.name,
             "language" to technology.languageId,
             "technology" to technology.technologyId,
