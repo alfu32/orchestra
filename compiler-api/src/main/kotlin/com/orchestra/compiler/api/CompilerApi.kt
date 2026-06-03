@@ -22,11 +22,22 @@ enum class GeneratedElementKind {
     ProjectLayout,
 }
 
+const val ANY_LANGUAGE_ID = "any"
+
+data class CompilerTechnology(
+    val languageId: String,
+    val technologyId: String,
+)
+
 interface CompilerPlugin {
     val id: String
     val displayName: String
     val supportedLanguageIds: Set<String> get() = emptySet()
     val supportedTechnologyIds: Set<String> get() = emptySet()
+    val providedTechnologies: List<CompilerTechnology>
+        get() = supportedLanguageIds.flatMap { languageId ->
+            supportedTechnologyIds.map { technologyId -> CompilerTechnology(languageId, technologyId) }
+        }
     val magicFileNames: Set<String> get() = emptySet()
 
     fun supports(document: InflowDocument): Boolean

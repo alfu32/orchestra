@@ -1,6 +1,8 @@
 package com.orchestra.compiler.generic
 
 import com.orchestra.compiler.api.CompilationResult
+import com.orchestra.compiler.api.ANY_LANGUAGE_ID
+import com.orchestra.compiler.api.CompilerTechnology
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerPlugin
 import com.orchestra.compiler.api.GeneratedElementKind
@@ -17,6 +19,9 @@ import com.orchestra.core.validation.DocumentValidator
 class GenericCompiler : CompilerPlugin {
     override val id: String = "generic-flow-design"
     override val displayName: String = "Generic Flow-Design Compiler"
+    override val supportedLanguageIds: Set<String> = setOf(ANY_LANGUAGE_ID)
+    override val supportedTechnologyIds: Set<String> = setOf("generic")
+    override val providedTechnologies: List<CompilerTechnology> = listOf(CompilerTechnology(ANY_LANGUAGE_ID, "generic"))
 
     override fun supports(document: InflowDocument): Boolean =
         document.nodes.values.any { node ->

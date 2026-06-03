@@ -7,6 +7,7 @@ import com.orchestra.app.fonts.OrchestraFonts
 import com.orchestra.Version
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerPlugin
+import com.orchestra.compiler.api.CompilerTechnology
 import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
 import com.orchestra.core.diagnostics.DiagnosticSeverity
@@ -161,8 +162,10 @@ class OrchestraDesktopApp(
     private val detailsHierarchyTree = JTree()
     private val selectedEntitiesTree = JTree()
     private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + GenericCompiler() + NaiveKotlinCompiler()
-    private val languageIds = availableLanguageIds()
-    private val inspector = InspectorPanel(repository, ::refreshAll, languageIds)
+    private val compilerTechnologies = availableCompilerTechnologies()
+    private val languageIds = availableLanguageIds(compilerTechnologies)
+    private val technologyIds = availableTechnologyIds(compilerTechnologies)
+    private val inspector = InspectorPanel(repository, ::refreshAll, languageIds, technologyIds)
     private val editorTabs = NodeEditorTabs(repository, ::refreshAll, ::checkpointHistory, ::undoDocument, ::redoDocument, languageIds)
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
@@ -567,8 +570,23 @@ class OrchestraDesktopApp(
         JOptionPane.showMessageDialog(frame, details, "About orchestra", JOptionPane.INFORMATION_MESSAGE)
     }
 
-    private fun availableLanguageIds(): List<String> =
-        (RegexSyntaxHighlighter.availableLanguageIds() + compilerPlugins.flatMap { it.supportedLanguageIds })
+    private fun availableCompilerTechnologies(): List<CompilerTechnology> =
+        compilerPlugins.flatMap { it.providedTechnologies }
+            .filter { it.languageId.isNotBlank() && it.technologyId.isNotBlank() }
+            .distinct()
+            .sortedWith(compareBy<CompilerTechnology> { it.languageId }.thenBy { it.technologyId })
+
+    private fun availableLanguageIds(technologies: List<CompilerTechnology>): List<String> =
+        (RegexSyntaxHighlighter.availableLanguageIds() +
+            compilerPlugins.flatMap { it.supportedLanguageIds } +
+            technologies.map { it.languageId })
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+
+    private fun availableTechnologyIds(technologies: List<CompilerTechnology>): List<String> =
+        (compilerPlugins.flatMap { it.supportedTechnologyIds } + technologies.map { it.technologyId })
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .distinct()
@@ -2906,6 +2924,7 @@ private class InspectorPanel(
     private val repository: DocumentRepository,
     private val refreshAll: () -> Unit,
     languageIds: List<String>,
+    technologyIds: List<String>,
 ) : JPanel(BorderLayout()) {
     private val knownLanguageIds = languageIds
         .map { it.trim() }
@@ -2913,6 +2932,12 @@ private class InspectorPanel(
         .distinct()
         .sorted()
     private val languageOptions = listOf(NoneLanguageChoice) + knownLanguageIds + OtherLanguageChoice
+    private val knownTechnologyIds = technologyIds
+        .map { it.trim() }
+        .filter { it.isNotBlank() && !it.equals(NoneTechnologyChoice, ignoreCase = true) && !it.equals(OtherTechnologyChoice, ignoreCase = true) }
+        .distinct()
+        .sorted()
+    private val technologyOptions = listOf(NoneTechnologyChoice) + knownTechnologyIds + OtherTechnologyChoice
     private val knownTransportKindIds = LinkTransportKinds.catalog.map { it.id }
     private val transportDisplayById = LinkTransportKinds.catalog.associate { it.id to "${it.label} (${it.id})" }
     private val transportIdByDisplay = transportDisplayById.entries.associate { (id, display) -> display to id }
@@ -2929,7 +2954,13 @@ private class InspectorPanel(
         add(customLanguage, BorderLayout.CENTER)
         isVisible = false
     }
-    private val technology = JTextField()
+    private val technology = JComboBox(technologyOptions.toTypedArray()).apply { isEditable = false }
+    private val customTechnology = JTextField()
+    private val customTechnologyPanel = JPanel(BorderLayout(0, 4)).apply {
+        add(JLabel("Custom technology identifier"), BorderLayout.NORTH)
+        add(customTechnology, BorderLayout.CENTER)
+        isVisible = false
+    }
     private val state = JTextField()
     private val linkTransportKind = JComboBox(transportKindOptions.toTypedArray()).apply { isEditable = false }
     private val customTransportKind = JTextField()
@@ -2949,8 +2980,9 @@ private class InspectorPanel(
     private val metadataRow = fieldRow("Metadata key=value", JScrollPane(metadata))
 
     init {
-        listOf(nameField, customLanguage, technology, state, customTransportKind).forEach(::applyOnCommit)
+        listOf(nameField, customLanguage, customTechnology, state, customTransportKind).forEach(::applyOnCommit)
         applyOnCommit(language)
+        applyOnCommit(technology)
         applyOnCommit(linkTransportKind)
         listOf(metadata, payloadDefinition).forEach(::applyOnFocusLost)
         val form = JPanel().apply {
@@ -2960,6 +2992,7 @@ private class InspectorPanel(
             add(languageRow)
             add(customLanguagePanel)
             add(technologyRow)
+            add(customTechnologyPanel)
             add(stateRow)
             add(linkTransportKindRow)
             add(customTransportKindPanel)
@@ -2979,7 +3012,7 @@ private class InspectorPanel(
         boundNodeIsLink = node?.isLink == true
         nameField.text = node?.name.orEmpty()
         bindLanguage(node?.technology?.languageId.orEmpty())
-        technology.text = node?.technology?.technologyId.orEmpty()
+        bindTechnology(node?.technology?.technologyId.orEmpty())
         state.text = node?.metadata?.get("state").orEmpty()
         bindTransportKind(node?.link?.transportKind.orEmpty())
         payloadDefinition.text = node?.link?.payloadDefinition.orEmpty()
@@ -3013,6 +3046,7 @@ private class InspectorPanel(
             language.hasFocus() ||
             customLanguage.hasFocus() ||
             technology.hasFocus() ||
+            customTechnology.hasFocus() ||
             state.hasFocus() ||
             linkTransportKind.hasFocus() ||
             customTransportKind.hasFocus() ||
@@ -3037,7 +3071,7 @@ private class InspectorPanel(
         repository.renameNode(id, nameField.text)
         val isLink = node.isLink
         if (!isLink) {
-            repository.updateNodeTechnology(id, node.technology.copy(languageId = selectedLanguage(), technologyId = technology.text))
+            repository.updateNodeTechnology(id, node.technology.copy(languageId = selectedLanguage(), technologyId = selectedTechnology()))
         }
         node.metadata.clear()
         node.metadata.putAll(parseMetadata(includeState = !isLink))
@@ -3053,6 +3087,13 @@ private class InspectorPanel(
         when (val selected = language.selectedItem?.toString().orEmpty()) {
             NoneLanguageChoice -> ""
             OtherLanguageChoice -> customLanguage.text.trim()
+            else -> selected.trim()
+        }
+
+    private fun selectedTechnology(): String =
+        when (val selected = technology.selectedItem?.toString().orEmpty()) {
+            NoneTechnologyChoice -> ""
+            OtherTechnologyChoice -> customTechnology.text.trim()
             else -> selected.trim()
         }
 
@@ -3081,6 +3122,25 @@ private class InspectorPanel(
         updateConditionalChoiceVisibility()
     }
 
+    private fun bindTechnology(technologyId: String) {
+        val value = technologyId.trim()
+        when {
+            value.isBlank() -> {
+                technology.selectedItem = NoneTechnologyChoice
+                customTechnology.text = ""
+            }
+            value in knownTechnologyIds -> {
+                technology.selectedItem = value
+                customTechnology.text = ""
+            }
+            else -> {
+                technology.selectedItem = OtherTechnologyChoice
+                customTechnology.text = value
+            }
+        }
+        updateConditionalChoiceVisibility()
+    }
+
     private fun bindTransportKind(transportKind: String) {
         val value = transportKind.trim()
         val canonical = LinkTransportKinds.canonicalId(value)
@@ -3104,6 +3164,8 @@ private class InspectorPanel(
     private fun updateConditionalChoiceVisibility() {
         customLanguagePanel.isVisible = languageRow.isVisible && language.selectedItem == OtherLanguageChoice
         customLanguage.isEnabled = customLanguagePanel.isVisible
+        customTechnologyPanel.isVisible = technologyRow.isVisible && technology.selectedItem == OtherTechnologyChoice
+        customTechnology.isEnabled = customTechnologyPanel.isVisible
         customTransportKindPanel.isVisible = linkTransportKindRow.isVisible && linkTransportKind.selectedItem == OtherTransportChoice
         customTransportKind.isEnabled = customTransportKindPanel.isVisible
         revalidate()
@@ -3115,6 +3177,7 @@ private class InspectorPanel(
         val showLinkFields = boundHasNode && boundNodeIsLink
         languageRow.isVisible = showNodeFields
         technologyRow.isVisible = showNodeFields
+        customTechnologyPanel.isVisible = showNodeFields && technology.selectedItem == OtherTechnologyChoice
         stateRow.isVisible = showNodeFields
         linkTransportKindRow.isVisible = showLinkFields
         payloadDefinitionRow.isVisible = showLinkFields
@@ -3138,6 +3201,8 @@ private class InspectorPanel(
     private companion object {
         private const val NoneLanguageChoice = "None"
         private const val OtherLanguageChoice = "Other"
+        private const val NoneTechnologyChoice = "None"
+        private const val OtherTechnologyChoice = "Other"
         private const val OtherTransportChoice = "Other"
     }
 }
