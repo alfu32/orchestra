@@ -91,7 +91,6 @@ import javax.swing.JComponent
 import javax.swing.JDialog
 import javax.swing.DropMode
 import javax.swing.Icon
-import javax.swing.JFileChooser
 import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JComboBox
@@ -114,7 +113,6 @@ import javax.swing.SwingUtilities
 import javax.swing.Timer
 import javax.swing.TransferHandler
 import javax.swing.WindowConstants
-import javax.swing.filechooser.FileNameExtensionFilter
 import javax.swing.event.TreeModelEvent
 import javax.swing.event.TreeModelListener
 import javax.swing.event.DocumentEvent
@@ -683,14 +681,14 @@ class OrchestraDesktopApp(
     }
 
     private fun chooseOutputDirectory(): Path? {
-        val chooser = JFileChooser().apply {
-            dialogTitle = "Choose compile output directory"
-            fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
-            isAcceptAllFileFilterUsed = false
-            selectedFile = currentFile?.parent?.resolve("generated")?.toFile() ?: File("generated")
+        val dialog = FileDialog(frame, "Choose compile output directory", FileDialog.SAVE).apply {
+            directory = currentFile?.parent?.toString() ?: Path.of(".").toAbsolutePath().toString()
+            file = currentFile?.parent?.resolve("generated")?.fileName?.toString() ?: "generated"
         }
-        if (chooser.showSaveDialog(frame) != JFileChooser.APPROVE_OPTION) return null
-        return chooser.selectedFile.toPath()
+        dialog.isVisible = true
+        val directory = dialog.directory?.takeIf { it.isNotBlank() } ?: return null
+        val file = dialog.file?.takeIf { it.isNotBlank() }
+        return if (file == null) Path.of(directory) else Path.of(directory).resolve(file)
     }
 
     private fun documentSnapshot(): String =
@@ -1176,13 +1174,13 @@ class GraphCanvas(
             arrayOf("pdf", "png", "svg"),
             "pdf",
         ) as? String ?: return
-        val chooser = JFileChooser().apply {
-            dialogTitle = "Save sheet as ${format.uppercase()}"
-            fileFilter = FileNameExtensionFilter(format.uppercase(), format)
-            selectedFile = File("orchestra-sheet.$format")
+        val dialog = FileDialog(parent, "Save sheet as ${format.uppercase()}", FileDialog.SAVE).apply {
+            file = "orchestra-sheet.$format"
         }
-        if (chooser.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION) return
-        val file = withExtension(chooser.selectedFile, format)
+        dialog.isVisible = true
+        val directory = dialog.directory?.takeIf { it.isNotBlank() } ?: return
+        val selected = dialog.file?.takeIf { it.isNotBlank() } ?: return
+        val file = withExtension(Path.of(directory).resolve(selected).toFile(), format)
         runCatching {
             when (format) {
                 "svg" -> writeSvgSheet(file)
@@ -1223,7 +1221,7 @@ class GraphCanvas(
         val document = repository.getDocument()
         document.nodes.values
             .filter { !it.isLink && it.id != document.rootNodeId }
-            .forEach(::ensureLayoutCanHoldPorts)
+            .forEach(::ensureLayoutCanHoldPortsAndLabels)
         document.nodes.values.filter { it.children.isNotEmpty() }.sortedByDescending { depthOf(it) }.forEach { parent ->
             val boxes = parent.children.mapNotNull(document.nodes::get).filter { !it.isLink }.map { it.layout }
             if (boxes.isNotEmpty()) {
@@ -1239,7 +1237,8 @@ class GraphCanvas(
         scheduleReroute()
     }
 
-    private fun ensureLayoutCanHoldPorts(node: Node) {
+    private fun ensureLayoutCanHoldPortsAndLabels(node: Node) {
+        node.layout.width = max(node.layout.width, requiredNodeWidth(node))
         node.layout.height = max(node.layout.height, requiredPortHeight(node))
     }
 
@@ -1247,6 +1246,17 @@ class GraphCanvas(
         val portCount = max(linksOnSide(node, -1).size, linksOnSide(node, 1).size)
         if (portCount == 0) return 0.0
         return (PORT_TOP_SPACING + portCount * PORT_SPACING + PORT_BOTTOM_SPACING).toDouble()
+    }
+
+    private fun requiredNodeWidth(node: Node): Double {
+        val labels = buildList {
+            add(node.name)
+            add(nodeStereotype(node).name)
+            technologyLabel(node)?.let(::add)
+        }
+        val contentWidth = labels.maxOfOrNull { monospaceTextWidth(it, 8, 28) } ?: 0
+        val portWidth = node.ports.maxOfOrNull { monospaceTextWidth(it.name, 8, 68) } ?: 0
+        return maxOf(200, contentWidth, portWidth).toDouble()
     }
 
     private fun linksOnSide(node: Node, side: Int): List<Node> {
@@ -1665,24 +1675,14 @@ class GraphCanvas(
             stereotype in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> 2.2
             else -> 2.0
         }
-        if (stereotype in compilerDesignStereotypes) {
-            svgEllipse(
-                svg,
-                r,
-                fill = hex(fillFor(node)),
-                stroke = hex(strokeFor(node, selected = false)),
-                strokeWidth = strokeWidth,
-            )
-        } else {
-            svgRect(
-                svg,
-                r,
-                fill = hex(fillFor(node)),
-                stroke = hex(strokeFor(node, selected = false)),
-                strokeWidth = strokeWidth,
-                dashArray = strokeDash,
-            )
-        }
+        svgRect(
+            svg,
+            r,
+            fill = hex(fillFor(node)),
+            stroke = hex(strokeFor(node, selected = false)),
+            strokeWidth = strokeWidth,
+            dashArray = strokeDash,
+        )
         svgText(svg, node.name, r.x + 12, r.y + 22, if (node.children.isEmpty()) 13 else 12, "#222222")
         svgText(svg, stereotype.name, r.x + 12, r.y + 42, 12, "#555555")
         technologyLabel(node)?.let { svgText(svg, it, r.x + 12, r.y + 58, 11, "#666666") }
@@ -1776,7 +1776,7 @@ class GraphCanvas(
         val text = label.take(24)
         if (text.isBlank()) return
         val anchor = pointAlongRoute(points, 0.5) ?: return
-        val width = text.length * 7
+        val width = monospaceTextWidth(text, 8, 20)
         val x = anchor.x - width / 2
         val y = anchor.y - 14
         svgRect(svg, Rectangle(x - 3, y - 10, width + 6, 14), fill = "#fdfdfd", stroke = "none")
@@ -2036,18 +2036,10 @@ class GraphCanvas(
         val stereotype = nodeStereotype(node)
         val previousStroke = g2.stroke
         g2.color = fillFor(node)
-        if (stereotype in compilerDesignStereotypes) {
-            g2.fillOval(r.x, r.y, r.width, r.height)
-        } else {
-            g2.fillRect(r.x, r.y, r.width, r.height)
-        }
+        g2.fillRect(r.x, r.y, r.width, r.height)
         g2.color = strokeFor(node, selected)
         g2.stroke = nodeStroke(node, selected)
-        if (stereotype in compilerDesignStereotypes) {
-            g2.drawOval(r.x, r.y, r.width, r.height)
-        } else {
-            g2.drawRect(r.x, r.y, r.width, r.height)
-        }
+        g2.drawRect(r.x, r.y, r.width, r.height)
         g2.color = Color(0x222222)
         g2.font = g2.font.deriveFont(if (node.children.isEmpty()) 13f else 12f)
         g2.drawString(node.name, r.x + 12, r.y + 22)
@@ -2221,7 +2213,7 @@ class GraphCanvas(
             val selected = linkNode.id in selection
             val label = dependent.name.take(28)
             val metrics = g2.fontMetrics
-            val labelWidth = max(96, metrics.stringWidth(label) + 22)
+            val labelWidth = max(96, monospaceTextWidth(label, 8, 22))
             val labelHeight = 24
             val y = r.y + 10 + index * (labelHeight + 8)
             val x = r.x + r.width + 34
@@ -2261,7 +2253,7 @@ class GraphCanvas(
         g2.drawLine(x, startY, x, stemBottom)
         rows.forEachIndexed { index, (linkNode, label) ->
             val y = startY + index * rowHeight + 8
-            val width = max(110, g2.fontMetrics.stringWidth(label) + 36)
+            val width = max(110, monospaceTextWidth(label, 8, 36))
             g2.fillOval(x - 5, y - 5, 10, 10)
             g2.drawLine(x, y, x + width, y)
             if (linkNode.id in selection) {
@@ -2819,7 +2811,7 @@ class GraphCanvas(
         val targetIndex = targetLinks.indexOfFirst { it.id == linkNode.id }.coerceAtLeast(0)
         val sourceRect = source.layout.rect()
         val targetRect = target.layout.rect()
-        val labelWidth = max(96, target.name.length * 8 + 22)
+        val labelWidth = max(96, monospaceTextWidth(target.name, 8, 22))
         val sourceBounds = Rectangle(
             sourceRect.x + sourceRect.width,
             sourceRect.y + 10 + sourceIndex * 32,
@@ -2829,7 +2821,7 @@ class GraphCanvas(
         val dependencyBounds = Rectangle(
             targetRect.x + 24,
             targetRect.y - targetLinks.size * 24 - 20 + targetIndex * 24,
-            max(120, source.name.length * 8 + 52),
+            max(120, monospaceTextWidth(source.name, 8, 52)),
             24,
         )
         return listOf(sourceBounds, dependencyBounds)
@@ -2889,6 +2881,9 @@ class GraphCanvas(
             else -> "lang: $language | tech: $technology"
         }
     }
+
+    private fun monospaceTextWidth(text: String, charWidth: Int = 8, padding: Int = 24): Int =
+        text.length * charWidth + padding
 
     private fun inheritedTechnologyValue(nodeId: NodeId, selector: (TechnologyMetadata) -> String): String {
         val document = repository.getDocument()

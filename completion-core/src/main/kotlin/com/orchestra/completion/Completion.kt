@@ -2,6 +2,8 @@ package com.orchestra.completion
 
 import com.orchestra.core.classification.LinkClassifier
 import com.orchestra.core.classification.LinkStereotype
+import com.orchestra.core.classification.NodeStereotype
+import com.orchestra.core.classification.stereotype
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
@@ -35,6 +37,8 @@ enum class CompletionSuggestionKind {
     InputPort,
     OutputPort,
     Import,
+    TemplateObject,
+    TemplateField,
     SiblingNode,
     ParentNode,
     ChildNode,
@@ -58,7 +62,10 @@ interface TechnologyCompletionProvider {
 
 class ModelAwareCompletionService(
     private val documentProvider: () -> InflowDocument,
-    private val technologyProviders: List<TechnologyCompletionProvider> = listOf(KotlinJvmCompletionProvider()),
+    private val technologyProviders: List<TechnologyCompletionProvider> = listOf(
+        KotlinJvmCompletionProvider(),
+        FlowTemplateCompletionProvider(),
+    ),
 ) : NodeCompletionService {
     override fun getSuggestions(request: CompletionRequest): List<CompletionSuggestion> {
         val document = documentProvider()
@@ -160,6 +167,8 @@ class ModelAwareCompletionService(
         CompletionSuggestionKind.Keyword,
         CompletionSuggestionKind.Snippet,
         CompletionSuggestionKind.UserSymbol -> 3
+        CompletionSuggestionKind.TemplateObject,
+        CompletionSuggestionKind.TemplateField -> 3
         CompletionSuggestionKind.LinkedSourceNode,
         CompletionSuggestionKind.LinkedTargetNode -> 4
         CompletionSuggestionKind.ParentNode,
@@ -193,4 +202,106 @@ class KotlinJvmCompletionProvider : TechnologyCompletionProvider {
             CompletionSuggestion("outputs", "context.outputs", CompletionSuggestionKind.CompilerSymbol, "Runtime output queues"),
         ) + portSnippets
     }
+}
+
+class FlowTemplateCompletionProvider : TechnologyCompletionProvider {
+    override fun supports(languageId: String, technologyId: String): Boolean = true
+
+    override fun getSuggestions(node: Node, document: InflowDocument, request: CompletionRequest): List<CompletionSuggestion> {
+        if (request.textSection !in setOf(NodeTextSection.Initialization, NodeTextSection.Source)) return emptyList()
+        if (node.stereotype(document) != NodeStereotype.CompilerTemplate) return emptyList()
+
+        val suggestions = mutableListOf<CompletionSuggestion>()
+        suggestions += objectSuggestion("document", "current document")
+        suggestions += objectSuggestion("node", "current template node")
+        suggestions += objectSuggestion("self", "alias for the current node")
+        suggestions += objectSuggestion("metadata", "node metadata map")
+        suggestions += objectSuggestion("text", "node text blocks")
+        suggestions += objectSuggestion("technology", "node technology metadata")
+        suggestions += objectSuggestion("layout", "node layout geometry")
+        suggestions += objectSuggestion("children", "child nodes")
+        suggestions += objectSuggestion("parent", "parent node")
+        suggestions += objectSuggestion("ports", "node ports")
+        suggestions += objectSuggestion("incomingLinks", "incoming links")
+        suggestions += objectSuggestion("outgoingLinks", "outgoing links")
+
+        suggestions += fieldSuggestion("node.id", "node identifier")
+        suggestions += fieldSuggestion("node.name", "node name")
+        suggestions += fieldSuggestion("node.kind", "node kind")
+        suggestions += fieldSuggestion("node.parentId", "parent node id")
+        suggestions += fieldSuggestion("node.isLink", "true when the node is a link")
+        suggestions += fieldSuggestion("node.isComposite", "true when the node has children")
+        suggestions += fieldSuggestion("node.isTerminal", "true when the node has no children")
+
+        suggestions += fieldSuggestion("metadata", "node metadata map")
+        suggestions += fieldSuggestion("text.initialization", "initialization text")
+        suggestions += fieldSuggestion("text.initializationLanguageId", "initialization language id")
+        suggestions += fieldSuggestion("text.source", "source text")
+        suggestions += fieldSuggestion("text.sourceLanguageId", "source language id")
+        suggestions += fieldSuggestion("text.specification", "specification text")
+        suggestions += fieldSuggestion("text.specificationLanguageId", "specification language id")
+        suggestions += fieldSuggestion("text.tests", "tests text")
+        suggestions += fieldSuggestion("text.testsLanguageId", "tests language id")
+        suggestions += fieldSuggestion("text.aiInstructions", "ai instructions text")
+        suggestions += fieldSuggestion("text.aiInstructionsLanguageId", "ai instructions language id")
+
+        suggestions += fieldSuggestion("technology.languageId", "technology language id")
+        suggestions += fieldSuggestion("technology.technologyId", "technology id")
+        suggestions += fieldSuggestion("technology.compilerId", "compiler id")
+        suggestions += fieldSuggestion("technology.fileExtension", "file extension")
+        suggestions += fieldSuggestion("technology.contentType", "content type")
+
+        suggestions += fieldSuggestion("layout.x", "node x coordinate")
+        suggestions += fieldSuggestion("layout.y", "node y coordinate")
+        suggestions += fieldSuggestion("layout.width", "node width")
+        suggestions += fieldSuggestion("layout.height", "node height")
+
+        suggestions += fieldSuggestion("children.size", "number of child nodes")
+        suggestions += fieldSuggestion("incomingLinks.size", "number of incoming links")
+        suggestions += fieldSuggestion("outgoingLinks.size", "number of outgoing links")
+        suggestions += fieldSuggestion("ports.size", "number of ports")
+
+        if (node.isLink) {
+            suggestions += objectSuggestion("link", "current link data")
+            suggestions += objectSuggestion("sourceNode", "source node")
+            suggestions += objectSuggestion("targetNode", "target node")
+            suggestions += fieldSuggestion("link.sourceNodeId", "source node id")
+            suggestions += fieldSuggestion("link.sourcePortName", "source port name")
+            suggestions += fieldSuggestion("link.targetNodeId", "target node id")
+            suggestions += fieldSuggestion("link.targetPortName", "target port name")
+            suggestions += fieldSuggestion("link.transportKind", "link transport kind")
+            suggestions += fieldSuggestion("link.payloadDefinition", "link payload definition")
+        }
+
+        suggestions += childNodeFields(node, document)
+        suggestions += portFields(node)
+
+        return suggestions
+            .distinctBy { it.insertText }
+            .sortedWith(compareBy({ it.label.lowercase() }, { it.detail }))
+    }
+
+    private fun objectSuggestion(label: String, detail: String): CompletionSuggestion =
+        CompletionSuggestion(label, label, CompletionSuggestionKind.TemplateObject, detail)
+
+    private fun fieldSuggestion(label: String, detail: String): CompletionSuggestion =
+        CompletionSuggestion(label, label, CompletionSuggestionKind.TemplateField, detail)
+
+    private fun childNodeFields(node: Node, document: InflowDocument): List<CompletionSuggestion> =
+        node.children.mapNotNull(document.nodes::get).flatMap { child ->
+            listOf(
+                CompletionSuggestion(child.name, child.name, CompletionSuggestionKind.TemplateObject, "child node"),
+                CompletionSuggestion("${child.name}.name", child.name, CompletionSuggestionKind.TemplateField, "child node name"),
+                CompletionSuggestion("${child.name}.id", child.id.value, CompletionSuggestionKind.TemplateField, "child node id"),
+            )
+        }
+
+    private fun portFields(node: Node): List<CompletionSuggestion> =
+        node.ports.flatMap { port ->
+            listOf(
+                CompletionSuggestion(port.name, port.name, CompletionSuggestionKind.TemplateObject, "${port.direction.name.lowercase()} port"),
+                CompletionSuggestion("${port.name}.name", port.name, CompletionSuggestionKind.TemplateField, "${port.direction.name.lowercase()} port name"),
+                CompletionSuggestion("${port.name}.dataType", "${port.name}.dataType", CompletionSuggestionKind.TemplateField, "${port.direction.name.lowercase()} port data type"),
+            )
+        }
 }

@@ -73,4 +73,35 @@ class ModelAwareCompletionServiceTest {
         )
         assertTrue(suggestions.indexOfFirst { it.label == "payload" } < suggestions.indexOfFirst { it.label == sibling.name })
     }
+
+    @Test
+    fun `suggests template model fields for compiler overrides`() {
+        val repository = InMemoryDocumentRepository(newDocument("completion"))
+        val root = repository.getDocument().rootNodeId
+        val template = repository.createNode(root, "@Transformer", NodeKind.Processor)
+        repository.addPort(template.id, NodePort("input", "payload", PortDirection.Input))
+        repository.addPort(template.id, NodePort("output", "result", PortDirection.Output))
+
+        val service = ModelAwareCompletionService(repository::getDocument)
+        val labels = service.getSuggestions(
+            CompletionRequest(
+                nodeId = template.id,
+                textSection = NodeTextSection.Source,
+                languageId = "kotlin",
+                technologyId = "generic",
+                cursorOffset = 0,
+                fullText = "",
+                currentLine = "",
+                prefix = "",
+            ),
+        ).map { it.label }.toSet()
+
+        assertTrue("node" in labels)
+        assertTrue("node.name" in labels)
+        assertTrue("text.source" in labels)
+        assertTrue("technology.languageId" in labels)
+        assertTrue("children" in labels)
+        assertTrue("payload" in labels)
+        assertTrue("result" in labels)
+    }
 }
