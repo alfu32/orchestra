@@ -940,6 +940,7 @@ class GraphCanvas(
         private set
     private var dragStart: Point? = null
     private var dragAllowsReparent = false
+    private var moveDragReference: Point? = null
     private var panDragStart: Point? = null
     private var selectionRect: Rectangle? = null
     private var linkSource: NodeId? = null
@@ -995,6 +996,8 @@ class GraphCanvas(
         const val ROUTING_CHAMFER = 22
         const val ROUTING_OBSTACLE_PADDING = 24
         const val ROUTING_LANE_SPAN = 7
+        const val SNAP_GRID_STEP = 40
+        const val SNAP_GRAB_RADIUS_PX = 5.0
         const val COMPOSITE_TOP_PADDING = 80
         const val SHEET_UNITS_PER_MM = 4.0
         const val SHEET_MARGIN_MM = 10.0
@@ -2471,6 +2474,7 @@ class GraphCanvas(
         }
         val point = modelPoint(e.point)
         dragStart = point
+        moveDragReference = null
         val hit = hitNode(point)
         val hitLink = hitLink(point)
         when (mode) {
@@ -2510,6 +2514,7 @@ class GraphCanvas(
                         selection += hit
                     }
                     dragAllowsReparent = e.isControlDown
+                    hitNode?.let { moveDragReference = initialMoveReference(point, it.layout.rect()) }
                     onSelectionChanged()
                 } else if (hitLink != null) {
                     if (!e.isShiftDown) selection.clear()
@@ -2534,13 +2539,15 @@ class GraphCanvas(
             repaint()
             return
         }
-        val start = dragStart ?: return
         val point = modelPoint(e.point)
         if (selectionRect != null) {
+            val start = dragStart ?: return
             selectionRect = Rectangle(min(start.x, point.x), min(start.y, point.y), kotlin.math.abs(point.x - start.x), kotlin.math.abs(point.y - start.y))
         } else if (selection.isNotEmpty() && mode == CanvasMode.Select) {
-            val dx = point.x - start.x
-            val dy = point.y - start.y
+            val start = moveDragReference ?: dragStart ?: return
+            val snappedPoint = snapMoveReferenceToGrid(point)
+            val dx = snappedPoint.x - start.x
+            val dy = snappedPoint.y - start.y
             val movedNodes = selectedMoveRoots()
             movedNodes.forEach { moved ->
                 moveNodeAndDescendants(moved, dx.toDouble(), dy.toDouble())
@@ -2548,6 +2555,7 @@ class GraphCanvas(
             invalidateRoutesFor(movedNodes.map { it.id })
             repository.markDirty()
             dragStart = point
+            moveDragReference = snappedPoint
         }
         repaint()
     }
@@ -2567,6 +2575,7 @@ class GraphCanvas(
         if (selection.isNotEmpty() && dragAllowsReparent) updateParentAfterDrag(modelPoint(e.point))
         dragAllowsReparent = false
         dragStart = null
+        moveDragReference = null
         refreshAll()
     }
 
@@ -2606,28 +2615,30 @@ class GraphCanvas(
         }
     }
 
-    private fun snapNodeSubtreeToGrid(node: Node) {
-        val tolerance = 5.0 / zoom
-        val snappedX = snapValueToGrid(node.layout.x, 40.0, tolerance)
-        val snappedY = snapValueToGrid(node.layout.y, 40.0, tolerance)
-        val dx = snappedX - node.layout.x
-        val dy = snappedY - node.layout.y
-        if (abs(dx) < 0.001 && abs(dy) < 0.001) return
-        moveNodeAndDescendants(node, dx, dy)
+    private fun initialMoveReference(point: Point, rect: Rectangle): Point {
+        val tolerance = SNAP_GRAB_RADIUS_PX / zoom
+        entityCorners(rect).minByOrNull { it.distance(point) }
+            ?.takeIf { it.distance(point) <= tolerance }
+            ?.let { return it }
+        val grid = nearestGridPoint(point)
+        return if (grid.distance(point) <= tolerance) grid else point
     }
 
-    private fun snapPointToGrid(point: Point): Point {
-        val tolerance = 5.0 / zoom
-        val step = 40.0
-        val snappedX = snapValueToGrid(point.x.toDouble(), step, tolerance)
-        val snappedY = snapValueToGrid(point.y.toDouble(), step, tolerance)
-        return Point(snappedX.roundToInt(), snappedY.roundToInt())
-    }
+    private fun snapMoveReferenceToGrid(point: Point): Point = nearestGridPoint(point)
 
-    private fun snapValueToGrid(value: Double, step: Double, tolerance: Double): Double {
-        val snapped = (kotlin.math.round(value / step) * step)
-        return if (abs(snapped - value) <= tolerance) snapped else value
-    }
+    private fun nearestGridPoint(point: Point): Point =
+        Point(
+            (point.x.toDouble() / SNAP_GRID_STEP).roundToInt() * SNAP_GRID_STEP,
+            (point.y.toDouble() / SNAP_GRID_STEP).roundToInt() * SNAP_GRID_STEP,
+        )
+
+    private fun entityCorners(rect: Rectangle): List<Point> =
+        listOf(
+            Point(rect.x, rect.y),
+            Point(rect.x + rect.width, rect.y),
+            Point(rect.x, rect.y + rect.height),
+            Point(rect.x + rect.width, rect.y + rect.height),
+        )
 
     private fun updateParentAfterDrag(dropPoint: Point) {
         val root = repository.getDocument().rootNodeId
