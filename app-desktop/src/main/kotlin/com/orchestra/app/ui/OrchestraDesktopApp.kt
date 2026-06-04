@@ -1152,7 +1152,7 @@ class GraphCanvas(
         const val SNAP_GRID_STEP = 40
         const val SNAP_RADIUS_PX = 5.0
         const val COMPOSITE_TOP_PADDING = 80
-        const val COMPOSITE_HEADER_EXTRA_HEIGHT = 24
+        const val COMPOSITE_HEADER_EXTRA_HEIGHT = 36
         const val SHEET_UNITS_PER_MM = 4.0
         const val SHEET_MARGIN_MM = 10.0
         const val DRAWING_PAD_MM = 12.0
@@ -1316,19 +1316,19 @@ class GraphCanvas(
                     val childRight = boxes.maxOf { it.x + it.width }
                     val childBottom = boxes.maxOf { it.y + it.height }
                     val openX = childLeft - 32
-                    val openY = childTop - COMPOSITE_TOP_PADDING
+                    val openY = childTop - COMPOSITE_TOP_PADDING - COMPOSITE_HEADER_EXTRA_HEIGHT
                     val openWidth = max(childRight - childLeft + 64, parent.layout.closedWidth.roundToInt()).toDouble()
                     val openHeight = max(
                         childBottom - childTop + 96 + (COMPOSITE_TOP_PADDING - 48),
                         max(requiredPortHeight(parent), parent.layout.closedHeight).roundToInt(),
                     ).toDouble()
-                    parent.layout.openWidth = max(parent.layout.openWidth, openWidth)
-                    parent.layout.openHeight = max(parent.layout.openHeight, openHeight + COMPOSITE_HEADER_EXTRA_HEIGHT)
+                    parent.layout.openWidth = openWidth
+                    parent.layout.openHeight = openHeight + COMPOSITE_HEADER_EXTRA_HEIGHT
                     parent.layout.x = openX.toDouble()
                     parent.layout.y = openY.toDouble()
                 } else {
-                    parent.layout.openWidth = max(parent.layout.openWidth, parent.layout.closedWidth)
-                    parent.layout.openHeight = max(parent.layout.openHeight, parent.layout.closedHeight + COMPOSITE_HEADER_EXTRA_HEIGHT)
+                    parent.layout.openWidth = parent.layout.closedWidth
+                    parent.layout.openHeight = parent.layout.closedHeight + COMPOSITE_HEADER_EXTRA_HEIGHT
                 }
                 parent.layout.width = if (parent.layout.isExpanded) parent.layout.openWidth else parent.layout.closedWidth
                 parent.layout.height = if (parent.layout.isExpanded) parent.layout.openHeight else parent.layout.closedHeight

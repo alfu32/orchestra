@@ -76,14 +76,14 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -741.0,
-                "y": 253.0,
-                "width": 1631.0,
-                "height": 791.0,
+                "x": -732.0,
+                "y": 230.0,
+                "width": 1762.0,
+                "height": 1125.0,
                 "closedWidth": 276.0,
                 "closedHeight": 100.0,
-                "openWidth": 1631.0,
-                "openHeight": 791.0,
+                "openWidth": 1762.0,
+                "openHeight": 1125.0,
                 "isExpanded": true
             },
             "text": {
@@ -125,8 +125,8 @@
                 "link_39b12ed2-3672-4426-98c0-8ed86b109be3"
             ],
             "layout": {
-                "x": -709.0,
-                "y": 828.0,
+                "x": -699.0,
+                "y": 926.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -251,8 +251,8 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 582.0,
-                "y": 787.0,
+                "x": 291.0,
+                "y": 552.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -366,14 +366,14 @@
                 "link_135fb536-8e1b-4157-ab41-ccb89b4ad623"
             ],
             "layout": {
-                "x": -704.0,
-                "y": 556.0,
+                "x": -689.0,
+                "y": 598.0,
                 "width": 276.0,
-                "height": 138.0,
+                "height": 168.0,
                 "closedWidth": 276.0,
-                "closedHeight": 138.0,
+                "closedHeight": 168.0,
                 "openWidth": 276.0,
-                "openHeight": 138.0,
+                "openHeight": 168.0,
                 "isExpanded": true
             },
             "text": {
@@ -492,14 +492,14 @@
                 "link_c7b9a826-c940-4502-b758-ac529c55b61d"
             ],
             "layout": {
-                "x": -696.0,
-                "y": 333.0,
+                "x": -700.0,
+                "y": 376.0,
                 "width": 276.0,
-                "height": 108.0,
+                "height": 168.0,
                 "closedWidth": 276.0,
-                "closedHeight": 108.0,
+                "closedHeight": 168.0,
                 "openWidth": 276.0,
-                "openHeight": 108.0,
+                "openHeight": 168.0,
                 "isExpanded": true
             },
             "text": {
