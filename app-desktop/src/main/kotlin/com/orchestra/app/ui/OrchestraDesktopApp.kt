@@ -657,10 +657,16 @@ class OrchestraDesktopApp(
         val scopedSelection = selection
             .filter { it in document.nodes }
             .toSet()
+        val projectName = if (scopedSelection.isEmpty()) {
+            currentFile?.fileName?.toString()?.substringBeforeLast('.')?.takeIf { it.isNotBlank() }
+                ?: document.name
+        } else {
+            document.name
+        }
         val result = compiler.compile(
             document,
             CompilerOptions(
-                projectName = document.name,
+                projectName = projectName,
                 scopeNodeIds = scopedSelection,
             ),
         )
