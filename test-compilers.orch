@@ -45,7 +45,7 @@
         },
         {
             "id": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
-            "name": "NodeJSProject",
+            "name": "nodej_compiler_tst",
             "kind": "Processor",
             "parentId": "root",
             "children": [
@@ -77,7 +77,7 @@
                 "height": 791.0
             },
             "text": {
-                "initialization": "NodeJSProject()",
+                "initialization": "nodej_compiler_tst()",
                 "initializationLanguageId": "",
                 "source": "",
                 "sourceLanguageId": "",

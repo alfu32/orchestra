@@ -1,7 +1,10 @@
 package com.orchestra.compiler.generated.nodejs
 
+import com.orchestra.compiler.api.ClassifiedFilesystemLayoutStrategy
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerTechnology
+import com.orchestra.compiler.api.DirectFileSystemHomorphismLayoutStrategy
+import com.orchestra.compiler.api.LayoutStrategy
 import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.core.classification.LinkClassifier
 import com.orchestra.core.classification.LinkStereotype
@@ -21,6 +24,8 @@ class JSCompiler : GenericCompiler() {
     override val providedTechnologies: List<CompilerTechnology> = listOf(
         CompilerTechnology(supportedLanguageIds.first(), supportedTechnologyIds.first()),
     )
+
+    override fun layoutStrategy(options: CompilerOptions): LayoutStrategy = DirectFileSystemHomorphismLayoutStrategy
 
     override fun supports(document: InflowDocument): Boolean = true
     override fun validate(document: InflowDocument) = emptyList<com.orchestra.core.diagnostics.Diagnostic>()

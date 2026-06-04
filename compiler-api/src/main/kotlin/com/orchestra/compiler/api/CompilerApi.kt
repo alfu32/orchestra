@@ -7,6 +7,7 @@ import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
+import com.orchestra.core.model.getElementById
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -203,7 +204,7 @@ private fun directPathForNode(document: InflowDocument, node: Node, file: Genera
     val segments = node.directLayoutSegments(document, rootPrefix)
     val extension = file.path.substringAfterLast('.', missingDelimiterValue = "txt")
     val fileName = if (node.children.isNotEmpty()) {
-        "index.$extension"
+        "${node.safeNodeSegment()}.$extension"
     } else {
         node.directLayoutFileName(extension)
     }
