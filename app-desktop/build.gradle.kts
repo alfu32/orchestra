@@ -7,7 +7,7 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":storage-json"))
     implementation(project(":completion-core"))
-    implementation(project(":compiler-naive-kotlin"))
+    implementation(project(":compilers-impl"))
     implementation(project(":assets"))
 }
 

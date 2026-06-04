@@ -2,10 +2,10 @@ package com.orchestra.compiler.naivekotlin
 
 import com.orchestra.compiler.api.CompilationResult
 import com.orchestra.compiler.api.CompilerOptions
-import com.orchestra.compiler.api.CompilerPlugin
 import com.orchestra.compiler.api.GeneratedElementKind
 import com.orchestra.compiler.api.GeneratedFile
 import com.orchestra.compiler.api.GeneratedProject
+import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.core.classification.NodeStereotype
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.diagnostics.DiagnosticSeverity
@@ -15,7 +15,7 @@ import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.validation.DocumentValidator
 
-class NaiveKotlinCompiler : CompilerPlugin {
+class NaiveKotlinCompiler : GenericCompiler() {
     override val id: String = "naive-kotlin"
     override val displayName: String = "Naive Kotlin/JVM Compiler"
     override val supportedLanguageIds: Set<String> = setOf("kotlin")

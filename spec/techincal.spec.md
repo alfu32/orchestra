@@ -171,7 +171,7 @@ inflow/
 ├── app-desktop/
 ├── editor-codemirror/
 ├── compiler-api/
-├── compiler-naive-kotlin/
+├── compilers-impl/
 └── test-fixtures/
 ```
 
@@ -298,7 +298,7 @@ Responsibilities:
 
 ---
 
-### 5.6 `compiler-naive-kotlin`
+### 5.6 `compilers-impl`
 
 First compiler implementation.
 

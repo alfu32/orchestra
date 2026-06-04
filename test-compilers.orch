@@ -1,6 +1,6 @@
 {
     "id": "document_1780505534009",
-    "name": "Untitled Orchestra",
+    "name": "JSCompilerTest",
     "rootNodeId": "root",
     "nodes": [
         {
@@ -14,8 +14,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -1048.0,
-                "y": -1155.0,
+                "x": -627.0,
+                "y": 151.0,
                 "width": 1647.0,
                 "height": 1160.0
             },
@@ -71,8 +71,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -1016.0,
-                "y": -1075.0,
+                "x": -595.0,
+                "y": 231.0,
                 "width": 1583.0,
                 "height": 1032.0
             },
@@ -89,8 +89,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "javascript",
-                "technologyId": "nodejs",
+                "languageId": "kotlin",
+                "technologyId": "kotlin-jvm",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -107,24 +107,24 @@
             "parentId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
             "children": [],
             "incomingLinks": [
-                "link_22fccfed-ab5c-45d8-a04e-783647c84194",
                 "link_37dad0c0-5e12-4bc7-9391-a91dcaa4d26a",
-                "link_558d2ac3-8c3e-473a-9b3f-88899bb7d6d8"
+                "link_558d2ac3-8c3e-473a-9b3f-88899bb7d6d8",
+                "link_22fccfed-ab5c-45d8-a04e-783647c84194"
             ],
             "outgoingLinks": [
                 "link_39b12ed2-3672-4426-98c0-8ed86b109be3"
             ],
             "layout": {
-                "x": -978.0,
-                "y": -468.0,
+                "x": -557.0,
+                "y": 838.0,
                 "width": 284.0,
                 "height": 138.0
             },
             "text": {
-                "initialization": "this is the init sequence of read_file\n\ni see the folowing ports/links\ninput_record\n\n",
-                "initializationLanguageId": "",
-                "source": "this is the loop sequence of read_file\n\ni see the folowing ports/links\ninput_record",
-                "sourceLanguageId": "",
+                "initialization": "val canRead=true\nval filename = \"in.file\"\n",
+                "initializationLanguageId": "kotlin",
+                "source": "val fileContent = File.read(filename)\nval rows = fileContent.split(\"\\n\")\nrows.forEach{ row ->\n  val dataList = row.split(\",\")\n  val item = WorkOrder(\n    numberOfItems=dataList[0],\n    encodingDate=dataList[1],\n    name=dataList[2],\n    id=dataList[3],\n  )\n  input_record.add(item)\n}",
+                "sourceLanguageId": "kotlin",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -133,8 +133,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "",
-                "technologyId": "",
+                "languageId": "kotlin",
+                "technologyId": "kotlin-jvm",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -173,15 +173,15 @@
                 "link_164c6126-9a92-4720-8897-b4e18504129f"
             ],
             "layout": {
-                "x": -370.0,
-                "y": -440.0,
+                "x": 51.0,
+                "y": 866.0,
                 "width": 284.0,
                 "height": 108.0
             },
             "text": {
-                "initialization": "this is the init sequence of transform_data\n\ni see the folowing ports/links\ninput_record\nout_record",
-                "initializationLanguageId": "",
-                "source": "this is the loop sequence of transform_data\n\ni see the folowing ports/links\ninput_record\nout_record",
+                "initialization": "",
+                "initializationLanguageId": "kotlin",
+                "source": "val packet = input_record.pop()\nif( packet != null ){\n  val validated = WorkOrderConfirmation(packet,true)\n  out_record.add(validated)\n  \n}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -191,7 +191,7 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "",
+                "languageId": "kotlin",
                 "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
@@ -225,22 +225,22 @@
             "children": [],
             "incomingLinks": [
                 "link_164c6126-9a92-4720-8897-b4e18504129f",
-                "link_c7b9a826-c940-4502-b758-ac529c55b61d",
+                "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e",
                 "link_135fb536-8e1b-4157-ab41-ccb89b4ad623",
-                "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e"
+                "link_c7b9a826-c940-4502-b758-ac529c55b61d"
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 251.0,
-                "y": -474.0,
+                "x": 672.0,
+                "y": 832.0,
                 "width": 284.0,
                 "height": 168.0
             },
             "text": {
-                "initialization": "this is the init sequence of write_response_file\n\ni see the folowing ports/links\n\nout_record",
-                "initializationLanguageId": "",
-                "source": "this is the loop sequence of write_response_file\n\ni see the folowing ports/links\n\nout_record",
-                "sourceLanguageId": "",
+                "initialization": "val canRead=true\nval filename = \"out.file\"",
+                "initializationLanguageId": "kotlin",
+                "source": "val packet = out_record.pop()\nif( packet != null ){\n  val line = listOf(\n    packet.workOrder.id,\n    packet.workOrder.name,\n    packet.workOrder.encodingDate,\n    packet.workOrder.numberOfItems,\n    packet.is_confirmed,\n  ).joinTostring(\",\")\n  File.append(filename,line)\n}",
+                "sourceLanguageId": "kotlin",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -249,7 +249,7 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "",
+                "languageId": "kotlin",
                 "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
@@ -284,16 +284,16 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -962.0,
-                "y": -229.0,
+                "x": -541.0,
+                "y": 1077.0,
                 "width": 268.0,
                 "height": 138.0
             },
             "text": {
                 "initialization": "{\n   \"file_location\":\"./data\",\n   \"source\":\"init\"\n}",
-                "initializationLanguageId": "",
+                "initializationLanguageId": "json",
                 "source": "{\n   \"file_location\":\"./data\",\n   \"source\":\"loop\"\n}",
-                "sourceLanguageId": "",
+                "sourceLanguageId": "json",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -332,20 +332,20 @@
             ],
             "outgoingLinks": [
                 "link_558d2ac3-8c3e-473a-9b3f-88899bb7d6d8",
-                "link_135fb536-8e1b-4157-ab41-ccb89b4ad623",
-                "link_25598a03-e3eb-4c8d-a891-27996e3d6e18"
+                "link_25598a03-e3eb-4c8d-a891-27996e3d6e18",
+                "link_135fb536-8e1b-4157-ab41-ccb89b4ad623"
             ],
             "layout": {
-                "x": -984.0,
-                "y": -755.0,
+                "x": -563.0,
+                "y": 551.0,
                 "width": 284.0,
                 "height": 168.0
             },
             "text": {
                 "initialization": "// lib_error_logging init sequence",
-                "initializationLanguageId": "",
+                "initializationLanguageId": "kotlin",
                 "source": "// lib_error_logging loop sequence",
-                "sourceLanguageId": "",
+                "sourceLanguageId": "kotlin",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -354,8 +354,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "",
-                "technologyId": "",
+                "languageId": "kotlin",
+                "technologyId": "kotlin-jvm",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -394,16 +394,16 @@
                 "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e"
             ],
             "layout": {
-                "x": -472.0,
-                "y": -753.0,
+                "x": -51.0,
+                "y": 553.0,
                 "width": 284.0,
                 "height": 108.0
             },
             "text": {
                 "initialization": "// lib_config init sequence",
-                "initializationLanguageId": "",
+                "initializationLanguageId": "kotlin",
                 "source": "// lib_config loop sequence",
-                "sourceLanguageId": "",
+                "sourceLanguageId": "kotlin",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -412,8 +412,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "",
-                "technologyId": "",
+                "languageId": "kotlin",
+                "technologyId": "kotlin-jvm",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -446,22 +446,22 @@
             "children": [],
             "incomingLinks": [],
             "outgoingLinks": [
-                "link_bacfb684-fbaf-40ea-812d-fec366aa2309",
                 "link_3fc0b423-9cb9-4c24-8931-df06ea1c7ca2",
+                "link_bacfb684-fbaf-40ea-812d-fec366aa2309",
                 "link_22fccfed-ab5c-45d8-a04e-783647c84194",
                 "link_c7b9a826-c940-4502-b758-ac529c55b61d"
             ],
             "layout": {
-                "x": -984.0,
-                "y": -995.0,
+                "x": -563.0,
+                "y": 311.0,
                 "width": 284.0,
                 "height": 168.0
             },
             "text": {
                 "initialization": "// lib_file init sequence\n\nvar t=10",
-                "initializationLanguageId": "",
+                "initializationLanguageId": "kotlin",
                 "source": "// lib_file loop sequence",
-                "sourceLanguageId": "",
+                "sourceLanguageId": "kotlin",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -470,8 +470,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "",
-                "technologyId": "",
+                "languageId": "kotlin",
+                "technologyId": "kotlin-jvm",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -506,7 +506,7 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "data class WorkOrder(\n  var id : String,\n  var name : String,\n  var encodingDate : Date,\n  var numberOfItems : Number,\n)",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -530,7 +530,7 @@
                 "targetPortName": "in",
                 "transportKind": "in-process",
                 "typeName": "WorkOrder",
-                "payloadDefinition": "class WorkOrder{\n  id:String\n  name:String\n  encodingDate:Date\n  numberOfItems:Number\n}"
+                "payloadDefinition": "class WorkOrder(\n  id:String,\n  name:String,\n  encodingDate:Date,\n  numberOfItems:Number,\n)"
             },
             "metadata": {},
             "pluginData": {}
@@ -550,7 +550,7 @@
                 "height": 100.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "data class WorkOrderConfirmation{\n  var workOrder:WorkOrder,\n  var is_confirmed:Boolean,\n}",
                 "initializationLanguageId": "",
                 "source": "",
                 "sourceLanguageId": "",

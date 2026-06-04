@@ -1,13 +1,13 @@
 package com.orchestra.compiler.generated.nodejs
 
 import com.orchestra.compiler.api.CompilerOptions
-import com.orchestra.compiler.api.CompilerPlugin
 import com.orchestra.compiler.api.CompilerTechnology
+import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
 
-class JSCompiler : CompilerPlugin {
+class JSCompiler : GenericCompiler() {
     override val id: String = "nodejs-compiler"
     override val displayName: String = "NodeJSCompilerGenerated"
     override val supportedLanguageIds: Set<String> = setOf("javascript")
@@ -40,10 +40,17 @@ class JSCompiler : CompilerPlugin {
 """.trimIndent()
 
 
-    override fun getCompositeWorker(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
+    override fun getCompositeWorker(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        return """
+            function ${node.name}(${node.ports.joinToString(",") { p -> p.name }}){
+                ${
+                    node.children.map { child ->
+                        child.value
+                    }
+                }
+            }
+        """.trimIndent()
+    }
 
 
     override fun getCompositeErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String =

@@ -213,7 +213,7 @@ class UuidIdGenerator : IdGenerator {
 
 fun newDocument(name: String): InflowDocument {
     val rootId = NodeId("root")
-    val root = Node(rootId, name, NodeKind.Group)
+    val root = Node(rootId, name, NodeKind.Processor)
     return InflowDocument(
         id = "document_${System.currentTimeMillis()}",
         name = name,

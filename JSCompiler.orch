@@ -1,6 +1,6 @@
 {
     "id": "document_1780505534009",
-    "name": "Untitled Orchestra",
+    "name": "CompilerOverridesTest",
     "rootNodeId": "root",
     "nodes": [
         {
@@ -243,7 +243,7 @@
         },
         {
             "id": "node_e9460bfd-849c-4026-a5b4-9ccfbb0381fb",
-            "name": "@StaticFIle",
+            "name": "@StaticFile",
             "kind": "Processor",
             "parentId": "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
             "children": [],

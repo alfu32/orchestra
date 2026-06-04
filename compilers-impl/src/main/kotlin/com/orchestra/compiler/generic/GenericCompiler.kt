@@ -22,7 +22,7 @@ import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.validation.DocumentValidator
 
-class GenericCompiler : CompilerPlugin {
+open class GenericCompiler : CompilerPlugin {
     override val id: String = "generic-flow-design"
     override val displayName: String = "Generic Flow-Design Compiler"
     override val supportedLanguageIds: Set<String> = setOf(ANY_LANGUAGE_ID)
@@ -374,12 +374,13 @@ package $packageName
 
 import com.orchestra.compiler.api.ANY_LANGUAGE_ID
 import com.orchestra.compiler.api.CompilerOptions
-import com.orchestra.compiler.api.CompilerPlugin
 import com.orchestra.compiler.api.CompilerTechnology
+import com.orchestra.compiler.generic.GenericCompiler
+import com.orchestra.compiler.generic.compileWithMethodDispatch
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
 
-class $className : CompilerPlugin {
+class $className : GenericCompiler() {
     override val id: String = "${safeCompilerId(root.name)}"
     override val displayName: String = "${root.name.removePrefix("@").ifBlank { className }}"
     override val supportedLanguageIds: Set<String> = setOf("${technology.languageId.ifBlank { ANY_LANGUAGE_ID }}")
@@ -389,7 +390,7 @@ class $className : CompilerPlugin {
     override fun supports(document: InflowDocument): Boolean = true
     override fun validate(document: InflowDocument) = emptyList<com.orchestra.core.diagnostics.Diagnostic>()
     override fun compile(document: InflowDocument, options: CompilerOptions) =
-        com.orchestra.compiler.generic.compileWithMethodDispatch(this, document, options)
+        compileWithMethodDispatch(this, document, options)
 
     override fun getStaticFiles(document: InflowDocument, options: CompilerOptions): List<String> =
         $staticFiles

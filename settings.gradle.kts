@@ -19,7 +19,7 @@ include(
     "storage-json",
     "completion-core",
     "compiler-api",
-    "compiler-naive-kotlin",
+    "compilers-impl",
     "assets",
     "app-desktop",
 )

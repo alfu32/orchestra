@@ -10,7 +10,7 @@ This repository contains the Kotlin implementation of the Orchestra/InFlow rewri
 - `storage-json/`: in-memory repository and JSON persistence.
 - `completion-core/`: model-derived completion service.
 - `compiler-api/`: compiler interfaces and generated-project contracts.
-- `compiler-naive-kotlin/`: deterministic Kotlin/JVM project generator.
+- `compilers-impl/`: deterministic Kotlin/JVM project generator.
 - `app-desktop/`: Swing desktop shell, CLI entry point, editor adapter, and CodeMirror bridge asset.
 
 ## Build, Test, and Development Commands
