@@ -1,5 +1,3 @@
-@file:Suppress("OVERRIDE_DEPRECATION")
-
 package com.orchestra.compiler.naivekotlin
 
 import com.orchestra.compiler.api.CompilationResult
@@ -8,7 +6,6 @@ import com.orchestra.compiler.api.GeneratedElementKind
 import com.orchestra.compiler.api.GeneratedFile
 import com.orchestra.compiler.api.GeneratedProject
 import com.orchestra.compiler.generic.GenericCompiler
-import com.orchestra.core.classification.NodeStereotype
 import com.orchestra.core.classification.stereotype
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.diagnostics.DiagnosticSeverity
@@ -20,7 +17,6 @@ import com.orchestra.core.validation.DocumentValidator
 import com.orchestra.core.model.getElementById
 import com.orchestra.core.model.getElementsByIds
 
-@Suppress("DEPRECATION")
 class NaiveKotlinCompiler : GenericCompiler() {
     override val id: String = "naive-kotlin"
     override val displayName: String = "Naive Kotlin/JVM Compiler"
@@ -124,68 +120,38 @@ class NaiveKotlinCompiler : GenericCompiler() {
         )
     }
 
-    override fun getNode(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.Node)
+    override fun getNodeDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        kindText(document, node, "Declaration")
 
-    override fun getLink(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.Link)
+    override fun getNodeInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        kindText(document, node, "Instantiation")
 
-    override fun getProcessingUnit(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.ProcessingUnit)
+    override fun getProcessorDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        kindText(document, node, "Declaration")
 
-    override fun getCompositeWorker(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.CompositeWorker)
+    override fun getProcessorInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        kindText(document, node, "Instantiation")
 
-    override fun getCompositeErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.CompositeErrorHandler)
+    override fun getLinkDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        kindText(document, node, "Declaration")
 
-    override fun getGenerator(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.Generator)
+    override fun getLinkInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        kindText(document, node, "Instantiation")
 
-    override fun getTransformer(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.Transformer)
+    override fun getGroupDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        kindText(document, node, "Declaration")
 
-    override fun getSink(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.Sink)
+    override fun getGroupInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        kindText(document, node, "Instantiation")
 
-    override fun getScript(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.Script)
+    override fun getNoteDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        kindText(document, node, "Declaration")
 
-    override fun getErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.ErrorHandler)
+    override fun getNoteInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        kindText(document, node, "Instantiation")
 
-    override fun getServiceLibrary(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.ServiceLibrary)
-
-    override fun getTransport(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.Transport)
-
-    override fun getErrorPipe(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.ErrorPipe)
-
-    override fun getDependencyInjection(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.DependencyInjection)
-
-    override fun getTest(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.Test)
-
-    override fun getTestSuite(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.TestSuite)
-
-    override fun getInputPort(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.InputPort)
-
-    override fun getOutputPort(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.OutputPort)
-
-    override fun getStaticFile(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.StaticFile)
-
-    override fun getCompilerTemplate(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        stereotypeText(document, node, NodeStereotype.CompilerTemplate)
-
-    private fun stereotypeText(document: InflowDocument, node: Node, expected: NodeStereotype): String =
-        "name=${node.name}\nstereotype=${node.stereotype(document)}\ncompilerMethod=get${expected.name}\n"
+    private fun kindText(document: InflowDocument, node: Node, mode: String): String =
+        "name=${node.name}\nkind=${node.kind.name}\nstereotype=${node.stereotype(document)}\ncompilerMethod=get${node.kind.name}$mode\n"
 
     private fun settings(projectName: String) = GeneratedFile(
         path = "settings.gradle.kts",

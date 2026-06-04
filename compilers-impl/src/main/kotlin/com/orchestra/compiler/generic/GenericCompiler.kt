@@ -1,5 +1,3 @@
-@file:Suppress("OVERRIDE_DEPRECATION")
-
 package com.orchestra.compiler.generic
 
 import com.orchestra.compiler.api.ANY_LANGUAGE_ID
@@ -27,7 +25,6 @@ import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.validation.DocumentValidator
 
-@Suppress("DEPRECATION")
 open class GenericCompiler : CompilerPlugin {
     override val id: String = "generic-flow-design"
     override val displayName: String = "Generic Flow-Design Compiler"
@@ -89,16 +86,10 @@ open class GenericCompiler : CompilerPlugin {
             .filter { it.stereotype(document) == NodeStereotype.StaticFile }
             .flatMap { staticFilePath(it)?.let(::listOf) ?: staticFileList(it) }
 
-    override fun getStaticFile(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        node.text.declaration.ifBlank { node.text.specification }
-
-    override fun getCompilerTemplate(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        templateText(node)
-
     private fun staticFileFor(node: Node): GeneratedFile =
         GeneratedFile(
             path = staticFilePath(node) ?: generatedPath(node, NodeStereotype.StaticFile, fallbackExtension = "txt"),
-            content = getStaticFile(InflowDocument("", "", node.id, mutableMapOf(node.id to node)), node, CompilerOptions()),
+            content = node.text.declaration.ifBlank { node.text.specification },
             originNodeId = node.id,
             reason = "Literal static file encoded in the flow design",
             elementKind = GeneratedElementKind.StaticFile,

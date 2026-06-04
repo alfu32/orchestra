@@ -2,8 +2,6 @@ package com.orchestra.compiler.api
 
 import com.orchestra.core.classification.LinkClassifier
 import com.orchestra.core.classification.LinkStereotype
-import com.orchestra.core.classification.NodeStereotype
-import com.orchestra.core.classification.stereotype
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
@@ -65,80 +63,35 @@ interface CompilerPlugin {
             NodeKind.Note -> getNoteInstantiation(document, node, options)
         }
 
-    @Deprecated("Use generatedDeclarationFor")
-    fun generatedTextFor(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        generatedDeclarationFor(document, node, options)
-
     fun getNodeDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getNode(document, node, options)
+        ""
 
     fun getNodeInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
         getNodeDeclaration(document, node, options)
 
     fun getProcessorDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getProcessingUnit(document, node, options)
+        ""
 
     fun getProcessorInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
         getProcessorDeclaration(document, node, options)
 
     fun getLinkDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getLink(document, node, options)
+        ""
 
     fun getLinkInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
         getLinkDeclaration(document, node, options)
 
     fun getGroupDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getCompositeWorker(document, node, options)
+        ""
 
     fun getGroupInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
         getGroupDeclaration(document, node, options)
 
     fun getNoteDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getScript(document, node, options)
+        ""
 
     fun getNoteInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
         getNoteDeclaration(document, node, options)
-
-    @Deprecated("Use getNodeDeclaration")
-    fun getNode(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getLinkDeclaration")
-    fun getLink(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getProcessorDeclaration")
-    fun getProcessingUnit(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getGroupDeclaration")
-    fun getCompositeWorker(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getGroupDeclaration")
-    fun getCompositeErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getProcessorDeclaration")
-    fun getGenerator(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getProcessorDeclaration")
-    fun getTransformer(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getProcessorDeclaration")
-    fun getSink(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getNoteDeclaration")
-    fun getScript(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getProcessorDeclaration")
-    fun getErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getNodeDeclaration")
-    fun getServiceLibrary(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getLinkDeclaration")
-    fun getTransport(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getLinkDeclaration")
-    fun getErrorPipe(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getProcessorDeclaration")
-    fun getDependencyInjection(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getProcessorDeclaration")
-    fun getTest(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getGroupDeclaration")
-    fun getTestSuite(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getLinkDeclaration")
-    fun getInputPort(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getLinkDeclaration")
-    fun getOutputPort(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getNodeDeclaration")
-    fun getStaticFile(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
-    @Deprecated("Use getNoteDeclaration")
-    fun getCompilerTemplate(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
 
     fun getStaticFiles(document: InflowDocument, options: CompilerOptions): List<String> =
         magicFileNames.toList()
