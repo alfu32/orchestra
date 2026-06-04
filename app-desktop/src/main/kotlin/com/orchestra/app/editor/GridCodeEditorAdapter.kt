@@ -339,6 +339,15 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             KeyEvent.VK_END -> moveToLineBoundary(start = false, expand = shift)
             KeyEvent.VK_PAGE_UP -> moveVertical(-visibleRowCount(), shift)
             KeyEvent.VK_PAGE_DOWN -> moveVertical(visibleRowCount(), shift)
+            KeyEvent.VK_TAB -> {
+                if (selectionRanges().isNotEmpty()) {
+                    edit {
+                        if (shift) dedentSelectedLines() else indentSelectedLines()
+                    }
+                } else {
+                    edit { insertTextAtCursors("    ") }
+                }
+            }
             KeyEvent.VK_BACK_SPACE -> {
                 if (e.isControlDown) edit { deleteWordBackward() } else edit { deleteBackward() }
             }
@@ -346,7 +355,6 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                 if (e.isControlDown) edit { deleteWordForward() } else edit { deleteForward() }
             }
             KeyEvent.VK_ENTER -> edit { insertTextAtCursors("\n") }
-            KeyEvent.VK_TAB -> edit { insertTextAtCursors("    ") }
             KeyEvent.VK_ESCAPE -> hideCompletions()
             else -> return
         }
@@ -1028,6 +1036,70 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         if (plans.isEmpty()) return false
         applyPlans(plans)
         return true
+    }
+
+    private fun indentSelectedLines() {
+        val selectedLines = selectionRanges()
+            .flatMap { range -> (range.first.line..range.second.line).asSequence() }
+            .toSet()
+        if (selectedLines.isEmpty()) return
+        val indent = "    "
+        selectedLines.forEach { lineIndex ->
+            lines[lineIndex] = indent + lines[lineIndex]
+        }
+        cursors.replaceAll { state ->
+            CaretState(
+                caret = if (state.caret.line in selectedLines) {
+                    state.caret.copy(column = state.caret.column + indent.length)
+                } else {
+                    state.caret
+                },
+                anchor = state.anchor?.let { anchor ->
+                    if (anchor.line in selectedLines) anchor.copy(column = anchor.column + indent.length) else anchor
+                },
+            )
+        }
+        normalizeCursors()
+        ensureCaretVisible()
+    }
+
+    private fun dedentSelectedLines() {
+        val selectedLines = selectionRanges()
+            .flatMap { range -> (range.first.line..range.second.line).asSequence() }
+            .toSet()
+        if (selectedLines.isEmpty()) return
+        val removedByLine = mutableMapOf<Int, Int>()
+        selectedLines.forEach { lineIndex ->
+            val line = lines[lineIndex]
+            val removed = when {
+                line.startsWith("\t") -> 1
+                else -> line.takeWhile { it == ' ' }.take(4).length
+            }
+            removedByLine[lineIndex] = removed
+            if (removed > 0) {
+                lines[lineIndex] = line.drop(removed)
+            }
+        }
+        cursors.replaceAll { state ->
+            CaretState(
+                caret = if (state.caret.line in selectedLines) {
+                    val removed = removedByLine[state.caret.line] ?: 0
+                    state.caret.copy(column = (state.caret.column - removed).coerceAtLeast(0))
+                } else {
+                    state.caret
+                },
+                anchor = state.anchor?.let { anchor ->
+                    if (anchor.line in selectedLines) {
+                        val removed = removedByLine[anchor.line] ?: 0
+                        anchor.copy(column = (anchor.column - removed).coerceAtLeast(0))
+                    } else {
+                        anchor
+                    }
+                },
+            )
+        }
+        normalizeCursors()
+        ensureCaretVisible()
     }
 
     private fun deleteBackwardSelectionAware(): Boolean = deleteSelections()

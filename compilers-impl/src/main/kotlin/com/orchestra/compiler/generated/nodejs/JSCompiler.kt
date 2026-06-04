@@ -30,49 +30,43 @@ class JSCompiler : GenericCompiler() {
     override fun getStaticFiles(document: InflowDocument, options: CompilerOptions): List<String> =
         listOf("package.json", "config.json", "tsconfig.json", "vite.js")
 
-    override fun getNodeDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        ""
+    override fun getNodeDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        return node.text.declaration
+    }
 
-    override fun getNodeInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getNodeDeclaration(document, node, options)
+    override fun getNodeInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        return "${node.name}()"
+    }
 
-    override fun getProcessorDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        when (node.stereotype(document)) {
-            NodeStereotype.ServiceLibrary -> serviceLibraryText(document, node, options)
-            NodeStereotype.Test -> testText(document, node, options)
-            else -> processingUnitText(document, node, options)
-        }
+    override fun getProcessorDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        return node.text.declaration
+    }
+    override fun getProcessorInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        return "${node.name}()"
+    }
+    // =getProcessorDeclaration(document, node, options)
 
-    override fun getProcessorInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getProcessorDeclaration(document, node, options)
+    override fun getLinkDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        return node.text.declaration
+    }
 
-    override fun getLinkDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        when (LinkClassifier.classify(document, node)) {
-            LinkStereotype.DependencyInjection -> dependencyInjectionText(document, node, options)
-            else -> node.text.declaration.trimIndent()
-        }
+    override fun getLinkInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        return "${node.name}()"
+    }
 
-    override fun getLinkInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getLinkDeclaration(document, node, options)
+    override fun getGroupDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String = compositeDeclaration(document, node, options)
 
-    override fun getGroupDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        when (node.stereotype(document)) {
-            NodeStereotype.TestSuite -> testSuiteText(document, node, options)
-            else -> compositeText(document, node, options)
-        }
+    override fun getGroupInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String  {
+        return "${node.name}()"
+    }
 
-    override fun getGroupInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getGroupDeclaration(document, node, options)
+    override fun getNoteDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String  {
+        return node.text.declaration
+    }
 
-    override fun getNoteDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        when (node.stereotype(document)) {
-            NodeStereotype.CompilerTemplate -> compilerTemplateText(node)
-            NodeStereotype.Script -> scriptText(node)
-            else -> scriptText(node)
-        }
-
-    override fun getNoteInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getNoteDeclaration(document, node, options)
+    override fun getNoteInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String  {
+        return node.text.instantiation
+    }
 
     private fun processingUnitText(document: InflowDocument, node: Node, options: CompilerOptions): String {
         val name = node.name
@@ -98,74 +92,45 @@ class JSCompiler : GenericCompiler() {
         """.trimIndent()
     }
 
-    private fun compositeText(document: InflowDocument, node: Node, options: CompilerOptions): String {
+    private fun compositeDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String {
         val children = document.getElementsByIds(node.children)
-        return """
-            function ${node.name}(${node.ports.joinToString(",") { p -> p.name }}){
 
-                ${
-            children.values.joinToString("\n") { child ->
-                val name = child.name
-                val incomingLinks = document.getElementsByIds(child.incomingLinks)
-                val inputPorts = incomingLinks.filter { (_, nd) ->
-                    val srcNode = document.getElementById(nd.link!!.sourceNodeId)!!
-                    LinkClassifier.classify(document, srcNode) != LinkStereotype.DependencyInjection
-                }
-                val libraries = incomingLinks.filter { (_, nd) ->
-                    val srcNode = document.getElementById(nd.link!!.sourceNodeId)!!
-                    LinkClassifier.classify(document, srcNode) == LinkStereotype.DependencyInjection
-                }
-                val outgoingLinks = document.getElementsByIds(child.outgoingLinks)
-                val portArgsDeclarations = (inputPorts + outgoingLinks).map { port -> "var ${port.value.name}/*:${port.value.link!!.typeName}*/" }
-                val portArgs = (inputPorts + outgoingLinks).map { port -> port.value.name }.joinToString(",")
-                """
-                    ${libraries.values.flatMap { l -> listOf(l.text.instantiation, l.text.declaration) }.joinToString("\n")}
-                    ${portArgsDeclarations.joinToString("\n")}
-                    create_${name}()(${portArgs})
-                """.trimIndent()
-            }
+        val dependencies = document
+            .getElementsByIds(node.incomingLinks)
+            .map { link -> document.getElementById(link.value.link!!.sourceNodeId) }
+            .filter { source -> source!!.stereotype() == NodeStereotype.ServiceLibrary }
+        val incoming = document
+            .getElementsByIds(node.outgoingLinks)
+            .filter { link -> document.getElementById(link.value.link!!.sourceNodeId)!!.stereotype() != NodeStereotype.ServiceLibrary }
+            .map { link -> document.getElementById(link.value.id) }
+        val outgoing = document
+            .getElementsByIds(node.outgoingLinks)
+            .map { link -> document.getElementById(link.value.id) }
+
+        val portDeclarations = (incoming + outgoing).joinToString("\n") {
+            it!!.text.declaration
         }
-            }
-        """.trimIndent()
-    }
-
-    private fun scriptText(node: Node): String =
-        node.text.declaration.trimIndent()
-
-    private fun serviceLibraryText(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-            ${node.text.instantiation}
-            ${node.text.declaration}
-        """.trimIndent()
-
-    private fun dependencyInjectionText(document: InflowDocument, node: Node, options: CompilerOptions): String {
-        val sourceLibNode = document.getElementById(node.link!!.sourceNodeId)
+        val portInstantiations = (incoming + outgoing).joinToString("\n") {"""const ${it!!.name} = ${it.text.instantiation}"""}
+        val librariesDeclarations = dependencies.joinToString("\n"){ it!!.text.declaration }
+        val librariesInstantiations = dependencies.joinToString("\n"){"""const ${it!!.name} = ${it.text.instantiation}"""}
+        val childrenDeclarations = children.values.joinToString("\n") { it.text.declaration }
+        val linksTransportInvocations = (incoming + outgoing).joinToString("\n") {"""const ${it!!.name} = ${it.text.instantiation}"""}
+        val childrenInvocations = children.values.joinToString("\n") { "${it.name}()" }
         return """
-            const ${sourceLibNode!!.name} = require('../libraries/${sourceLibNode.name}.js')
-        """.trimIndent()
-    }
-
-    private fun testText(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """function (){
-                ${node.text.instantiation}
-                function test_${node.name}() {
-                    ${node.text.declaration}
-                }}
-            }()
-        """.trimIndent()
-
-    private fun testSuiteText(document: InflowDocument, node: Node, options: CompilerOptions): String {
-        val children = document.getElementsByIds(node.children)
-        val tests = children.filter { (_, child) -> child.kind == NodeKind.Processor }
-        return """
-            ${
-            tests.values.joinToString("\n") { ch ->
-                testText(document, ch, options)
+            function ${node.name}(){
+                ${portDeclarations}
+                ${portInstantiations}
+                ${librariesDeclarations}
+                ${librariesInstantiations}
+                ${childrenDeclarations}
+                
+                function run(){
+                    ${linksTransportInvocations}
+                    ${childrenInvocations}
+                }
+                return run()
             }
         }
         """.trimIndent()
     }
-
-    private fun compilerTemplateText(node: Node): String =
-        node.text.declaration.trimIndent()
 }

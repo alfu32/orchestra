@@ -89,8 +89,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "kotlin",
-                "technologyId": "kotlin-jvm",
+                "languageId": "javascript",
+                "technologyId": "nodejs",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -121,10 +121,10 @@
                 "height": 138.0
             },
             "text": {
-                "initialization": "val canRead=true\nval filename = \"in.file\"\n",
-                "initializationLanguageId": "kotlin",
-                "source": "val fileContent = File.read(filename)\nval rows = fileContent.split(\"\\n\")\nrows.forEach{ row ->\n  val dataList = row.split(\",\")\n  val item = WorkOrder(\n    numberOfItems=dataList[0],\n    encodingDate=dataList[1],\n    name=dataList[2],\n    id=dataList[3],\n  )\n  input_record.add(item)\n}",
-                "sourceLanguageId": "kotlin",
+                "initialization": "read_file(input_record,out_record,lib_config1,lib_error_logging1,lib_file3)",
+                "initializationLanguageId": "javascript",
+                "source": "function read_file(input_record,out_record,lib_config1,lib_error_logging1,lib_file3){\n\nconst fileContent = lib_file3.readfile(filename)\nconst rows = fileContent.split(\"\\n\")\nrows.forEach( row => {\n  const dataList = row.split(\",\")\n  const item = WorkOrder(\n    numberOfItems=dataList[0],\n    encodingDate=dataList[1],\n    name=dataList[2],\n    id=dataList[3],\n  )\n  input_record.add(item)\n})\n\n}\n",
+                "sourceLanguageId": "javascript",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -179,10 +179,10 @@
                 "height": 108.0
             },
             "text": {
-                "initialization": "",
-                "initializationLanguageId": "kotlin",
-                "source": "val packet = input_record.pop()\nif( packet != null ){\n  val validated = WorkOrderConfirmation(packet,true)\n  out_record.add(validated)\n  \n}",
-                "sourceLanguageId": "",
+                "initialization": "transform_data(input_record,out_record,lib_error_logging2)",
+                "initializationLanguageId": "javascript",
+                "source": "\nfunction transform_data(input_record,out_record,lib_error_logging2){\nconst packet = input_record.pop()\nif( packet != null ){\n  const validated = new WorkOrderConfirmation(packet,true)\n  out_record.add(validated)\n  \n}\n}",
+                "sourceLanguageId": "javascript",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -237,10 +237,10 @@
                 "height": 168.0
             },
             "text": {
-                "initialization": "val canRead=true\nval filename = \"out.file\"",
+                "initialization": "write_response_file(out_record,lib_file4,lib_error_logging3,lib_config2)",
                 "initializationLanguageId": "kotlin",
-                "source": "val packet = out_record.pop()\nif( packet != null ){\n  val line = listOf(\n    packet.workOrder.id,\n    packet.workOrder.name,\n    packet.workOrder.encodingDate,\n    packet.workOrder.numberOfItems,\n    packet.is_confirmed,\n  ).joinTostring(\",\")\n  File.append(filename,line)\n}",
-                "sourceLanguageId": "kotlin",
+                "source": "function write_response_file(out_record,lib_file4,lib_error_logging3,lib_config2){\nconst packet = out_record.pop()\nif( packet != null ){\n  const line = [\n    packet.workOrder.id,\n    packet.workOrder.name,\n    packet.workOrder.encodingDate,\n    packet.workOrder.numberOfItems,\n    packet.is_confirmed,\n  ].join(\",\")\n  File.append(\"outfile\",line)\n}\n}",
+                "sourceLanguageId": "javascript",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -342,9 +342,9 @@
                 "height": 168.0
             },
             "text": {
-                "initialization": "// lib_error_logging init sequence",
-                "initializationLanguageId": "kotlin",
-                "source": "// lib_error_logging loop sequence",
+                "initialization": "new log()",
+                "initializationLanguageId": "",
+                "source": "class log{\n  log(text){\n  }\n}",
                 "sourceLanguageId": "kotlin",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -400,9 +400,9 @@
                 "height": 108.0
             },
             "text": {
-                "initialization": "// lib_config init sequence",
+                "initialization": "new config()",
                 "initializationLanguageId": "kotlin",
-                "source": "// lib_config loop sequence",
+                "source": "class config{\n  getConfig(){\n    return fs.readfile(\"config\")\n  }\n}",
                 "sourceLanguageId": "kotlin",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -458,10 +458,10 @@
                 "height": 168.0
             },
             "text": {
-                "initialization": "// lib_file init sequence\n\nvar t=10",
-                "initializationLanguageId": "kotlin",
-                "source": "// lib_file loop sequence",
-                "sourceLanguageId": "kotlin",
+                "initialization": "new fs()",
+                "initializationLanguageId": "",
+                "source": "class fs{\n  filesystem={\n    \"source\":\"a,b,c,d,e\\nf,g,h,i,j\"\n  }\n  readfile(filename){\n    return this.filesystem[filename]\n  }\n  writefile(filename,content,mode){\n    switch(mode){\n      case \"a\":\n        this.filesystem[filename] = (this.filesystem[filename]||\"\")+content\n        break;\n      case \"w\":\n      default:\n        this.filesystem[filename] = content\n        break;\n    }\n  }\n}",
+                "sourceLanguageId": "javascript",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -583,7 +583,7 @@
         },
         {
             "id": "link_37dad0c0-5e12-4bc7-9391-a91dcaa4d26a",
-            "name": "lib_config -> read_file",
+            "name": "lib_config1",
             "kind": "Link",
             "parentId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
             "children": [],
@@ -629,7 +629,7 @@
         },
         {
             "id": "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e",
-            "name": "lib_config -> write_response_file",
+            "name": "lib_config2",
             "kind": "Link",
             "parentId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
             "children": [],
@@ -675,7 +675,7 @@
         },
         {
             "id": "link_558d2ac3-8c3e-473a-9b3f-88899bb7d6d8",
-            "name": "lib_error_logging -> read_file",
+            "name": "lib_error_logging1",
             "kind": "Link",
             "parentId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
             "children": [],
@@ -721,7 +721,7 @@
         },
         {
             "id": "link_25598a03-e3eb-4c8d-a891-27996e3d6e18",
-            "name": "lib_error_logging -> transform_data",
+            "name": "lib_error_logging2",
             "kind": "Link",
             "parentId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
             "children": [],
@@ -767,7 +767,7 @@
         },
         {
             "id": "link_135fb536-8e1b-4157-ab41-ccb89b4ad623",
-            "name": "lib_error_logging -> write_response_file",
+            "name": "lib_error_logging3",
             "kind": "Link",
             "parentId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
             "children": [],
@@ -813,7 +813,7 @@
         },
         {
             "id": "link_3fc0b423-9cb9-4c24-8931-df06ea1c7ca2",
-            "name": "lib_file -> lib_config",
+            "name": "lib_file1",
             "kind": "Link",
             "parentId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
             "children": [],
@@ -859,7 +859,7 @@
         },
         {
             "id": "link_bacfb684-fbaf-40ea-812d-fec366aa2309",
-            "name": "lib_file -> lib_error_logging",
+            "name": "lib_file2",
             "kind": "Link",
             "parentId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
             "children": [],
@@ -905,7 +905,7 @@
         },
         {
             "id": "link_22fccfed-ab5c-45d8-a04e-783647c84194",
-            "name": "lib_file -> read_file",
+            "name": "lib_file3",
             "kind": "Link",
             "parentId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
             "children": [],
@@ -951,7 +951,7 @@
         },
         {
             "id": "link_c7b9a826-c940-4502-b758-ac529c55b61d",
-            "name": "lib_file -> write_response_file",
+            "name": "lib_file4",
             "kind": "Link",
             "parentId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
             "children": [],
