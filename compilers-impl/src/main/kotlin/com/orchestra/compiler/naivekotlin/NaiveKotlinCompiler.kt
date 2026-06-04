@@ -68,7 +68,7 @@ class NaiveKotlinCompiler : GenericCompiler() {
             .forEach { linkNode -> files += generateLink(document, linkNode, options) }
 
         return CompilationResult(
-            generatedProject = layoutStrategy(options).layout(projectName, files.distinctBy { it.path }, options),
+            generatedProject = layoutStrategy(options).layout(document, projectName, files.distinctBy { it.path }, options),
             diagnostics = diagnostics,
             success = true,
         )

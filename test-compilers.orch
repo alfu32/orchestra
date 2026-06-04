@@ -14,10 +14,10 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -627.0,
-                "y": 151.0,
-                "width": 1647.0,
-                "height": 1160.0
+                "x": -773.0,
+                "y": 173.0,
+                "width": 1703.0,
+                "height": 919.0
             },
             "text": {
                 "initialization": "",
@@ -71,10 +71,10 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -595.0,
-                "y": 231.0,
-                "width": 1583.0,
-                "height": 1032.0
+                "x": -741.0,
+                "y": 253.0,
+                "width": 1639.0,
+                "height": 791.0
             },
             "text": {
                 "initialization": "NodeJSProject()",
@@ -115,10 +115,10 @@
                 "link_39b12ed2-3672-4426-98c0-8ed86b109be3"
             ],
             "layout": {
-                "x": -557.0,
-                "y": 838.0,
+                "x": -709.0,
+                "y": 828.0,
                 "width": 308.0,
-                "height": 138.0
+                "height": 168.0
             },
             "text": {
                 "initialization": "read_file(input_record,out_record,lib_config1,lib_error_logging1,lib_file3)",
@@ -173,10 +173,10 @@
                 "link_164c6126-9a92-4720-8897-b4e18504129f"
             ],
             "layout": {
-                "x": 51.0,
-                "y": 866.0,
+                "x": -93.0,
+                "y": 771.0,
                 "width": 284.0,
-                "height": 108.0
+                "height": 138.0
             },
             "text": {
                 "initialization": "transform_data(input_record,out_record,lib_error_logging2)",
@@ -231,8 +231,8 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 672.0,
-                "y": 832.0,
+                "x": 582.0,
+                "y": 787.0,
                 "width": 284.0,
                 "height": 168.0
             },
@@ -284,8 +284,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -541.0,
-                "y": 1077.0,
+                "x": -61.0,
+                "y": 545.0,
                 "width": 276.0,
                 "height": 138.0
             },
@@ -336,8 +336,8 @@
                 "link_135fb536-8e1b-4157-ab41-ccb89b4ad623"
             ],
             "layout": {
-                "x": -563.0,
-                "y": 551.0,
+                "x": -704.0,
+                "y": 556.0,
                 "width": 308.0,
                 "height": 168.0
             },
@@ -394,10 +394,10 @@
                 "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e"
             ],
             "layout": {
-                "x": 22.0,
-                "y": 553.0,
+                "x": -157.0,
+                "y": 346.0,
                 "width": 308.0,
-                "height": 108.0
+                "height": 138.0
             },
             "text": {
                 "initialization": "new Config()",
@@ -452,8 +452,8 @@
                 "link_c7b9a826-c940-4502-b758-ac529c55b61d"
             ],
             "layout": {
-                "x": -563.0,
-                "y": 311.0,
+                "x": -696.0,
+                "y": 333.0,
                 "width": 284.0,
                 "height": 168.0
             },

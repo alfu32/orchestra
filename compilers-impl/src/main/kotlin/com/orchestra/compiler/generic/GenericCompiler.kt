@@ -75,7 +75,7 @@ open class GenericCompiler : CompilerPlugin {
             }
 
         return CompilationResult(
-            generatedProject = layoutStrategy(options).layout(projectName, files.distinctBy { it.path }, options),
+            generatedProject = layoutStrategy(options).layout(document, projectName, files.distinctBy { it.path }, options),
             diagnostics = diagnostics,
             success = true,
         )
@@ -343,7 +343,7 @@ class CompilerCompiler : CompilerPlugin {
             elementKind = GeneratedElementKind.CompilerTemplate,
         )
         return CompilationResult(
-            generatedProject = layoutStrategy(options).layout(options.projectName ?: document.name, listOf(file), options),
+            generatedProject = layoutStrategy(options).layout(document, options.projectName ?: document.name, listOf(file), options),
             diagnostics = diagnostics,
             success = true,
         )

@@ -130,7 +130,6 @@ class JSCompiler : GenericCompiler() {
                 }
                 return run()
             }
-        }
-        """.trimIndent()
+            """.trimIndent()
     }
 }

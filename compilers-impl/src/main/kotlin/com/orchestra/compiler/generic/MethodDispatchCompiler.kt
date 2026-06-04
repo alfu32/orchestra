@@ -65,6 +65,7 @@ fun compileWithMethodDispatch(
 
     return CompilationResult(
         generatedProject = compiler.layoutStrategy(options).layout(
+            document,
             options.projectName ?: document.name,
             files.distinctBy { it.path },
             options,

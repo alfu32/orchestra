@@ -108,8 +108,8 @@ interface CompilerPlugin {
     fun generateMagicFile(document: InflowDocument, node: Node, options: CompilerOptions): GeneratedFile? =
         null
 
-    fun layoutStrategy(options: CompilerOptions): GeneratedProjectLayoutStrategy =
-        PreserveGeneratedPathsLayoutStrategy
+    fun layoutStrategy(options: CompilerOptions): LayoutStrategy =
+        ClassifiedFilesystemLayoutStrategy
 
     fun compile(document: InflowDocument, options: CompilerOptions = CompilerOptions()): CompilationResult
 }
@@ -146,26 +146,44 @@ data class GeneratedFile(
     val elementKind: GeneratedElementKind = GeneratedElementKind.TerminalEntity,
 )
 
-interface GeneratedProjectLayoutStrategy {
+interface LayoutStrategy {
     val id: String
     val displayName: String
 
-    fun layout(projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject
+    fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject
 }
 
-object PreserveGeneratedPathsLayoutStrategy : GeneratedProjectLayoutStrategy {
-    override val id: String = "preserve-generated-paths"
-    override val displayName: String = "Preserve generated paths"
+object ClassifiedFilesystemLayoutStrategy : LayoutStrategy {
+    override val id: String = "classified-filesystem"
+    override val displayName: String = "Classified filesystem layout"
 
-    override fun layout(projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject =
+    override fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject =
         GeneratedProject(projectName, files)
 }
 
-object SourceSetLayoutStrategy : GeneratedProjectLayoutStrategy {
+object DirectFileSystemHomorphismLayoutStrategy : LayoutStrategy {
+    override val id: String = "direct-file-system-homomorphism"
+    override val displayName: String = "Direct file-system homomorphism"
+
+    override fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject {
+        val rootPrefix = projectName.trim().ifBlank { document.name.ifBlank { "project" } }
+        val remapped = files.mapNotNull { file ->
+            val node = file.originNodeId?.let(document::getElementById)
+            when {
+                node == null -> file.copy(path = normalizeDirectPath(file.path))
+                node.isLink -> null
+                else -> file.copy(path = directPathForNode(document, node, file, rootPrefix))
+            }
+        }
+        return GeneratedProject(projectName, remapped.distinctBy { it.path })
+    }
+}
+
+object SourceSetLayoutStrategy : LayoutStrategy {
     override val id: String = "source-set"
     override val displayName: String = "Source set layout"
 
-    override fun layout(projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject =
+    override fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject =
         GeneratedProject(
             projectName,
             files.map { file ->
@@ -177,3 +195,40 @@ object SourceSetLayoutStrategy : GeneratedProjectLayoutStrategy {
             },
         )
 }
+
+private fun normalizeDirectPath(path: String): String =
+    path.trim().replace('\\', '/').trimStart('/')
+
+private fun directPathForNode(document: InflowDocument, node: Node, file: GeneratedFile, rootPrefix: String): String {
+    val segments = node.directLayoutSegments(document, rootPrefix)
+    val extension = file.path.substringAfterLast('.', missingDelimiterValue = "txt")
+    val fileName = if (node.children.isNotEmpty()) {
+        "index.$extension"
+    } else {
+        node.directLayoutFileName(extension)
+    }
+    return (segments + fileName).joinToString("/")
+}
+
+private fun Node.directLayoutSegments(document: InflowDocument, rootPrefix: String): List<String> {
+    val segments = mutableListOf(rootPrefix)
+    var currentParentId = parentId
+    val parents = mutableListOf<Node>()
+    while (currentParentId != null) {
+        val parent = document.getElementById(currentParentId) ?: break
+        if (parent.id == document.rootNodeId) break
+        parents += parent
+        currentParentId = parent.parentId
+    }
+    parents.asReversed().filter { it.children.isNotEmpty() }.forEach { segments += it.safeNodeSegment() }
+    return segments
+}
+
+private fun Node.directLayoutFileName(extension: String): String =
+    "${safeNodeSegment()}.${extension.trimStart('.').ifBlank { "txt" }}"
+
+private fun Node.safeNodeSegment(): String =
+    name.trim()
+        .replace(Regex("[^A-Za-z0-9_.-]+"), "_")
+        .trim('_')
+        .ifBlank { id.value.take(12) }
