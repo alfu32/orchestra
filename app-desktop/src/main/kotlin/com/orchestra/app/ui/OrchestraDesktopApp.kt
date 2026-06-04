@@ -2294,7 +2294,7 @@ class GraphCanvas(
             val link = linkNode.link ?: return@forEachIndexed
             val dependent = repository.getNode(link.targetNodeId) ?: return@forEachIndexed
             val selected = linkNode.id in selection
-            val label = dependent.name.take(28)
+            val label = dependencyInjectionLabel(linkNode, library).take(32)
             val metrics = g2.fontMetrics
             val labelWidth = max(96, monospaceTextWidth(label, 8, 22))
             val labelHeight = 24
@@ -2321,7 +2321,7 @@ class GraphCanvas(
         val rows = links.mapNotNull { linkNode ->
             val link = linkNode.link ?: return@mapNotNull null
             val source = repository.getNode(link.sourceNodeId) ?: return@mapNotNull null
-            linkNode to source.name.take(28)
+            linkNode to dependencyInjectionLabel(linkNode, source).take(32)
         }
         if (rows.isEmpty()) return
 
@@ -2899,16 +2899,22 @@ class GraphCanvas(
         val sourceBounds = Rectangle(
             sourceRect.x + sourceRect.width,
             sourceRect.y + 10 + sourceIndex * 32,
-            labelWidth + 36,
+            max(120, monospaceTextWidth(dependencyInjectionLabel(linkNode, source), 8, 22)) + 36,
             24,
         )
         val dependencyBounds = Rectangle(
             targetRect.x + 24,
             targetRect.y - targetLinks.size * 24 - 20 + targetIndex * 24,
-            max(120, monospaceTextWidth(source.name, 8, 52)),
+            max(120, monospaceTextWidth(dependencyInjectionLabel(linkNode, source), 8, 52)),
             24,
         )
         return listOf(sourceBounds, dependencyBounds)
+    }
+
+    private fun dependencyInjectionLabel(linkNode: Node, sourceNode: Node): String {
+        val linkName = linkNode.name.trim().ifBlank { linkNode.id.value }
+        val sourceName = sourceNode.name.trim().ifBlank { sourceNode.id.value }
+        return "$linkName : $sourceName"
     }
 
     private fun distanceToSegment(point: Point, a: Point, b: Point): Double {

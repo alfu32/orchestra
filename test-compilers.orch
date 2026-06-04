@@ -123,7 +123,7 @@
             "text": {
                 "initialization": "read_file(input_record,out_record,lib_config1,lib_error_logging1,lib_file3)",
                 "initializationLanguageId": "",
-                "source": "function read_file(input_record,out_record,lib_config1,lib_error_logging1,lib_file3){\n\nconst fileContent = lib_file3.readfile(filename)\nconst rows = fileContent.split(\"\\n\")\nrows.forEach( row => {\n  const dataList = row.split(\",\")\n  const item = WorkOrder(\n    numberOfItems=dataList[0],\n    encodingDate=dataList[1],\n    name=dataList[2],\n    id=dataList[3],\n  )\n  input_record.add(item)\n})\n\n}\n",
+                "source": "function read_file(input_record,out_record,lib_config1,lib_error_logging1,lib_file3){\n    const fileContent = lib_file3.read(filename)\n    const rows = fileContent.split(\"\\n\")\n    rows.forEach( row => {\n      const dataList = row.split(\",\")\n      const item = WorkOrder(\n        numberOfItems=dataList[0],\n        encodingDate=dataList[1],\n        name=dataList[2],\n        id=dataList[3],\n      )\n      input_record.add(item)\n    })\n}\n",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -181,7 +181,7 @@
             "text": {
                 "initialization": "transform_data(input_record,out_record,lib_error_logging2)",
                 "initializationLanguageId": "",
-                "source": "\nfunction transform_data(input_record,out_record,lib_error_logging2){\nconst packet = input_record.pop()\nif( packet != null ){\n  const validated = new WorkOrderConfirmation(packet,true)\n  out_record.add(validated)\n  \n}\n}",
+                "source": "function transform_data(input_record,out_record,lib_error_logging2){\n    const packet = input_record.pop()\n    if( packet != null ){\n      const validated = new WorkOrderConfirmation(packet,true)\n      out_record.add(validated)\n    }\n}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -239,7 +239,7 @@
             "text": {
                 "initialization": "write_response_file(out_record,lib_file4,lib_error_logging3,lib_config2)",
                 "initializationLanguageId": "",
-                "source": "function write_response_file(out_record,lib_file4,lib_error_logging3,lib_config2){\nconst packet = out_record.pop()\nif( packet != null ){\n  const line = [\n    packet.workOrder.id,\n    packet.workOrder.name,\n    packet.workOrder.encodingDate,\n    packet.workOrder.numberOfItems,\n    packet.is_confirmed,\n  ].join(\",\")\n  File.append(\"outfile\",line)\n}\n}",
+                "source": "function write_response_file(out_record,lib_file4,lib_error_logging3,lib_config2){\n    const packet = out_record.pop()\n    if( packet != null ){\n      const line = [\n        packet.workOrder.id,\n        packet.workOrder.name,\n        packet.workOrder.encodingDate,\n        packet.workOrder.numberOfItems,\n        packet.is_confirmed,\n      ].join(\",\")\n      lib_file4.append(\"outfile\",line)\n    }\n}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -394,15 +394,15 @@
                 "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e"
             ],
             "layout": {
-                "x": -51.0,
+                "x": 22.0,
                 "y": 553.0,
                 "width": 308.0,
                 "height": 108.0
             },
             "text": {
-                "initialization": "new config()",
+                "initialization": "new Config()",
                 "initializationLanguageId": "",
-                "source": "class config{\n  getConfig(){\n    return fs.readfile(\"config\")\n  }\n}",
+                "source": "class Config{\n  getConfig(){\n    return lib_file1.read(\"config\")\n  }\n}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -458,9 +458,9 @@
                 "height": 168.0
             },
             "text": {
-                "initialization": "new fs()",
+                "initialization": "new Fs()",
                 "initializationLanguageId": "",
-                "source": "class fs{\n  filesystem={\n    \"source\":\"a,b,c,d,e\\nf,g,h,i,j\"\n  }\n  readfile(filename){\n    return this.filesystem[filename]\n  }\n  writefile(filename,content,mode){\n    switch(mode){\n      case \"a\":\n        this.filesystem[filename] = (this.filesystem[filename]||\"\")+content\n        break;\n      case \"w\":\n      default:\n        this.filesystem[filename] = content\n        break;\n    }\n  }\n}",
+                "source": "class Fs{\n  filesystem={\n    \"source\":\"a,b,c,d,e\\nf,g,h,i,j\"\n  }\n  read(filename){\n    return this.filesystem[filename]\n  }\n  write(filename,content){\n    this.filesystem[filename] = content\n  }\n  append(filename,content){\n    this.filesystem[filename] = (this.filesystem[filename]||\"\")+content\n  }\n}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
