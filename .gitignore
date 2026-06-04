@@ -6,4 +6,5 @@ dist
 core/src/main/kotlin/com/orchestra/Version.kt
 .idea
 assets/fonts/**/*.zip
+generated
 test-compilers

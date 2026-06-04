@@ -229,11 +229,22 @@ private fun Node.isCompilerDefinition(document: InflowDocument): Boolean =
 private fun methodCompileScopeIds(document: InflowDocument, requested: Set<NodeId>): Set<NodeId> {
     if (requested.isEmpty()) return document.nodes.keys
     val result = linkedSetOf<NodeId>()
-    fun include(id: NodeId) {
+    fun includeDescendants(id: NodeId) {
         val node = document.nodes[id] ?: return
-        if (result.add(id) && !node.isLink) node.children.forEach(::include)
+        if (result.add(id) && !node.isLink) node.children.forEach(::includeDescendants)
     }
-    requested.forEach(::include)
+    fun includeAncestors(id: NodeId) {
+        var currentParentId = document.nodes[id]?.parentId
+        while (currentParentId != null) {
+            val parent = document.nodes[currentParentId] ?: break
+            if (!result.add(parent.id)) break
+            currentParentId = parent.parentId
+        }
+    }
+
+    requested.forEach(::includeAncestors)
+    requested.forEach(::includeDescendants)
+    result.toList().forEach(::includeDescendants)
     return result
 }
 

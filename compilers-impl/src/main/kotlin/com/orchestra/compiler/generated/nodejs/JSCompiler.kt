@@ -36,20 +36,19 @@ class JSCompiler : GenericCompiler() {
         listOf("package.json", "config.json", "tsconfig.json", "vite.js")
 
     override fun getNodeDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String {
-        return node.text.declaration
+        return if (node.children.isNotEmpty()) compositeDeclaration(document, node, options) else node.text.declaration
     }
 
     override fun getNodeInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String {
-        return "${node.name}()"
+        return if (node.children.isNotEmpty()) "${node.name}()" else "${node.name}()"
     }
 
     override fun getProcessorDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String {
-        return node.text.declaration
+        return if (node.children.isNotEmpty()) compositeDeclaration(document, node, options) else node.text.declaration
     }
     override fun getProcessorInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String {
-        return "${node.name}()"
+        return if (node.children.isNotEmpty()) "${node.name}()" else "${node.name}()"
     }
-    // =getProcessorDeclaration(document, node, options)
 
     override fun getLinkDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String {
         return node.text.declaration
@@ -123,6 +122,7 @@ class JSCompiler : GenericCompiler() {
         val childrenInvocations = children.values.joinToString("\n") { "${it.name}()" }
         return """
             function ${node.name}(){
+                ${node.text.declaration}
                 ${portDeclarations}
                 ${portInstantiations}
                 ${librariesDeclarations}
