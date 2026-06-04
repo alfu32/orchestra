@@ -2,6 +2,7 @@ package com.orchestra.app.ui
 
 import com.orchestra.app.editor.EditorCompletionContext
 import com.orchestra.app.editor.GridCodeEditorAdapter
+import com.orchestra.app.editor.OrchestraEditorSettings
 import com.orchestra.app.editor.RegexSyntaxHighlighter
 import com.orchestra.app.fonts.OrchestraFonts
 import com.orchestra.Version
@@ -109,6 +110,7 @@ import javax.swing.JScrollPane
 import javax.swing.JSplitPane
 import javax.swing.JTabbedPane
 import javax.swing.JTable
+import javax.swing.JSpinner
 import javax.swing.JTextArea
 import javax.swing.JTextField
 import javax.swing.JTree
@@ -124,6 +126,7 @@ import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.DefaultTableModel
 import javax.swing.text.JTextComponent
+import javax.swing.SpinnerNumberModel
 import javax.swing.tree.DefaultTreeCellRenderer
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
@@ -530,6 +533,7 @@ class OrchestraDesktopApp(
         val codeSelector = JComboBox(OrchestraFonts.codeOptions.map { it.label }.toTypedArray()).apply {
             selectedItem = OrchestraFonts.optionLabel(OrchestraFonts.codeFontId, OrchestraFonts.codeOptions)
         }
+        val indentSpaces = JSpinner(SpinnerNumberModel(OrchestraEditorSettings.indentSpaces, 1, 16, 1))
         val content = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
@@ -537,12 +541,15 @@ class OrchestraDesktopApp(
             add(designerSelector)
             add(JLabel("Code editor font").apply { border = BorderFactory.createEmptyBorder(12, 0, 0, 0) })
             add(codeSelector)
+            add(JLabel("Code editor indent spaces").apply { border = BorderFactory.createEmptyBorder(12, 0, 0, 0) })
+            add(indentSpaces)
         }
         val result = JOptionPane.showConfirmDialog(frame, content, "Options", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
         if (result != JOptionPane.OK_OPTION) return
 
         OrchestraFonts.designerFontId = OrchestraFonts.optionId(designerSelector.selectedItem?.toString().orEmpty(), OrchestraFonts.designerOptions)
         OrchestraFonts.codeFontId = OrchestraFonts.optionId(codeSelector.selectedItem?.toString().orEmpty(), OrchestraFonts.codeOptions)
+        OrchestraEditorSettings.indentSpaces = (indentSpaces.value as? Int) ?: OrchestraEditorSettings.indentSpaces
         applyFontOptions()
         status.text = "Options updated"
     }

@@ -103,6 +103,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
     init {
         isFocusable = true
+        focusTraversalKeysEnabled = false
         background = Color(0x1e1e1e)
         foreground = Color(0xd4d4d4)
         preferredSize = Dimension(900, 520)
@@ -344,8 +345,10 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                     edit {
                         if (shift) dedentSelectedLines() else indentSelectedLines()
                     }
+                } else if (shift) {
+                    edit { dedentCurrentLine() }
                 } else {
-                    edit { insertTextAtCursors("    ") }
+                    edit { insertTextAtCursors(" ".repeat(OrchestraEditorSettings.indentSpaces)) }
                 }
             }
             KeyEvent.VK_BACK_SPACE -> {
@@ -1043,7 +1046,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             .flatMap { range -> (range.first.line..range.second.line).asSequence() }
             .toSet()
         if (selectedLines.isEmpty()) return
-        val indent = "    "
+        val indent = " ".repeat(OrchestraEditorSettings.indentSpaces)
         selectedLines.forEach { lineIndex ->
             lines[lineIndex] = indent + lines[lineIndex]
         }
@@ -1073,7 +1076,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             val line = lines[lineIndex]
             val removed = when {
                 line.startsWith("\t") -> 1
-                else -> line.takeWhile { it == ' ' }.take(4).length
+                else -> line.takeWhile { it == ' ' }.take(OrchestraEditorSettings.indentSpaces).length
             }
             removedByLine[lineIndex] = removed
             if (removed > 0) {
@@ -1097,6 +1100,31 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                     }
                 },
             )
+        }
+        normalizeCursors()
+        ensureCaretVisible()
+    }
+
+    private fun dedentCurrentLine() {
+        val lineIndex = caret.line
+        val line = lines[lineIndex]
+        val removed = when {
+            line.startsWith("\t") -> 1
+            else -> line.takeWhile { it == ' ' }.take(OrchestraEditorSettings.indentSpaces).length
+        }
+        if (removed <= 0) return
+        lines[lineIndex] = line.drop(removed)
+        cursors.replaceAll { state ->
+            if (state.caret.line == lineIndex) {
+                CaretState(
+                    caret = state.caret.copy(column = (state.caret.column - removed).coerceAtLeast(0)),
+                    anchor = state.anchor?.let { anchor ->
+                        if (anchor.line == lineIndex) anchor.copy(column = (anchor.column - removed).coerceAtLeast(0)) else anchor
+                    },
+                )
+            } else {
+                state
+            }
         }
         normalizeCursors()
         ensureCaretVisible()

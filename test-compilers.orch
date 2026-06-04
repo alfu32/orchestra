@@ -77,7 +77,7 @@
                 "height": 1032.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "NodeJSProject()",
                 "initializationLanguageId": "",
                 "source": "",
                 "sourceLanguageId": "",
@@ -89,8 +89,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "javascript",
-                "technologyId": "nodejs",
+                "languageId": "",
+                "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -117,14 +117,14 @@
             "layout": {
                 "x": -557.0,
                 "y": 838.0,
-                "width": 284.0,
+                "width": 308.0,
                 "height": 138.0
             },
             "text": {
                 "initialization": "read_file(input_record,out_record,lib_config1,lib_error_logging1,lib_file3)",
-                "initializationLanguageId": "javascript",
+                "initializationLanguageId": "",
                 "source": "function read_file(input_record,out_record,lib_config1,lib_error_logging1,lib_file3){\n\nconst fileContent = lib_file3.readfile(filename)\nconst rows = fileContent.split(\"\\n\")\nrows.forEach( row => {\n  const dataList = row.split(\",\")\n  const item = WorkOrder(\n    numberOfItems=dataList[0],\n    encodingDate=dataList[1],\n    name=dataList[2],\n    id=dataList[3],\n  )\n  input_record.add(item)\n})\n\n}\n",
-                "sourceLanguageId": "javascript",
+                "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -133,8 +133,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "kotlin",
-                "technologyId": "kotlin-jvm",
+                "languageId": "",
+                "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -180,9 +180,9 @@
             },
             "text": {
                 "initialization": "transform_data(input_record,out_record,lib_error_logging2)",
-                "initializationLanguageId": "javascript",
+                "initializationLanguageId": "",
                 "source": "\nfunction transform_data(input_record,out_record,lib_error_logging2){\nconst packet = input_record.pop()\nif( packet != null ){\n  const validated = new WorkOrderConfirmation(packet,true)\n  out_record.add(validated)\n  \n}\n}",
-                "sourceLanguageId": "javascript",
+                "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -191,7 +191,7 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "kotlin",
+                "languageId": "",
                 "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
@@ -238,9 +238,9 @@
             },
             "text": {
                 "initialization": "write_response_file(out_record,lib_file4,lib_error_logging3,lib_config2)",
-                "initializationLanguageId": "kotlin",
+                "initializationLanguageId": "",
                 "source": "function write_response_file(out_record,lib_file4,lib_error_logging3,lib_config2){\nconst packet = out_record.pop()\nif( packet != null ){\n  const line = [\n    packet.workOrder.id,\n    packet.workOrder.name,\n    packet.workOrder.encodingDate,\n    packet.workOrder.numberOfItems,\n    packet.is_confirmed,\n  ].join(\",\")\n  File.append(\"outfile\",line)\n}\n}",
-                "sourceLanguageId": "javascript",
+                "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -249,7 +249,7 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "kotlin",
+                "languageId": "",
                 "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
@@ -286,7 +286,7 @@
             "layout": {
                 "x": -541.0,
                 "y": 1077.0,
-                "width": 268.0,
+                "width": 276.0,
                 "height": 138.0
             },
             "text": {
@@ -338,13 +338,13 @@
             "layout": {
                 "x": -563.0,
                 "y": 551.0,
-                "width": 284.0,
+                "width": 308.0,
                 "height": 168.0
             },
             "text": {
                 "initialization": "new log()",
                 "initializationLanguageId": "",
-                "source": "class log{\n  log(text){\n  }\n}",
+                "source": "class log{\n  log(text){\n    console.log(text)\n  }\n}",
                 "sourceLanguageId": "kotlin",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -354,8 +354,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "kotlin",
-                "technologyId": "kotlin-jvm",
+                "languageId": "",
+                "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -396,14 +396,14 @@
             "layout": {
                 "x": -51.0,
                 "y": 553.0,
-                "width": 284.0,
+                "width": 308.0,
                 "height": 108.0
             },
             "text": {
                 "initialization": "new config()",
-                "initializationLanguageId": "kotlin",
+                "initializationLanguageId": "",
                 "source": "class config{\n  getConfig(){\n    return fs.readfile(\"config\")\n  }\n}",
-                "sourceLanguageId": "kotlin",
+                "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -412,8 +412,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "kotlin",
-                "technologyId": "kotlin-jvm",
+                "languageId": "",
+                "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -461,7 +461,7 @@
                 "initialization": "new fs()",
                 "initializationLanguageId": "",
                 "source": "class fs{\n  filesystem={\n    \"source\":\"a,b,c,d,e\\nf,g,h,i,j\"\n  }\n  readfile(filename){\n    return this.filesystem[filename]\n  }\n  writefile(filename,content,mode){\n    switch(mode){\n      case \"a\":\n        this.filesystem[filename] = (this.filesystem[filename]||\"\")+content\n        break;\n      case \"w\":\n      default:\n        this.filesystem[filename] = content\n        break;\n    }\n  }\n}",
-                "sourceLanguageId": "javascript",
+                "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
                 "tests": "",
@@ -470,8 +470,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "kotlin",
-                "technologyId": "kotlin-jvm",
+                "languageId": "",
+                "technologyId": "",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -504,9 +504,9 @@
                 "height": 100.0
             },
             "text": {
-                "initialization": "",
+                "initialization": "new WorkOrder()",
                 "initializationLanguageId": "",
-                "source": "data class WorkOrder(\n  var id : String,\n  var name : String,\n  var encodingDate : Date,\n  var numberOfItems : Number,\n)",
+                "source": "class WorkOrder{\n  id = new String\n  name = new String\n  encodingDate = new Date\n  numberOfItems = new Number\n}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -530,7 +530,7 @@
                 "targetPortName": "in",
                 "transportKind": "in-process",
                 "typeName": "WorkOrder",
-                "payloadDefinition": "class WorkOrder(\n  id:String,\n  name:String,\n  encodingDate:Date,\n  numberOfItems:Number,\n)"
+                "payloadDefinition": "class WorkOrder{\n  id = new String\n  name = new String\n  encodingDate = new Date\n  numberOfItems = new Number\n}"
             },
             "metadata": {},
             "pluginData": {}
@@ -550,9 +550,9 @@
                 "height": 100.0
             },
             "text": {
-                "initialization": "data class WorkOrderConfirmation{\n  var workOrder:WorkOrder,\n  var is_confirmed:Boolean,\n}",
+                "initialization": "new WorkOrderConfirmation()",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "class WorkOrderConfirmation{\n  workOrder=new WorkOrder()\n  is_confirmed=false\n}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -575,7 +575,7 @@
                 "targetNodeId": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
                 "targetPortName": "in",
                 "transportKind": "in-process",
-                "typeName": "",
+                "typeName": "WorkOrderConfirmation",
                 "payloadDefinition": "class WorkOrderConfirmation{\n  workOrder:WorkOrder\n  is_confirmed:Boolean\n}"
             },
             "metadata": {},
