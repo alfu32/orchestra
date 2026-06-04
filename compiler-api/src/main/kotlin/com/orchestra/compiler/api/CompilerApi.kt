@@ -8,6 +8,7 @@ import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
+import com.orchestra.core.model.NodeKind
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -43,55 +44,100 @@ interface CompilerPlugin {
     fun supports(document: InflowDocument): Boolean
     fun validate(document: InflowDocument): List<Diagnostic>
 
-    fun entityStereotype(document: InflowDocument, node: Node): NodeStereotype =
-        node.stereotype(document)
-
     fun linkStereotype(document: InflowDocument, linkNode: Node): LinkStereotype =
         LinkClassifier.classify(document, linkNode)
 
-    fun generatedTextFor(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        when (entityStereotype(document, node)) {
-            NodeStereotype.Node -> getNode(document, node, options)
-            NodeStereotype.Link -> getLink(document, node, options)
-            NodeStereotype.ProcessingUnit -> getProcessingUnit(document, node, options)
-            NodeStereotype.CompositeWorker -> getCompositeWorker(document, node, options)
-            NodeStereotype.CompositeErrorHandler -> getCompositeErrorHandler(document, node, options)
-            NodeStereotype.Generator -> getGenerator(document, node, options)
-            NodeStereotype.Transformer -> getTransformer(document, node, options)
-            NodeStereotype.Sink -> getSink(document, node, options)
-            NodeStereotype.Script -> getScript(document, node, options)
-            NodeStereotype.ErrorHandler -> getErrorHandler(document, node, options)
-            NodeStereotype.ServiceLibrary -> getServiceLibrary(document, node, options)
-            NodeStereotype.Transport -> getTransport(document, node, options)
-            NodeStereotype.ErrorPipe -> getErrorPipe(document, node, options)
-            NodeStereotype.DependencyInjection -> getDependencyInjection(document, node, options)
-            NodeStereotype.Test -> getTest(document, node, options)
-            NodeStereotype.TestSuite -> getTestSuite(document, node, options)
-            NodeStereotype.InputPort -> getInputPort(document, node, options)
-            NodeStereotype.OutputPort -> getOutputPort(document, node, options)
-            NodeStereotype.StaticFile -> getStaticFile(document, node, options)
-            NodeStereotype.CompilerTemplate -> getCompilerTemplate(document, node, options)
+    fun generatedDeclarationFor(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        when (node.kind) {
+            NodeKind.Node -> getNodeDeclaration(document, node, options)
+            NodeKind.Processor -> getProcessorDeclaration(document, node, options)
+            NodeKind.Link -> getLinkDeclaration(document, node, options)
+            NodeKind.Group -> getGroupDeclaration(document, node, options)
+            NodeKind.Note -> getNoteDeclaration(document, node, options)
         }
 
+    fun generatedInstantiationFor(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        when (node.kind) {
+            NodeKind.Node -> getNodeInstantiation(document, node, options)
+            NodeKind.Processor -> getProcessorInstantiation(document, node, options)
+            NodeKind.Link -> getLinkInstantiation(document, node, options)
+            NodeKind.Group -> getGroupInstantiation(document, node, options)
+            NodeKind.Note -> getNoteInstantiation(document, node, options)
+        }
+
+    @Deprecated("Use generatedDeclarationFor")
+    fun generatedTextFor(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        generatedDeclarationFor(document, node, options)
+
+    fun getNodeDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        getNode(document, node, options)
+
+    fun getNodeInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        getNodeDeclaration(document, node, options)
+
+    fun getProcessorDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        getProcessingUnit(document, node, options)
+
+    fun getProcessorInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        getProcessorDeclaration(document, node, options)
+
+    fun getLinkDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        getLink(document, node, options)
+
+    fun getLinkInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        getLinkDeclaration(document, node, options)
+
+    fun getGroupDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        getCompositeWorker(document, node, options)
+
+    fun getGroupInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        getGroupDeclaration(document, node, options)
+
+    fun getNoteDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        getScript(document, node, options)
+
+    fun getNoteInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
+        getNoteDeclaration(document, node, options)
+
+    @Deprecated("Use getNodeDeclaration")
     fun getNode(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getLinkDeclaration")
     fun getLink(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getProcessorDeclaration")
     fun getProcessingUnit(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getGroupDeclaration")
     fun getCompositeWorker(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getGroupDeclaration")
     fun getCompositeErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getProcessorDeclaration")
     fun getGenerator(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getProcessorDeclaration")
     fun getTransformer(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getProcessorDeclaration")
     fun getSink(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getNoteDeclaration")
     fun getScript(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getProcessorDeclaration")
     fun getErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getNodeDeclaration")
     fun getServiceLibrary(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getLinkDeclaration")
     fun getTransport(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getLinkDeclaration")
     fun getErrorPipe(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getProcessorDeclaration")
     fun getDependencyInjection(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getProcessorDeclaration")
     fun getTest(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getGroupDeclaration")
     fun getTestSuite(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getLinkDeclaration")
     fun getInputPort(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getLinkDeclaration")
     fun getOutputPort(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getNodeDeclaration")
     fun getStaticFile(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
+    @Deprecated("Use getNoteDeclaration")
     fun getCompilerTemplate(document: InflowDocument, node: Node, options: CompilerOptions): String = ""
 
     fun getStaticFiles(document: InflowDocument, options: CompilerOptions): List<String> =

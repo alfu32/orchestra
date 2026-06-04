@@ -1,5 +1,6 @@
 package com.orchestra.core.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -28,10 +29,14 @@ data class NodeLayout(
 
 @Serializable
 data class NodeText(
-    var initialization: String = "",
-    var initializationLanguageId: String = "",
-    var source: String = "",
-    var sourceLanguageId: String = "",
+    @SerialName("initialization")
+    var instantiation: String = "",
+    @SerialName("initializationLanguageId")
+    var instantiationLanguageId: String = "",
+    @SerialName("source")
+    var declaration: String = "",
+    @SerialName("sourceLanguageId")
+    var declarationLanguageId: String = "",
     var specification: String = "",
     var specificationLanguageId: String = "markdown",
     var tests: String = "",
@@ -42,8 +47,8 @@ data class NodeText(
 
 @Serializable
 enum class NodeTextSection {
-    Initialization,
-    Source,
+    Instantiation,
+    Declaration,
     Specification,
     Tests,
     AiInstructions,
@@ -121,6 +126,26 @@ const val VOID_TECHNOLOGY_ID = "none"
 fun InflowDocument.rootNode(): Node = nodes[rootNodeId]
     ?: error("Root node '$rootNodeId' is missing")
 
+fun InflowDocument.getElementById(id: String): Node? = nodes[NodeId(id)]
+
+fun InflowDocument.getElementById(id: NodeId): Node? = nodes[id]
+
+fun InflowDocument.getElementsByIds(ids: List<String>): Map<String, Node> {
+    val resolved = linkedMapOf<String, Node>()
+    ids.forEach { id ->
+        getElementById(id)?.let { resolved[id] = it }
+    }
+    return resolved
+}
+
+fun InflowDocument.getElementsByIds(ids: Iterable<NodeId>): Map<NodeId, Node> {
+    val resolved = linkedMapOf<NodeId, Node>()
+    ids.forEach { id ->
+        getElementById(id)?.let { resolved[id] = it }
+    }
+    return resolved
+}
+
 fun InflowDocument.childNodes(node: Node): List<Node> =
     node.children.mapNotNull(nodes::get)
 
@@ -140,8 +165,8 @@ fun InflowDocument.effectiveTextLanguageId(nodeId: NodeId, section: NodeTextSect
         visited += current.id
         val languageId = current.text.languageId(section).trim()
         when (section) {
-            NodeTextSection.Initialization,
-            NodeTextSection.Source -> if (languageId.isNotBlank()) return languageId
+            NodeTextSection.Instantiation,
+            NodeTextSection.Declaration -> if (languageId.isNotBlank()) return languageId
             NodeTextSection.Specification,
             NodeTextSection.Tests,
             NodeTextSection.AiInstructions -> return languageId.ifBlank { defaultTextLanguageId(section) }
@@ -149,18 +174,27 @@ fun InflowDocument.effectiveTextLanguageId(nodeId: NodeId, section: NodeTextSect
         current = current.parentId?.let(nodes::get)
     }
     return when (section) {
-        NodeTextSection.Initialization,
-        NodeTextSection.Source -> effectiveLanguageId(nodeId)
+        NodeTextSection.Instantiation,
+        NodeTextSection.Declaration -> effectiveLanguageId(nodeId)
         NodeTextSection.Specification,
         NodeTextSection.AiInstructions -> defaultTextLanguageId(section)
         NodeTextSection.Tests -> defaultTextLanguageId(section)
     }
 }
 
+fun NodeText.text(section: NodeTextSection): String =
+    when (section) {
+        NodeTextSection.Instantiation -> instantiation
+        NodeTextSection.Declaration -> declaration
+        NodeTextSection.Specification -> specification
+        NodeTextSection.Tests -> tests
+        NodeTextSection.AiInstructions -> aiInstructions
+    }
+
 fun NodeText.languageId(section: NodeTextSection): String =
     when (section) {
-        NodeTextSection.Initialization -> initializationLanguageId
-        NodeTextSection.Source -> sourceLanguageId
+        NodeTextSection.Instantiation -> instantiationLanguageId
+        NodeTextSection.Declaration -> declarationLanguageId
         NodeTextSection.Specification -> specificationLanguageId
         NodeTextSection.Tests -> testsLanguageId
         NodeTextSection.AiInstructions -> aiInstructionsLanguageId
@@ -168,11 +202,20 @@ fun NodeText.languageId(section: NodeTextSection): String =
 
 fun NodeText.withLanguageId(section: NodeTextSection, languageId: String): NodeText =
     when (section) {
-        NodeTextSection.Initialization -> copy(initializationLanguageId = languageId)
-        NodeTextSection.Source -> copy(sourceLanguageId = languageId)
+        NodeTextSection.Instantiation -> copy(instantiationLanguageId = languageId)
+        NodeTextSection.Declaration -> copy(declarationLanguageId = languageId)
         NodeTextSection.Specification -> copy(specificationLanguageId = languageId)
         NodeTextSection.Tests -> copy(testsLanguageId = languageId)
         NodeTextSection.AiInstructions -> copy(aiInstructionsLanguageId = languageId)
+    }
+
+fun NodeText.withText(section: NodeTextSection, value: String): NodeText =
+    when (section) {
+        NodeTextSection.Instantiation -> copy(instantiation = value)
+        NodeTextSection.Declaration -> copy(declaration = value)
+        NodeTextSection.Specification -> copy(specification = value)
+        NodeTextSection.Tests -> copy(tests = value)
+        NodeTextSection.AiInstructions -> copy(aiInstructions = value)
     }
 
 private fun InflowDocument.inheritedTechnologyValue(
@@ -193,8 +236,8 @@ private fun InflowDocument.inheritedTechnologyValue(
 
 private fun defaultTextLanguageId(section: NodeTextSection): String =
     when (section) {
-        NodeTextSection.Initialization,
-        NodeTextSection.Source,
+        NodeTextSection.Instantiation,
+        NodeTextSection.Declaration,
         NodeTextSection.AiInstructions -> VOID_LANGUAGE_ID
         NodeTextSection.Specification -> "markdown"
         NodeTextSection.Tests -> "json"

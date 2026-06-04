@@ -958,8 +958,8 @@ class OrchestraDesktopApp(
     }
 
     private fun textFeatureRefs(): List<Pair<String, NodeTextSection>> = listOf(
-        "init-code" to NodeTextSection.Initialization,
-        "code" to NodeTextSection.Source,
+        "instantiation" to NodeTextSection.Instantiation,
+        "declaration" to NodeTextSection.Declaration,
         "spec" to NodeTextSection.Specification,
         "test-data" to NodeTextSection.Tests,
         "usage-instructions" to NodeTextSection.AiInstructions,
@@ -3470,24 +3470,24 @@ private class NodeTextEditor(
     private val selectableLanguages = (listOf(VOID_LANGUAGE_ID) + languageIds).distinct()
     private val textTabs = listOf(
         TextTabSpec(
-            label = "Initialization",
-            section = NodeTextSection.Initialization,
+            label = "Instantiation",
+            section = NodeTextSection.Instantiation,
             allowInheritance = true,
             defaultLanguageId = VOID_LANGUAGE_ID,
-            textGetter = { it.initialization },
-            textSetter = { text, value -> text.copy(initialization = value) },
-            languageGetter = { it.initializationLanguageId },
-            languageSetter = { text, value -> text.copy(initializationLanguageId = value) },
+            textGetter = { it.instantiation },
+            textSetter = { text, value -> text.copy(instantiation = value) },
+            languageGetter = { it.instantiationLanguageId },
+            languageSetter = { text, value -> text.copy(instantiationLanguageId = value) },
         ),
         TextTabSpec(
-            label = "Source",
-            section = NodeTextSection.Source,
+            label = "Declaration",
+            section = NodeTextSection.Declaration,
             allowInheritance = true,
             defaultLanguageId = VOID_LANGUAGE_ID,
-            textGetter = { it.source },
-            textSetter = { text, value -> text.copy(source = value) },
-            languageGetter = { it.sourceLanguageId },
-            languageSetter = { text, value -> text.copy(sourceLanguageId = value) },
+            textGetter = { it.declaration },
+            textSetter = { text, value -> text.copy(declaration = value) },
+            languageGetter = { it.declarationLanguageId },
+            languageSetter = { text, value -> text.copy(declarationLanguageId = value) },
         ),
         TextTabSpec(
             label = "Specification",

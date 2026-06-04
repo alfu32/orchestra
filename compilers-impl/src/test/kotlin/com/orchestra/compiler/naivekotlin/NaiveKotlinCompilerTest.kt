@@ -39,7 +39,7 @@ class NaiveKotlinCompilerTest {
         val root = repository.getDocument().rootNodeId
         val staticFile = repository.createNode(root, "@StaticFile", NodeKind.Processor)
         staticFile.metadata["path"] = "config/app.json"
-        repository.updateNodeText(staticFile.id, staticFile.text.copy(source = """{"enabled":true}"""))
+        repository.updateNodeText(staticFile.id, staticFile.text.copy(declaration = """{"enabled":true}"""))
 
         val result = GenericCompiler().compile(repository.getDocument())
 
@@ -56,11 +56,11 @@ class NaiveKotlinCompilerTest {
         val root = repository.getDocument().rootNodeId
         repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "generic"))
         val generatorTemplate = repository.createNode(root, "@Generator", NodeKind.Processor)
-        repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(source = "generate ${'$'}{node.name} -> ${'$'}{outgoingArguments}\n${'$'}{outgoingTypeDefinitions}"))
+        repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(declaration = "generate ${'$'}{node.name} -> ${'$'}{outgoingArguments}\n${'$'}{outgoingTypeDefinitions}"))
         val sinkTemplate = repository.createNode(root, "@Sink", NodeKind.Processor)
-        repository.updateNodeText(sinkTemplate.id, sinkTemplate.text.copy(source = "sink ${'$'}{node.name} <- ${'$'}{incomingArguments}\n${'$'}{incomingTypeDefinitions}"))
+        repository.updateNodeText(sinkTemplate.id, sinkTemplate.text.copy(declaration = "sink ${'$'}{node.name} <- ${'$'}{incomingArguments}\n${'$'}{incomingTypeDefinitions}"))
         val linkTemplate = repository.createNode(root, "@Transport", NodeKind.Processor)
-        repository.updateNodeText(linkTemplate.id, linkTemplate.text.copy(source = "pipe ${'$'}{link.variableName}:${'$'}{link.typeName}\n${'$'}{link.typeDefinition}"))
+        repository.updateNodeText(linkTemplate.id, linkTemplate.text.copy(declaration = "pipe ${'$'}{link.variableName}:${'$'}{link.typeName}\n${'$'}{link.typeDefinition}"))
         val source = repository.createNode(root, "read_file", NodeKind.Processor)
         val target = repository.createNode(root, "write_file", NodeKind.Processor)
         repository.addPort(source.id, NodePort("out", "record", PortDirection.Output))
@@ -87,9 +87,9 @@ class NaiveKotlinCompilerTest {
         repository.updateNodeTechnology(compiler.id, TechnologyMetadata(languageId = "kotlin", technologyId = "generated-kotlin"))
         compiler.metadata["className"] = "FlowGeneratedCompiler"
         val generatorTemplate = repository.createNode(compiler.id, "@Generator", NodeKind.Processor)
-        repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(source = "generated ${'$'}{node.name}"))
+        repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(declaration = "generated ${'$'}{node.name}"))
         val staticFilesTemplate = repository.createNode(compiler.id, "@StaticFile", NodeKind.Processor)
-        repository.updateNodeText(staticFilesTemplate.id, staticFilesTemplate.text.copy(source = "settings.gradle.kts\nbuild.gradle.kts"))
+        repository.updateNodeText(staticFilesTemplate.id, staticFilesTemplate.text.copy(declaration = "settings.gradle.kts\nbuild.gradle.kts"))
 
         val result = CompilerCompiler().compile(repository.getDocument())
 

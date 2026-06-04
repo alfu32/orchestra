@@ -208,7 +208,7 @@ class FlowTemplateCompletionProvider : TechnologyCompletionProvider {
     override fun supports(languageId: String, technologyId: String): Boolean = true
 
     override fun getSuggestions(node: Node, document: InflowDocument, request: CompletionRequest): List<CompletionSuggestion> {
-        if (request.textSection !in setOf(NodeTextSection.Initialization, NodeTextSection.Source)) return emptyList()
+        if (request.textSection !in setOf(NodeTextSection.Instantiation, NodeTextSection.Declaration)) return emptyList()
         if (node.stereotype(document) != NodeStereotype.CompilerTemplate) return emptyList()
 
         val suggestions = mutableListOf<CompletionSuggestion>()

@@ -70,7 +70,7 @@ private fun createSample(args: Array<String>) {
     repository.updateNodeTechnology(producer.id, kotlinTechnology())
     repository.updateNodeText(
         producer.id,
-        producer.text.copy(source = "context.outputs.getOrPut(\"items\") { mutableListOf() }.add(\"hello\")"),
+        producer.text.copy(declaration = "context.outputs.getOrPut(\"items\") { mutableListOf() }.add(\"hello\")"),
     )
 
     val consumer = repository.createNode(root, "Consumer", NodeKind.Processor)
@@ -78,7 +78,7 @@ private fun createSample(args: Array<String>) {
     repository.updateNodeTechnology(consumer.id, kotlinTechnology())
     repository.updateNodeText(
         consumer.id,
-        consumer.text.copy(source = "println(context.inputs[\"items\"] ?: emptyList<Any?>())"),
+        consumer.text.copy(declaration = "println(context.inputs[\"items\"] ?: emptyList<Any?>())"),
     )
 
     repository.createLink(root, "Producer.items -> Consumer.items", producer.id, "items", consumer.id, "items")

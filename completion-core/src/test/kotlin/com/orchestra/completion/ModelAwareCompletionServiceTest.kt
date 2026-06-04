@@ -23,7 +23,7 @@ class ModelAwareCompletionServiceTest {
         val labels = service.getSuggestions(
             CompletionRequest(
                 nodeId = node.id,
-                textSection = NodeTextSection.Source,
+                textSection = NodeTextSection.Declaration,
                 languageId = "kotlin",
                 technologyId = "kotlin-jvm",
                 cursorOffset = 0,
@@ -57,7 +57,7 @@ class ModelAwareCompletionServiceTest {
         val suggestions = service.getSuggestions(
             CompletionRequest(
                 nodeId = worker.id,
-                textSection = NodeTextSection.Source,
+                textSection = NodeTextSection.Declaration,
                 languageId = "kotlin",
                 technologyId = "kotlin-jvm",
                 cursorOffset = 0,
@@ -86,7 +86,7 @@ class ModelAwareCompletionServiceTest {
         val labels = service.getSuggestions(
             CompletionRequest(
                 nodeId = template.id,
-                textSection = NodeTextSection.Source,
+                textSection = NodeTextSection.Declaration,
                 languageId = "kotlin",
                 technologyId = "generic",
                 cursorOffset = 0,

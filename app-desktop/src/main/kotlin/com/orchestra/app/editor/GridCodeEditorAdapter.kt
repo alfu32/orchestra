@@ -74,7 +74,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private var readOnly = false
     private var languageId = ""
     private var technology = TechnologyMetadata()
-    private var completionContext = EditorCompletionContext(null, NodeTextSection.Source)
+    private var completionContext = EditorCompletionContext(null, NodeTextSection.Declaration)
     private var diagnostics: List<Diagnostic> = emptyList()
     private var completionItems: List<CompletionSuggestion> = emptyList()
     private var completionIndex = 0

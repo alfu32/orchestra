@@ -14,6 +14,8 @@ import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
+import com.orchestra.core.model.getElementById
+import com.orchestra.core.model.getElementsByIds
 import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.validation.DocumentValidator
@@ -42,7 +44,7 @@ fun compileWithMethodDispatch(
                 return@forEach
             }
 
-            val text = runCatching { renderMethodTemplate(document, node, options, compiler.generatedTextFor(document, node, options)).trim() }
+            val text = runCatching { renderMethodTemplate(document, node, options, compiler.generatedDeclarationFor(document, node, options)).trim() }
                 .onFailure { error ->
                     diagnostics += Diagnostic(
                         DiagnosticSeverity.Error,
@@ -93,7 +95,7 @@ private fun methodStaticFileFor(node: Node): GeneratedFile =
         path = node.metadata["path"]?.takeIf { it.isNotBlank() }
             ?: node.metadata["file"]?.takeIf { it.isNotBlank() }
             ?: node.name,
-        content = node.text.source.ifBlank { node.text.specification },
+        content = node.text.declaration.ifBlank { node.text.specification },
         originNodeId = node.id,
         reason = "Literal static file encoded in the flow design",
         elementKind = GeneratedElementKind.StaticFile,
@@ -163,10 +165,10 @@ private fun renderMethodTemplate(document: InflowDocument, node: Node, options: 
         "node.metadata" to node.metadata.entries.joinToString(",") { "${it.key}=${it.value}" },
         "node.pluginData" to node.pluginData.entries.joinToString(",") { "${it.key}=${it.value}" },
         "node.ports" to node.ports.joinToString(",") { it.name },
-        "node.text.initializationLanguageId" to node.text.initializationLanguageId,
-        "node.text.initialization" to node.text.initialization,
-        "node.text.sourceLanguageId" to node.text.sourceLanguageId,
-        "node.text.source" to node.text.source,
+        "node.text.instantiationLanguageId" to node.text.instantiationLanguageId,
+        "node.text.instantiation" to node.text.instantiation,
+        "node.text.declarationLanguageId" to node.text.declarationLanguageId,
+        "node.text.declaration" to node.text.declaration,
         "node.text.specificationLanguageId" to node.text.specificationLanguageId,
         "node.text.specification" to node.text.specification,
         "node.text.aiInstructionsLanguageId" to node.text.aiInstructionsLanguageId,
@@ -180,19 +182,19 @@ private fun renderMethodTemplate(document: InflowDocument, node: Node, options: 
         "technology.technologyId" to document.effectiveTechnologyId(node.id),
         "technology.compilerId" to node.technology.compilerId,
         "technology.fileExtension" to node.technology.fileExtension,
-        "source" to node.text.source,
-        "initialization" to node.text.initialization,
+        "declaration" to node.text.declaration,
+        "instantiation" to node.text.instantiation,
         "specification" to node.text.specification,
         "tests" to node.text.tests,
         "usageInstructions" to node.text.aiInstructions,
-        "text.source" to node.text.source,
-        "text.initialization" to node.text.initialization,
+        "text.declaration" to node.text.declaration,
+        "text.instantiation" to node.text.instantiation,
         "text.specification" to node.text.specification,
         "text.tests" to node.text.tests,
         "text.usageInstructions" to node.text.aiInstructions,
-        "children" to node.children.joinToString(",") { document.nodes[it]?.name ?: it.value },
-        "incomingLinks" to node.incomingLinks.joinToString(",") { document.nodes[it]?.name ?: it.value },
-        "outgoingLinks" to node.outgoingLinks.joinToString(",") { document.nodes[it]?.name ?: it.value },
+        "children" to document.getElementsByIds(node.children).values.joinToString(",") { it.name },
+        "incomingLinks" to document.getElementsByIds(node.incomingLinks).values.joinToString(",") { it.name },
+        "outgoingLinks" to document.getElementsByIds(node.outgoingLinks).values.joinToString(",") { it.name },
         "ports" to node.ports.joinToString(",") { it.name },
     )
     if (link != null) {
@@ -206,8 +208,8 @@ private fun renderMethodTemplate(document: InflowDocument, node: Node, options: 
             "link.typeName" to link.typeName,
             "link.typeDefinition" to link.payloadDefinition,
             "link.payloadDefinition" to link.payloadDefinition,
-            "sourceNode.name" to document.nodes[link.sourceNodeId]?.name.orEmpty(),
-            "targetNode.name" to document.nodes[link.targetNodeId]?.name.orEmpty(),
+            "sourceNode.name" to document.getElementById(link.sourceNodeId)?.name.orEmpty(),
+            "targetNode.name" to document.getElementById(link.targetNodeId)?.name.orEmpty(),
         )
     }
     var rendered = template

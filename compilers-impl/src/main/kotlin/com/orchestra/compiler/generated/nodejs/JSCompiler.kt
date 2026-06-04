@@ -1,12 +1,19 @@
+@file:Suppress("OVERRIDE_DEPRECATION")
+
 package com.orchestra.compiler.generated.nodejs
 
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerTechnology
 import com.orchestra.compiler.generic.GenericCompiler
-import com.orchestra.core.diagnostics.Diagnostic
+import com.orchestra.core.classification.LinkClassifier
+import com.orchestra.core.classification.LinkStereotype
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
+import com.orchestra.core.model.NodeKind
+import com.orchestra.core.model.getElementById
+import com.orchestra.core.model.getElementsByIds
 
+@Suppress("DEPRECATION")
 class JSCompiler : GenericCompiler() {
     override val id: String = "nodejs-compiler"
     override val displayName: String = "NodeJSCompilerGenerated"
@@ -28,24 +35,68 @@ class JSCompiler : GenericCompiler() {
 """.trimIndent()
 
 
-    override fun getLink(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
+    override fun getLink(document: InflowDocument, node: Node, options: CompilerOptions): String = node.text.declaration.trimIndent()
 
 
-    override fun getProcessingUnit(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
+    override fun getProcessingUnit(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        val name = node.name
+        val incomingLinks = document.getElementsByIds(node.incomingLinks)
+        val inputPorts = incomingLinks.filter { (id,nd) ->
+            val srcNode = document.getElementById(nd.link!!.sourceNodeId)!!
+            val stereotype = LinkClassifier.classify(document, srcNode)
+            stereotype != LinkStereotype.DependencyInjection
+        }
+        val libraries = incomingLinks.filter { (id,nd) ->
+            val srcNode = document.getElementById(nd.link!!.sourceNodeId)!!
+            val stereotype = LinkClassifier.classify(document, srcNode)
+            stereotype == LinkStereotype.DependencyInjection
+        }
+        val outgoingLinks = document.getElementsByIds(node.outgoingLinks)
+        val outputPorts = outgoingLinks
+        val portArgsDeclarations = (inputPorts+outputPorts).map{ port -> "${port.value.name}:${port.value.link!!.typeName}"}
+        val portArgs = (inputPorts+outputPorts).map{ port -> "${port.value.name} "}.joinToString(",")
+        val depsArgsDeclarations = (libraries).map{ port -> "${port.value.name}:${port.value.link!!.typeName}: "}
+        return """
+            function create_${name}(){
+                ${libraries.values.flatMap { l -> listOf(l.text.instantiation,l.text.declaration) }.joinToString("\n")}
+                ${node.text.instantiation.trimIndent()}
+                function ${name}(${portArgs }){
+                       ${node.text.declaration.trimIndent()}
+                }
+            }
+        """.trimIndent()
+    }
 
 
     override fun getCompositeWorker(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        val children = document.getElementsByIds(node.children)
         return """
             function ${node.name}(${node.ports.joinToString(",") { p -> p.name }}){
+                
                 ${
-                    node.children.map { child ->
-                        child.value
+                    children.map { (id,child) ->
+                        val name = child.name
+                        val incomingLinks = document.getElementsByIds(child.incomingLinks)
+                        val inputPorts = incomingLinks.filter { (id,nd) ->
+                            val srcNode = document.getElementById(nd.link!!.sourceNodeId)!!
+                            val stereotype = LinkClassifier.classify(document, srcNode)
+                            stereotype != LinkStereotype.DependencyInjection
+                        }
+                        val libraries = incomingLinks.filter { (id,nd) ->
+                            val srcNode = document.getElementById(nd.link!!.sourceNodeId)!!
+                            val stereotype = LinkClassifier.classify(document, srcNode)
+                            stereotype == LinkStereotype.DependencyInjection
+                        }
+                        val outgoingLinks = document.getElementsByIds(child.outgoingLinks)
+                        val portArgsDeclarations = (inputPorts + outgoingLinks).map{ port -> "var ${port.value.name}/*:${port.value.link!!.typeName}*/"}
+                        val portArgs = (inputPorts + outgoingLinks).map{ port -> "${port.value.name} "}.joinToString(",")
+                        val depsArgsDeclarations = (libraries).map{ port -> "${port.value.name}:${port.value.link!!.typeName}: "}
+                        """
+                            ${depsArgsDeclarations.joinToString("\n")}}
+                            ${portArgsDeclarations.joinToString("\n") }}
+                            create_${name}()(${portArgs})
+                        """.trimIndent()
+                        
                     }
                 }
             }
@@ -53,394 +104,76 @@ class JSCompiler : GenericCompiler() {
     }
 
 
-    override fun getCompositeErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
+    override fun getCompositeErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String = getCompositeWorker(document,node,options)
 
 
-    override fun getGenerator(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-// generic override for generator generation
-  template: generator init
-
-  node: ${node.name}
-  options.projectName:${options.projectName}
-
-node.id:${node.id}
-node.name:${node.name}
-node.kind.name:${node.kind.name}
-node.kind.ordinal:${node.kind.ordinal}
-node.children.size:${node.children.size}
-node.incomingLinks:${node.incomingLinks}
-node.isComposite:${node.isComposite}
-node.isLink:${node.isLink}
-node.isTerminal:${node.isTerminal}
-node.layout:${node.layout}
-node.link.sourceNodeId:${node.link?.sourceNodeId}
-node.link.targetNodeId:${node.link?.targetNodeId}
-node.link.sourcePortName:${node.link?.sourcePortName}
-node.link.targetPortName:${node.link?.targetPortName}
-node.metadata.size:${node.metadata.size}
-node.metadata:${node.metadata}
-node.outgoingLinks:${node.outgoingLinks}
-node.parentId:${node.parentId}
-node.pluginData:${node.pluginData}
-node.ports:${node.ports}
-node.pluginData:${node.pluginData}
-node.text.initializationLanguageId:${node.text.initializationLanguageId}
-node.text.initialization:${node.text.initialization}
-node.text.sourceLanguageId:${node.text.sourceLanguageId}
-node.text.source:${node.text.source}
-node.text.specificationLanguageId:${node.text.specificationLanguageId}
-node.text.specification:${node.text.specification}
-node.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}
-node.text.aiInstructions:${node.text.aiInstructions}
-node.text.testsLanguageId:${node.text.testsLanguageId}
-node.text.tests:${node.text.tests}
-// generic override for generator generation
-  template: generator loop
-
-  node: ${node.name}
-  options.projectName:${options.projectName}
-
-node.id:${node.id}
-node.name:${node.name}
-node.kind.name:${node.kind.name}
-node.kind.ordinal:${node.kind.ordinal}
-node.children.size:${node.children.size}
-node.incomingLinks:${node.incomingLinks}
-node.isComposite:${node.isComposite}
-node.isLink:${node.isLink}
-node.isTerminal:${node.isTerminal}
-node.layout:${node.layout}
-node.link.sourceNodeId:${node.link?.sourceNodeId}
-node.link.targetNodeId:${node.link?.targetNodeId}
-node.link.sourcePortName:${node.link?.sourcePortName}
-node.link.targetPortName:${node.link?.targetPortName}
-node.metadata.size:${node.metadata.size}
-node.metadata:${node.metadata}
-node.outgoingLinks:${node.outgoingLinks}
-node.parentId:${node.parentId}
-node.pluginData:${node.pluginData}
-node.ports:${node.ports}
-node.pluginData:${node.pluginData}
-node.text.initializationLanguageId:${node.text.initializationLanguageId}
-node.text.initialization:${node.text.initialization}
-node.text.sourceLanguageId:${node.text.sourceLanguageId}
-node.text.source:${node.text.source}
-node.text.specificationLanguageId:${node.text.specificationLanguageId}
-node.text.specification:${node.text.specification}
-node.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}
-node.text.aiInstructions:${node.text.aiInstructions}
-node.text.testsLanguageId:${node.text.testsLanguageId}
-node.text.tests:${node.text.tests}
-""".trimIndent()
+    override fun getGenerator(document: InflowDocument, node: Node, options: CompilerOptions): String = getProcessingUnit(document,node,options)
 
 
-    override fun getTransformer(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-// generic override for transformer generation
-  template: transformer init
-
-  node: ${node.name}
-  options.projectName:${options.projectName}
-
-node.id:${node.id}
-node.name:${node.name}
-node.kind.name:${node.kind.name}
-node.kind.ordinal:${node.kind.ordinal}
-node.children.size:${node.children.size}
-node.incomingLinks:${node.incomingLinks}
-node.isComposite:${node.isComposite}
-node.isLink:${node.isLink}
-node.isTerminal:${node.isTerminal}
-node.layout:${node.layout}
-node.link.sourceNodeId:${node.link?.sourceNodeId}
-node.link.targetNodeId:${node.link?.targetNodeId}
-node.link.sourcePortName:${node.link?.sourcePortName}
-node.link.targetPortName:${node.link?.targetPortName}
-node.metadata.size:${node.metadata.size}
-node.metadata:${node.metadata}
-node.outgoingLinks:${node.outgoingLinks}
-node.parentId:${node.parentId}
-node.pluginData:${node.pluginData}
-node.ports:${node.ports}
-node.pluginData:${node.pluginData}
-node.text.initializationLanguageId:${node.text.initializationLanguageId}
-node.text.initialization:${node.text.initialization}
-node.text.sourceLanguageId:${node.text.sourceLanguageId}
-node.text.source:${node.text.source}
-node.text.specificationLanguageId:${node.text.specificationLanguageId}
-node.text.specification:${node.text.specification}
-node.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}
-node.text.aiInstructions:${node.text.aiInstructions}
-node.text.testsLanguageId:${node.text.testsLanguageId}
-node.text.tests:${node.text.tests}
-// generic override for transformer generation
-  template: transformer loop
-
-  node: ${node.name}
-  options.projectName:${options.projectName}
-
-node.id:${node.id}
-node.name:${node.name}
-node.kind.name:${node.kind.name}
-node.kind.ordinal:${node.kind.ordinal}
-node.children.size:${node.children.size}
-node.incomingLinks:${node.incomingLinks}
-node.isComposite:${node.isComposite}
-node.isLink:${node.isLink}
-node.isTerminal:${node.isTerminal}
-node.layout:${node.layout}
-node.link.sourceNodeId:${node.link?.sourceNodeId}
-node.link.targetNodeId:${node.link?.targetNodeId}
-node.link.sourcePortName:${node.link?.sourcePortName}
-node.link.targetPortName:${node.link?.targetPortName}
-node.metadata.size:${node.metadata.size}
-node.metadata:${node.metadata}
-node.outgoingLinks:${node.outgoingLinks}
-node.parentId:${node.parentId}
-node.pluginData:${node.pluginData}
-node.ports:${node.ports}
-node.pluginData:${node.pluginData}
-node.text.initializationLanguageId:${node.text.initializationLanguageId}
-node.text.initialization:${node.text.initialization}
-node.text.sourceLanguageId:${node.text.sourceLanguageId}
-node.text.source:${node.text.source}
-node.text.specificationLanguageId:${node.text.specificationLanguageId}
-node.text.specification:${node.text.specification}
-node.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}
-node.text.aiInstructions:${node.text.aiInstructions}
-node.text.testsLanguageId:${node.text.testsLanguageId}
-node.text.tests:${node.text.tests}
-""".trimIndent()
+    override fun getTransformer(document: InflowDocument, node: Node, options: CompilerOptions): String =getProcessingUnit(document,node,options)
 
 
-    override fun getSink(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-// generic override for sink generation
-  template: sink init
-
-  node: ${node.name}
-  options.projectName:${options.projectName}
-
-node.id:${node.id}
-node.name:${node.name}
-node.kind.name:${node.kind.name}
-node.kind.ordinal:${node.kind.ordinal}
-node.children.size:${node.children.size}
-node.incomingLinks:${node.incomingLinks}
-node.isComposite:${node.isComposite}
-node.isLink:${node.isLink}
-node.isTerminal:${node.isTerminal}
-node.layout:${node.layout}
-node.link.sourceNodeId:${node.link?.sourceNodeId}
-node.link.targetNodeId:${node.link?.targetNodeId}
-node.link.sourcePortName:${node.link?.sourcePortName}
-node.link.targetPortName:${node.link?.targetPortName}
-node.metadata.size:${node.metadata.size}
-node.metadata:${node.metadata}
-node.outgoingLinks:${node.outgoingLinks}
-node.parentId:${node.parentId}
-node.pluginData:${node.pluginData}
-node.ports:${node.ports}
-node.pluginData:${node.pluginData}
-node.text.initializationLanguageId:${node.text.initializationLanguageId}
-node.text.initialization:${node.text.initialization}
-node.text.sourceLanguageId:${node.text.sourceLanguageId}
-node.text.source:${node.text.source}
-node.text.specificationLanguageId:${node.text.specificationLanguageId}
-node.text.specification:${node.text.specification}
-node.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}
-node.text.aiInstructions:${node.text.aiInstructions}
-node.text.testsLanguageId:${node.text.testsLanguageId}
-node.text.tests:${node.text.tests}
-// generic override for sink generation
-  template: sink loop
-
-  node: ${node.name}
-  options.projectName:${options.projectName}
-
-node.id:${node.id}
-node.name:${node.name}
-node.kind.name:${node.kind.name}
-node.kind.ordinal:${node.kind.ordinal}
-node.children.size:${node.children.size}
-node.incomingLinks:${node.incomingLinks}
-node.isComposite:${node.isComposite}
-node.isLink:${node.isLink}
-node.isTerminal:${node.isTerminal}
-node.layout:${node.layout}
-node.link.sourceNodeId:${node.link?.sourceNodeId}
-node.link.targetNodeId:${node.link?.targetNodeId}
-node.link.sourcePortName:${node.link?.sourcePortName}
-node.link.targetPortName:${node.link?.targetPortName}
-node.metadata.size:${node.metadata.size}
-node.metadata:${node.metadata}
-node.outgoingLinks:${node.outgoingLinks}
-node.parentId:${node.parentId}
-node.pluginData:${node.pluginData}
-node.ports:${node.ports}
-node.pluginData:${node.pluginData}
-node.text.initializationLanguageId:${node.text.initializationLanguageId}
-node.text.initialization:${node.text.initialization}
-node.text.sourceLanguageId:${node.text.sourceLanguageId}
-node.text.source:${node.text.source}
-node.text.specificationLanguageId:${node.text.specificationLanguageId}
-node.text.specification:${node.text.specification}
-node.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}
-node.text.aiInstructions:${node.text.aiInstructions}
-node.text.testsLanguageId:${node.text.testsLanguageId}
-node.text.tests:${node.text.tests}
+    override fun getSink(document: InflowDocument, node: Node, options: CompilerOptions): String =getProcessingUnit(document,node,options)
 
 
-${document}
-""".trimIndent()
+    override fun getScript(document: InflowDocument, node: Node, options: CompilerOptions): String = node.text.declaration.trimIndent()
 
 
-    override fun getScript(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
-
-
-    override fun getErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
-
+    override fun getErrorHandler(document: InflowDocument, node: Node, options: CompilerOptions): String = getProcessingUnit(document,node,options)
 
     override fun getServiceLibrary(document: InflowDocument, node: Node, options: CompilerOptions): String =
         """
-// generic override for service library generation
-  template: service library init
-
-  node: ${node.name}
-  options.projectName:${options.projectName}
-
-node.id:${node.id}
-node.name:${node.name}
-node.kind.name:${node.kind.name}
-node.kind.ordinal:${node.kind.ordinal}
-node.children.size:${node.children.size}
-node.incomingLinks:${node.incomingLinks}
-node.isComposite:${node.isComposite}
-node.isLink:${node.isLink}
-node.isTerminal:${node.isTerminal}
-node.layout:${node.layout}
-node.link.sourceNodeId:${node.link?.sourceNodeId}
-node.link.targetNodeId:${node.link?.targetNodeId}
-node.link.sourcePortName:${node.link?.sourcePortName}
-node.link.targetPortName:${node.link?.targetPortName}
-node.metadata.size:${node.metadata.size}
-node.metadata:${node.metadata}
-node.outgoingLinks:${node.outgoingLinks}
-node.parentId:${node.parentId}
-node.pluginData:${node.pluginData}
-node.ports:${node.ports}
-node.pluginData:${node.pluginData}
-node.text.initializationLanguageId:${node.text.initializationLanguageId}
-node.text.initialization:${node.text.initialization}
-node.text.sourceLanguageId:${node.text.sourceLanguageId}
-node.text.source:${node.text.source}
-node.text.specificationLanguageId:${node.text.specificationLanguageId}
-node.text.specification:${node.text.specification}
-node.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}
-node.text.aiInstructions:${node.text.aiInstructions}
-node.text.testsLanguageId:${node.text.testsLanguageId}
-node.text.tests:${node.text.tests}
-// generic override for service library generation
-  template: service library init
-
-  node: ${node.name}
-  options.projectName:${options.projectName}
-
-node.id:${node.id}
-node.name:${node.name}
-node.kind.name:${node.kind.name}
-node.kind.ordinal:${node.kind.ordinal}
-node.children.size:${node.children.size}
-node.incomingLinks:${node.incomingLinks}
-node.incomingLinks:${'$'}{node.incomingLinks.first().value}
-node.isComposite:${node.isComposite}
-node.isLink:${node.isLink}
-node.isTerminal:${node.isTerminal}
-node.layout:${node.layout}
-node.link.sourceNodeId:${node.link?.sourceNodeId}
-node.link.targetNodeId:${node.link?.targetNodeId}
-node.link.sourcePortName:${node.link?.sourcePortName}
-node.link.targetPortName:${node.link?.targetPortName}
-node.metadata.size:${node.metadata.size}
-node.metadata:${node.metadata}
-node.outgoingLinks:${node.outgoingLinks}
-node.parentId:${node.parentId}
-node.pluginData:${node.pluginData}
-node.ports:${node.ports}
-node.pluginData:${node.pluginData}
-node.text.initializationLanguageId:${node.text.initializationLanguageId}
-node.text.initialization:${node.text.initialization}
-node.text.sourceLanguageId:${node.text.sourceLanguageId}
-node.text.source:${node.text.source}
-node.text.specificationLanguageId:${node.text.specificationLanguageId}
-node.text.specification:${node.text.specification}
-node.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}
-node.text.aiInstructions:${node.text.aiInstructions}
-node.text.testsLanguageId:${node.text.testsLanguageId}
-node.text.tests:${node.text.tests}
-""".trimIndent()
+            ${node.text.instantiation}
+            ${node.text.declaration}
+        """.trimIndent()
 
 
-    override fun getTransport(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
+    override fun getTransport(document: InflowDocument, node: Node, options: CompilerOptions): String = node.text.declaration.trimIndent()
 
 
-    override fun getErrorPipe(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
+    override fun getErrorPipe(document: InflowDocument, node: Node, options: CompilerOptions): String = node.text.declaration.trimIndent()
 
 
-    override fun getDependencyInjection(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
-
+    override fun getDependencyInjection(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        val sourceLibNode = document.getElementById(node.link!!.sourceNodeId)
+        return """
+            const ${sourceLibNode!!.name} = require('../libraries/${sourceLibNode.name}.js')
+        """.trimIndent()
+    }
 
     override fun getTest(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
-
-
-    override fun getTestSuite(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
+        """ function (){
+                ${node.text.instantiation}
+                function test_${node.name}() {
+                    ${node.text.declaration}
+                }}
+            }()
+        """.trimIndent()
 
 
-    override fun getInputPort(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
+    override fun getTestSuite(document: InflowDocument, node: Node, options: CompilerOptions): String {
+        val children = document.getElementsByIds(node.children)
+        val tests = children.filter { (_, child) -> child.kind == NodeKind.Processor }
+        return """
+            ${
+                tests.values.joinToString("\n") { ch ->
+                    getTest(document,ch,options)
+                }
+            }
+        """.trimIndent()
 
-""".trimIndent()
+    }
+    override fun getInputPort(document: InflowDocument, node: Node, options: CompilerOptions): String = node.text.declaration.trimIndent()
 
 
-    override fun getOutputPort(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
+    override fun getOutputPort(document: InflowDocument, node: Node, options: CompilerOptions): String = node.text.declaration.trimIndent()
 
 
-    override fun getStaticFile(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        """
-
-""".trimIndent()
+    override fun getStaticFile(document: InflowDocument, node: Node, options: CompilerOptions): String =node.text.declaration.trimIndent()
 
 
     override fun getCompilerTemplate(document: InflowDocument, node: Node, options: CompilerOptions): String =
         """
 
-""".trimIndent()
+        """.trimIndent()
 }

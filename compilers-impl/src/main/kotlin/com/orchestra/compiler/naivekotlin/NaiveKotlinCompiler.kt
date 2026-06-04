@@ -1,3 +1,5 @@
+@file:Suppress("OVERRIDE_DEPRECATION")
+
 package com.orchestra.compiler.naivekotlin
 
 import com.orchestra.compiler.api.CompilationResult
@@ -7,6 +9,7 @@ import com.orchestra.compiler.api.GeneratedFile
 import com.orchestra.compiler.api.GeneratedProject
 import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.core.classification.NodeStereotype
+import com.orchestra.core.classification.stereotype
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.core.model.InflowDocument
@@ -14,7 +17,10 @@ import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.validation.DocumentValidator
+import com.orchestra.core.model.getElementById
+import com.orchestra.core.model.getElementsByIds
 
+@Suppress("DEPRECATION")
 class NaiveKotlinCompiler : GenericCompiler() {
     override val id: String = "naive-kotlin"
     override val displayName: String = "Naive Kotlin/JVM Compiler"
@@ -76,7 +82,7 @@ class NaiveKotlinCompiler : GenericCompiler() {
         listOf(
             GeneratedFile(
                 path = "src/main/kotlin/generated/metadata/${sanitizeIdentifier(node.name)}_${node.id.value.takeLast(8)}.entity.txt",
-                content = generatedTextFor(document, node, options),
+                content = generatedDeclarationFor(document, node, options),
                 originNodeId = node.id,
                 reason = "Terminal entity generation metadata",
                 elementKind = GeneratedElementKind.TerminalEntity,
@@ -87,7 +93,7 @@ class NaiveKotlinCompiler : GenericCompiler() {
         listOf(
             GeneratedFile(
                 path = "src/main/kotlin/generated/metadata/${sanitizeIdentifier(node.name)}_${node.id.value.takeLast(8)}.composite.txt",
-                content = generatedTextFor(document, node, options) + "children=${node.children.joinToString(",")}\n",
+                content = generatedDeclarationFor(document, node, options) + "children=${node.children.joinToString(",")}\n",
                 originNodeId = node.id,
                 reason = "Composite entity generation metadata",
                 elementKind = GeneratedElementKind.CompositeEntity,
@@ -98,7 +104,7 @@ class NaiveKotlinCompiler : GenericCompiler() {
         listOf(
             GeneratedFile(
                 path = "src/main/kotlin/generated/metadata/${sanitizeIdentifier(linkNode.name)}_${linkNode.id.value.takeLast(8)}.link.txt",
-                content = generatedTextFor(document, linkNode, options) + "linkStereotype=${linkStereotype(document, linkNode)}\n",
+                content = generatedDeclarationFor(document, linkNode, options) + "linkStereotype=${linkStereotype(document, linkNode)}\n",
                 originNodeId = linkNode.id,
                 reason = "Link generation metadata",
                 elementKind = GeneratedElementKind.Link,
@@ -108,7 +114,7 @@ class NaiveKotlinCompiler : GenericCompiler() {
     override fun generateMagicFile(document: InflowDocument, node: Node, options: CompilerOptions): GeneratedFile? {
         val name = node.name.trim()
         if (name !in getStaticFiles(document, options)) return null
-        val content = node.text.source.ifBlank { node.text.specification }
+        val content = node.text.declaration.ifBlank { node.text.specification }
         return GeneratedFile(
             path = name,
             content = content,
@@ -179,7 +185,7 @@ class NaiveKotlinCompiler : GenericCompiler() {
         stereotypeText(document, node, NodeStereotype.CompilerTemplate)
 
     private fun stereotypeText(document: InflowDocument, node: Node, expected: NodeStereotype): String =
-        "name=${node.name}\nstereotype=${entityStereotype(document, node)}\ncompilerMethod=get${expected.name}\n"
+        "name=${node.name}\nstereotype=${node.stereotype(document)}\ncompilerMethod=get${expected.name}\n"
 
     private fun settings(projectName: String) = GeneratedFile(
         path = "settings.gradle.kts",
@@ -281,32 +287,32 @@ $body
     }
 
     private fun terminalInitializationBody(node: Node): String {
-        val source = node.text.initialization.trimEnd()
+        val source = node.text.instantiation.trimEnd()
         return if (source.isBlank()) {
-            "    // Node '${node.name}' has no initialization text yet.\n"
+            "    // Node '${node.name}' has no instantiation text yet.\n"
         } else {
             source.lines().joinToString(separator = "\n", postfix = "\n") { "    $it" }
         }
     }
 
     private fun terminalBody(node: Node): String {
-        val source = node.text.source.trimEnd()
+        val source = node.text.declaration.trimEnd()
         return if (source.isBlank()) {
-            "    // Node '${node.name}' has no source text yet.\n"
+            "    // Node '${node.name}' has no declaration text yet.\n"
         } else {
             source.lines().joinToString(separator = "\n", postfix = "\n") { "    $it" }
         }
     }
 
     private fun compositeInitializationBody(document: InflowDocument, node: Node, names: FunctionNames): String {
-        val processors = node.children.mapNotNull(document.nodes::get).filter { !it.isLink }
+        val processors = document.getElementsByIds(node.children).values.filter { !it.isLink }
         return processors.joinToString(separator = "\n", postfix = "\n") {
             "    generated.nodes.${names.initializerFor(it.id)}(context)"
         }.ifBlank { "    // Composite node '${node.name}' has no executable children to initialize.\n" }
     }
 
     private fun compositeBody(document: InflowDocument, node: Node, names: FunctionNames): String {
-        val children = node.children.mapNotNull(document.nodes::get)
+        val children = document.getElementsByIds(node.children).values.toList()
         val processors = children.filter { !it.isLink }
         val links = children.filter { it.isLink }
         val calls = processors.joinToString(separator = "\n") {
@@ -317,8 +323,8 @@ $body
             if (link == null) {
                 "    // Link '${linkNode.name}' has no link data."
             } else {
-                val source = "${sanitizeKey(document.nodes[link.sourceNodeId]?.name ?: link.sourceNodeId.value)}.${sanitizeKey(link.sourcePortName)}"
-                val target = "${sanitizeKey(document.nodes[link.targetNodeId]?.name ?: link.targetNodeId.value)}.${sanitizeKey(link.targetPortName)}"
+                val source = "${sanitizeKey(document.getElementById(link.sourceNodeId)?.name ?: link.sourceNodeId.value)}.${sanitizeKey(link.sourcePortName)}"
+                val target = "${sanitizeKey(document.getElementById(link.targetNodeId)?.name ?: link.targetNodeId.value)}.${sanitizeKey(link.targetPortName)}"
                 "    runLink(context, \"$source\", \"$target\")"
             }
         }
@@ -331,11 +337,11 @@ private fun compileScopeIds(document: InflowDocument, requested: Set<NodeId>): S
     if (requested.isEmpty()) return document.nodes.keys
     val result = linkedSetOf<NodeId>()
     fun include(id: NodeId) {
-        val node = document.nodes[id] ?: return
+        val node = document.getElementById(id) ?: return
         if (result.add(id) && !node.isLink) node.children.forEach(::include)
     }
     requested.forEach(::include)
-    val selectedNodes = result.mapNotNull(document.nodes::get).filterNot { it.isLink }.map { it.id }.toSet()
+    val selectedNodes = result.mapNotNull(document::getElementById).filterNot { it.isLink }.map { it.id }.toSet()
     document.nodes.values.filter { it.isLink }.forEach { linkNode ->
         val link = linkNode.link ?: return@forEach
         if (link.sourceNodeId in selectedNodes && link.targetNodeId in selectedNodes) result += linkNode.id
@@ -345,7 +351,7 @@ private fun compileScopeIds(document: InflowDocument, requested: Set<NodeId>): S
 
 private fun executableScopeRoots(document: InflowDocument, scopeIds: Set<NodeId>): List<NodeId> {
     if (scopeIds.contains(document.rootNodeId)) return listOf(document.rootNodeId)
-    val nodes = scopeIds.mapNotNull(document.nodes::get).filterNot { it.isLink }
+    val nodes = scopeIds.mapNotNull(document::getElementById).filterNot { it.isLink }
     return nodes
         .filter { node -> node.parentId !in scopeIds }
         .map { it.id }
