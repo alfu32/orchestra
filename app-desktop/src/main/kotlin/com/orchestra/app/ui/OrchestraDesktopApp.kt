@@ -1152,6 +1152,7 @@ class GraphCanvas(
         const val SNAP_GRID_STEP = 40
         const val SNAP_RADIUS_PX = 5.0
         const val COMPOSITE_TOP_PADDING = 80
+        const val COMPOSITE_HEADER_EXTRA_HEIGHT = 24
         const val SHEET_UNITS_PER_MM = 4.0
         const val SHEET_MARGIN_MM = 10.0
         const val DRAWING_PAD_MM = 12.0
@@ -1322,12 +1323,12 @@ class GraphCanvas(
                         max(requiredPortHeight(parent), parent.layout.closedHeight).roundToInt(),
                     ).toDouble()
                     parent.layout.openWidth = max(parent.layout.openWidth, openWidth)
-                    parent.layout.openHeight = max(parent.layout.openHeight, openHeight)
+                    parent.layout.openHeight = max(parent.layout.openHeight, openHeight + COMPOSITE_HEADER_EXTRA_HEIGHT)
                     parent.layout.x = openX.toDouble()
                     parent.layout.y = openY.toDouble()
                 } else {
                     parent.layout.openWidth = max(parent.layout.openWidth, parent.layout.closedWidth)
-                    parent.layout.openHeight = max(parent.layout.openHeight, parent.layout.closedHeight)
+                    parent.layout.openHeight = max(parent.layout.openHeight, parent.layout.closedHeight + COMPOSITE_HEADER_EXTRA_HEIGHT)
                 }
                 parent.layout.width = if (parent.layout.isExpanded) parent.layout.openWidth else parent.layout.closedWidth
                 parent.layout.height = if (parent.layout.isExpanded) parent.layout.openHeight else parent.layout.closedHeight
@@ -1337,12 +1338,14 @@ class GraphCanvas(
 
     private fun ensureLayoutCanHoldPortsAndLabels(node: Node) {
         val terminalWidth = max(node.layout.closedWidth, requiredNodeWidth(node))
-        val terminalHeight = max(node.layout.closedHeight, requiredPortHeight(node))
+        val terminalHeight = max(node.layout.closedHeight, requiredPortHeight(node) + if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0)
         node.layout.closedWidth = max(node.layout.closedWidth, terminalWidth)
         node.layout.closedHeight = max(node.layout.closedHeight, terminalHeight)
         if (!node.isComposite) {
             node.layout.openWidth = max(node.layout.openWidth, node.layout.closedWidth)
             node.layout.openHeight = max(node.layout.openHeight, node.layout.closedHeight)
+        } else {
+            node.layout.openHeight = max(node.layout.openHeight, node.layout.closedHeight + COMPOSITE_HEADER_EXTRA_HEIGHT)
         }
         node.layout.width = if (node.layout.isExpanded || !node.isComposite) node.layout.openWidth else node.layout.closedWidth
         node.layout.height = if (node.layout.isExpanded || !node.isComposite) node.layout.openHeight else node.layout.closedHeight
@@ -1790,9 +1793,10 @@ class GraphCanvas(
             dashArray = strokeDash,
         )
         val compact = node.children.isEmpty() || !node.layout.isExpanded
-        svgText(svg, node.name, r.x + 12, r.y + 22, if (compact) 13 else 12, "#222222")
-        svgText(svg, stereotype.name, r.x + 12, r.y + 42, 12, "#555555")
-        technologyLabel(node)?.let { svgText(svg, it, r.x + 12, r.y + 58, 11, "#666666") }
+        val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
+        svgText(svg, node.name, r.x + 12, r.y + 22 + headerOffset, if (compact) 13 else 12, "#222222")
+        svgText(svg, stereotype.name, r.x + 12, r.y + 42 + headerOffset, 12, "#555555")
+        technologyLabel(node)?.let { svgText(svg, it, r.x + 12, r.y + 58 + headerOffset, 11, "#666666") }
         svgCompositeToggle(svg, node)
     }
 
@@ -2151,13 +2155,14 @@ class GraphCanvas(
         g2.color = Color(0x222222)
         val compact = node.children.isEmpty() || !node.layout.isExpanded
         g2.font = g2.font.deriveFont(if (compact) 13f else 12f)
-        g2.drawString(node.name, r.x + 12, r.y + 22)
+        val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
+        g2.drawString(node.name, r.x + 12, r.y + 22 + headerOffset)
         g2.color = Color(0x555555)
-        g2.drawString(stereotype.name, r.x + 12, r.y + 42)
+        g2.drawString(stereotype.name, r.x + 12, r.y + 42 + headerOffset)
         technologyLabel(node)?.let {
             g2.color = Color(0x666666)
             g2.font = g2.font.deriveFont(11f)
-            g2.drawString(it, r.x + 12, r.y + 58)
+            g2.drawString(it, r.x + 12, r.y + 58 + headerOffset)
         }
         drawCompositeToggle(g2, node)
         g2.stroke = previousStroke
