@@ -17,7 +17,12 @@
                 "x": -773.0,
                 "y": 173.0,
                 "width": 1703.0,
-                "height": 919.0
+                "height": 919.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "",
@@ -73,8 +78,13 @@
             "layout": {
                 "x": -741.0,
                 "y": 253.0,
-                "width": 1639.0,
-                "height": 791.0
+                "width": 1631.0,
+                "height": 791.0,
+                "closedWidth": 276.0,
+                "closedHeight": 100.0,
+                "openWidth": 1631.0,
+                "openHeight": 791.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "nodej_compiler_tst()",
@@ -117,8 +127,13 @@
             "layout": {
                 "x": -709.0,
                 "y": 828.0,
-                "width": 308.0,
-                "height": 168.0
+                "width": 276.0,
+                "height": 168.0,
+                "closedWidth": 276.0,
+                "closedHeight": 168.0,
+                "openWidth": 276.0,
+                "openHeight": 168.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "read_file(input_record,out_record,lib_config1,lib_error_logging1,lib_file3)",
@@ -175,8 +190,13 @@
             "layout": {
                 "x": -93.0,
                 "y": 771.0,
-                "width": 284.0,
-                "height": 138.0
+                "width": 276.0,
+                "height": 108.0,
+                "closedWidth": 276.0,
+                "closedHeight": 108.0,
+                "openWidth": 276.0,
+                "openHeight": 108.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "transform_data(input_record,out_record,lib_error_logging2)",
@@ -233,8 +253,13 @@
             "layout": {
                 "x": 582.0,
                 "y": 787.0,
-                "width": 284.0,
-                "height": 168.0
+                "width": 276.0,
+                "height": 168.0,
+                "closedWidth": 276.0,
+                "closedHeight": 168.0,
+                "openWidth": 276.0,
+                "openHeight": 168.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "write_response_file(out_record,lib_file4,lib_error_logging3,lib_config2)",
@@ -286,8 +311,13 @@
             "layout": {
                 "x": -61.0,
                 "y": 545.0,
-                "width": 276.0,
-                "height": 138.0
+                "width": 228.0,
+                "height": 100.0,
+                "closedWidth": 228.0,
+                "closedHeight": 100.0,
+                "openWidth": 228.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "{\n   \"file_location\":\"./data\",\n   \"source\":\"init\"\n}",
@@ -338,8 +368,13 @@
             "layout": {
                 "x": -704.0,
                 "y": 556.0,
-                "width": 308.0,
-                "height": 168.0
+                "width": 276.0,
+                "height": 138.0,
+                "closedWidth": 276.0,
+                "closedHeight": 138.0,
+                "openWidth": 276.0,
+                "openHeight": 138.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "new log()",
@@ -396,8 +431,13 @@
             "layout": {
                 "x": -157.0,
                 "y": 346.0,
-                "width": 308.0,
-                "height": 138.0
+                "width": 276.0,
+                "height": 108.0,
+                "closedWidth": 276.0,
+                "closedHeight": 108.0,
+                "openWidth": 276.0,
+                "openHeight": 108.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "new Config()",
@@ -454,8 +494,13 @@
             "layout": {
                 "x": -696.0,
                 "y": 333.0,
-                "width": 284.0,
-                "height": 168.0
+                "width": 276.0,
+                "height": 108.0,
+                "closedWidth": 276.0,
+                "closedHeight": 108.0,
+                "openWidth": 276.0,
+                "openHeight": 108.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "new Fs()",
@@ -501,7 +546,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "new WorkOrder()",
@@ -547,7 +597,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "new WorkOrderConfirmation()",
@@ -593,7 +648,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "",
@@ -639,7 +699,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "",
@@ -685,7 +750,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "",
@@ -731,7 +801,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "",
@@ -777,7 +852,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "",
@@ -823,7 +903,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "",
@@ -869,7 +954,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "",
@@ -915,7 +1005,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "",
@@ -961,7 +1056,12 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
             "text": {
                 "initialization": "",

@@ -1300,24 +1300,52 @@ class GraphCanvas(
         document.nodes.values
             .filter { !it.isLink && it.id != document.rootNodeId }
             .forEach(::ensureLayoutCanHoldPortsAndLabels)
-        document.nodes.values.filter { it.children.isNotEmpty() }.sortedByDescending { depthOf(it) }.forEach { parent ->
-            val boxes = parent.children.mapNotNull(document.nodes::get).filter { !it.isLink }.map { it.layout }
-            if (boxes.isNotEmpty()) {
-                val childHeight = boxes.maxOf { it.y + it.height } - boxes.minOf { it.y } + 96
-                parent.layout = NodeLayout(
-                    x = boxes.minOf { it.x } - 32,
-                    y = boxes.minOf { it.y } - COMPOSITE_TOP_PADDING,
-                    width = boxes.maxOf { it.x + it.width } - boxes.minOf { it.x } + 64,
-                    height = max(childHeight + (COMPOSITE_TOP_PADDING - 48), requiredPortHeight(parent)),
-                )
+        document.nodes.values
+            .filter { !it.isLink && it.children.isNotEmpty() && it.id != document.rootNodeId }
+            .sortedByDescending { depthOf(it) }
+            .forEach { parent ->
+                val boxes = parent.children.mapNotNull(document.nodes::get).filter { !it.isLink }.map { it.layout.rect() }
+                val terminalWidth = max(requiredNodeWidth(parent), parent.layout.closedWidth)
+                val terminalHeight = max(requiredPortHeight(parent), parent.layout.closedHeight)
+                parent.layout.closedWidth = max(parent.layout.closedWidth, terminalWidth)
+                parent.layout.closedHeight = max(parent.layout.closedHeight, terminalHeight)
+                if (boxes.isNotEmpty()) {
+                    val childLeft = boxes.minOf { it.x }
+                    val childTop = boxes.minOf { it.y }
+                    val childRight = boxes.maxOf { it.x + it.width }
+                    val childBottom = boxes.maxOf { it.y + it.height }
+                    val openX = childLeft - 32
+                    val openY = childTop - COMPOSITE_TOP_PADDING
+                    val openWidth = max(childRight - childLeft + 64, parent.layout.closedWidth.roundToInt()).toDouble()
+                    val openHeight = max(
+                        childBottom - childTop + 96 + (COMPOSITE_TOP_PADDING - 48),
+                        max(requiredPortHeight(parent), parent.layout.closedHeight).roundToInt(),
+                    ).toDouble()
+                    parent.layout.openWidth = max(parent.layout.openWidth, openWidth)
+                    parent.layout.openHeight = max(parent.layout.openHeight, openHeight)
+                    parent.layout.x = openX.toDouble()
+                    parent.layout.y = openY.toDouble()
+                } else {
+                    parent.layout.openWidth = max(parent.layout.openWidth, parent.layout.closedWidth)
+                    parent.layout.openHeight = max(parent.layout.openHeight, parent.layout.closedHeight)
+                }
+                parent.layout.width = if (parent.layout.isExpanded) parent.layout.openWidth else parent.layout.closedWidth
+                parent.layout.height = if (parent.layout.isExpanded) parent.layout.openHeight else parent.layout.closedHeight
             }
-        }
         scheduleReroute()
     }
 
     private fun ensureLayoutCanHoldPortsAndLabels(node: Node) {
-        node.layout.width = max(node.layout.width, requiredNodeWidth(node))
-        node.layout.height = max(node.layout.height, requiredPortHeight(node))
+        val terminalWidth = max(node.layout.closedWidth, requiredNodeWidth(node))
+        val terminalHeight = max(node.layout.closedHeight, requiredPortHeight(node))
+        node.layout.closedWidth = max(node.layout.closedWidth, terminalWidth)
+        node.layout.closedHeight = max(node.layout.closedHeight, terminalHeight)
+        if (!node.isComposite) {
+            node.layout.openWidth = max(node.layout.openWidth, node.layout.closedWidth)
+            node.layout.openHeight = max(node.layout.openHeight, node.layout.closedHeight)
+        }
+        node.layout.width = if (node.layout.isExpanded || !node.isComposite) node.layout.openWidth else node.layout.closedWidth
+        node.layout.height = if (node.layout.isExpanded || !node.isComposite) node.layout.openHeight else node.layout.closedHeight
     }
 
     private fun requiredPortHeight(node: Node): Double {
@@ -1342,9 +1370,11 @@ class GraphCanvas(
         val ids = node.outgoingLinks + node.incomingLinks
         return ids.distinct().mapNotNull(document.nodes::get)
             .filter { linkNode ->
-                val link = linkNode.link ?: return@filter false
-                val outgoing = link.sourceNodeId == node.id
-                linkSide(node, linkNode, outgoing) == side
+                isVisibleLink(linkNode) && run {
+                    val link = linkNode.link ?: return@run false
+                    val outgoing = link.sourceNodeId == node.id
+                    linkSide(node, linkNode, outgoing) == side
+                }
             }
     }
 
@@ -1395,10 +1425,8 @@ class GraphCanvas(
     }
 
     private fun drawGraph(g2: Graphics2D, scopeIds: Set<NodeId>? = null) {
-        val document = repository.getDocument()
-        val links = document.nodes.values.filter { it.isLink && (scopeIds == null || it.id in scopeIds) }
-        document.nodes.values
-            .filter { !it.isLink && it.id != document.rootNodeId && (scopeIds == null || it.id in scopeIds) }
+        val links = visibleLinks(scopeIds)
+        visibleNodes(scopeIds)
             .sortedBy { it.children.isEmpty() }
             .forEach { drawNode(g2, it) }
         links.filterNot(::isDependencyAnnotation).forEach { drawLink(g2, it) }
@@ -1591,7 +1619,9 @@ class GraphCanvas(
         fun add(rect: Rectangle) {
             bounds = bounds?.union(rect) ?: Rectangle(rect)
         }
-        scopeIds.mapNotNull(document.nodes::get).forEach { node ->
+        scopeIds.mapNotNull(document.nodes::get).filter {
+            it.id == document.rootNodeId || isVisibleInCanvas(it)
+        }.forEach { node ->
             if (node.isLink) {
                 if (isDependencyAnnotation(node)) {
                     dependencyAnnotationBounds(node).forEach(::add)
@@ -1607,7 +1637,7 @@ class GraphCanvas(
 
     private fun bomRows(scopeIds: Set<NodeId>): List<BomRow> =
         scopeIds.mapNotNull(repository::getNode)
-            .filter { !it.isLink && it.id != repository.getDocument().rootNodeId }
+            .filter { !it.isLink && it.id != repository.getDocument().rootNodeId && isVisibleInCanvas(it) }
             .sortedWith(compareBy<Node> { it.name.lowercase() }.thenBy { it.id.value })
             .mapIndexed { index, node -> BomRow(index + 1, node.name, nodeStereotype(node).name) }
 
@@ -1732,10 +1762,8 @@ class GraphCanvas(
     }
 
     private fun svgGraph(svg: StringBuilder, scopeIds: Set<NodeId>) {
-        val document = repository.getDocument()
-        val links = document.nodes.values.filter { it.isLink && it.id in scopeIds }
-        document.nodes.values
-            .filter { !it.isLink && it.id != document.rootNodeId && it.id in scopeIds }
+        val links = visibleLinks(scopeIds)
+        visibleNodes(scopeIds)
             .sortedBy { it.children.isEmpty() }
             .forEach { svgNode(svg, it) }
         links.filterNot(::isDependencyAnnotation).forEach { svgLink(svg, it) }
@@ -1761,9 +1789,11 @@ class GraphCanvas(
             strokeWidth = strokeWidth,
             dashArray = strokeDash,
         )
-        svgText(svg, node.name, r.x + 12, r.y + 22, if (node.children.isEmpty()) 13 else 12, "#222222")
+        val compact = node.children.isEmpty() || !node.layout.isExpanded
+        svgText(svg, node.name, r.x + 12, r.y + 22, if (compact) 13 else 12, "#222222")
         svgText(svg, stereotype.name, r.x + 12, r.y + 42, 12, "#555555")
         technologyLabel(node)?.let { svgText(svg, it, r.x + 12, r.y + 58, 11, "#666666") }
+        svgCompositeToggle(svg, node)
     }
 
     private fun svgLink(svg: StringBuilder, node: Node) {
@@ -2119,7 +2149,8 @@ class GraphCanvas(
         g2.stroke = nodeStroke(node, selected)
         g2.drawRect(r.x, r.y, r.width, r.height)
         g2.color = Color(0x222222)
-        g2.font = g2.font.deriveFont(if (node.children.isEmpty()) 13f else 12f)
+        val compact = node.children.isEmpty() || !node.layout.isExpanded
+        g2.font = g2.font.deriveFont(if (compact) 13f else 12f)
         g2.drawString(node.name, r.x + 12, r.y + 22)
         g2.color = Color(0x555555)
         g2.drawString(stereotype.name, r.x + 12, r.y + 42)
@@ -2128,7 +2159,38 @@ class GraphCanvas(
             g2.font = g2.font.deriveFont(11f)
             g2.drawString(it, r.x + 12, r.y + 58)
         }
+        drawCompositeToggle(g2, node)
         g2.stroke = previousStroke
+    }
+
+    private fun drawCompositeToggle(g2: Graphics2D, node: Node) {
+        val rect = compositeToggleRect(node) ?: return
+        val selected = node.id in selection
+        val stroke = if (selected) Color(0x3366cc) else Color(0x666666)
+        val previousColor = g2.color
+        val previousStroke = g2.stroke
+        val previousFont = g2.font
+        g2.color = Color.WHITE
+        g2.fillRect(rect.x, rect.y, rect.width, rect.height)
+        g2.color = stroke
+        g2.stroke = BasicStroke(1f)
+        g2.drawRect(rect.x, rect.y, rect.width, rect.height)
+        g2.font = g2.font.deriveFont(9f)
+        val label = if (node.layout.isExpanded) "min" else "max"
+        val metrics = g2.fontMetrics
+        val textX = rect.x + (rect.width - metrics.stringWidth(label)) / 2
+        val textY = rect.y + (rect.height - metrics.height) / 2 + metrics.ascent
+        g2.drawString(label, textX, textY)
+        g2.color = previousColor
+        g2.stroke = previousStroke
+        g2.font = previousFont
+    }
+
+    private fun svgCompositeToggle(svg: StringBuilder, node: Node) {
+        val rect = compositeToggleRect(node) ?: return
+        val stroke = if (node.id in selection) "#3366cc" else "#666666"
+        svgRect(svg, rect, fill = "#ffffff", stroke = stroke, strokeWidth = 1.0)
+        svgText(svg, if (node.layout.isExpanded) "min" else "max", rect.x + 7, rect.y + 12, 9, stroke)
     }
 
     private fun drawLink(g2: Graphics2D, node: Node) {
@@ -2154,6 +2216,84 @@ class GraphCanvas(
     private fun linkLabel(node: Node): String {
         val typeName = node.link?.typeName?.trim().orEmpty()
         return if (typeName.isBlank()) node.name else "${node.name}:$typeName"
+    }
+
+    private fun visibleNodes(scopeIds: Set<NodeId>? = null): List<Node> {
+        val document = repository.getDocument()
+        return document.nodes.values.filter { node ->
+            !node.isLink &&
+                node.id != document.rootNodeId &&
+                (scopeIds == null || node.id in scopeIds) &&
+                isVisibleInCanvas(node)
+        }
+    }
+
+    private fun visibleLinks(scopeIds: Set<NodeId>? = null): List<Node> {
+        val document = repository.getDocument()
+        return document.nodes.values.filter { linkNode ->
+            (scopeIds == null || linkNode.id in scopeIds) && isVisibleLink(linkNode)
+        }
+    }
+
+    private fun isVisibleLink(linkNode: Node): Boolean =
+        linkNode.isLink &&
+            isVisibleInCanvas(linkNode) &&
+            linkEndpointsVisible(linkNode)
+
+    private fun isVisibleInCanvas(node: Node): Boolean {
+        val document = repository.getDocument()
+        var current = node.parentId?.let(document.nodes::get)
+        while (current != null && current.id != document.rootNodeId) {
+            if (!current.layout.isExpanded) return false
+            current = current.parentId?.let(document.nodes::get)
+        }
+        return true
+    }
+
+    private fun linkEndpointsVisible(linkNode: Node): Boolean {
+        val link = linkNode.link ?: return false
+        val document = repository.getDocument()
+        val source = document.nodes[link.sourceNodeId] ?: return false
+        val target = document.nodes[link.targetNodeId] ?: return false
+        return isVisibleInCanvas(source) && isVisibleInCanvas(target)
+    }
+
+    private fun hitCompositeToggle(point: Point): NodeId? =
+        visibleNodes().firstOrNull { node ->
+            node.isComposite && compositeToggleRect(node)?.contains(point) == true
+        }?.id
+
+    private fun compositeToggleRect(node: Node): Rectangle? {
+        if (!node.isComposite || node.id == repository.getDocument().rootNodeId) return null
+        val r = node.layout.rect()
+        val width = 34
+        val height = 16
+        return Rectangle(r.x + 8, r.y + 8, width, height)
+    }
+
+    private fun toggleCompositeExpansion(nodeId: NodeId) {
+        val node = repository.getNode(nodeId) ?: return
+        if (!node.isComposite) return
+        node.layout.isExpanded = !node.layout.isExpanded
+        node.layout.width = if (node.layout.isExpanded) node.layout.openWidth else node.layout.closedWidth
+        node.layout.height = if (node.layout.isExpanded) node.layout.openHeight else node.layout.closedHeight
+        if (!node.layout.isExpanded) {
+            selection.retainAll { selectedId ->
+                selectedId == node.id || !isDescendantOf(selectedId, node.id)
+            }
+        }
+        invalidateRoutesFor(listOf(node.id) + node.children)
+        repository.markDirty()
+        refreshAll()
+    }
+
+    private fun isDescendantOf(nodeId: NodeId, ancestorId: NodeId): Boolean {
+        var current = repository.getNode(nodeId)?.parentId
+        while (current != null) {
+            if (current == ancestorId) return true
+            current = repository.getNode(current)?.parentId
+        }
+        return false
     }
 
     private fun escapeHtml(text: String): String =
@@ -2380,11 +2520,10 @@ class GraphCanvas(
     }
 
     private fun rebuildRouteCache() {
-        val document = repository.getDocument()
         val routedSegments = mutableListOf<RouteSegment>()
         val nextCache = mutableMapOf<NodeId, LinkRoute>()
-        document.nodes.values
-            .filter { it.isLink && !isDependencyAnnotation(it) }
+        visibleLinks()
+            .filterNot(::isDependencyAnnotation)
             .sortedWith(compareBy<Node> { it.layout.y }.thenBy { it.layout.x }.thenBy { it.id.value })
             .forEach { linkNode ->
                 val anchors = linkAnchors(linkNode) ?: return@forEach
@@ -2520,8 +2659,8 @@ class GraphCanvas(
         }
 
     private fun routeObstacles(sourceId: NodeId, targetId: NodeId): List<Rectangle> =
-        repository.getDocument().nodes.values
-            .filter { !it.isLink && it.id != repository.getDocument().rootNodeId && it.id != sourceId && it.id != targetId }
+        visibleNodes()
+            .filter { it.id != sourceId && it.id != targetId }
             .map {
                 val r = it.layout.rect()
                 Rectangle(
@@ -2590,9 +2729,11 @@ class GraphCanvas(
         return ids.distinct().mapNotNull(document.nodes::get)
             .filterNot(::isDependencyAnnotation)
             .filter { linkNode ->
-                val link = linkNode.link ?: return@filter false
-                val outgoing = link.sourceNodeId == node.id
-                linkSide(node, linkNode, outgoing) == side
+                isVisibleLink(linkNode) && run {
+                    val link = linkNode.link ?: return@run false
+                    val outgoing = link.sourceNodeId == node.id
+                    linkSide(node, linkNode, outgoing) == side
+                }
             }
     }
 
@@ -2666,6 +2807,7 @@ class GraphCanvas(
     private fun handleClicked(e: MouseEvent) {
         if (e.clickCount < 2 || !SwingUtilities.isLeftMouseButton(e)) return
         val point = modelPoint(e.point)
+        if (hitCompositeToggle(point) != null) return
         val id = hitNode(point) ?: hitLink(point) ?: return
         onNodeDoubleClicked(id)
     }
@@ -2676,6 +2818,10 @@ class GraphCanvas(
             return
         }
         val point = modelPoint(e.point)
+        hitCompositeToggle(point)?.let {
+            toggleCompositeExpansion(it)
+            return
+        }
         dragStart = point
         moveDragReference = null
         val hit = hitNode(point)
@@ -2685,7 +2831,20 @@ class GraphCanvas(
                 val parent = hit?.takeIf { repository.getNode(it)?.isLink != true }
                     ?: repository.getDocument().rootNodeId
                 val node = repository.createNode(parent, "New Node", NodeKind.Processor)
-                repository.updateNodeLayout(node.id, NodeLayout(point.x.toDouble(), point.y.toDouble(), 180.0, 90.0))
+                repository.updateNodeLayout(
+                    node.id,
+                    NodeLayout(
+                        x = point.x.toDouble(),
+                        y = point.y.toDouble(),
+                        width = 180.0,
+                        height = 90.0,
+                        closedWidth = 180.0,
+                        closedHeight = 90.0,
+                        openWidth = 180.0,
+                        openHeight = 90.0,
+                        isExpanded = true,
+                    ),
+                )
                 selection.clear()
                 selection += node.id
                 invalidateRoutesFor(listOf(node.id))
@@ -2770,8 +2929,8 @@ class GraphCanvas(
         }
         selectionRect?.let { rect ->
             selection.clear()
-            repository.getDocument().nodes.values
-                .filter { !it.isLink && it.id != repository.getDocument().rootNodeId && it.layout.rect().intersects(rect) }
+            visibleNodes()
+                .filter { it.layout.rect().intersects(rect) }
                 .forEach { selection += it.id }
             selectionRect = null
         }
@@ -2874,14 +3033,13 @@ class GraphCanvas(
     }
 
     private fun hitNode(point: Point): NodeId? =
-        repository.getDocument().nodes.values
-            .filter { !it.isLink && it.id != repository.getDocument().rootNodeId && it.layout.rect().contains(point) }
+        visibleNodes()
+            .filter { it.layout.rect().contains(point) }
             .minByOrNull { it.layout.width * it.layout.height }
             ?.id
 
     private fun hitLink(point: Point): NodeId? =
-        repository.getDocument().nodes.values
-            .filter { it.isLink }
+        visibleLinks()
             .firstOrNull { link ->
                 if (isDependencyAnnotation(link)) {
                     dependencyAnnotationBounds(link).any { it.contains(point) }

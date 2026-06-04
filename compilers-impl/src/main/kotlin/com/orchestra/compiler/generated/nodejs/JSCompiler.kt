@@ -117,21 +117,29 @@ class JSCompiler : GenericCompiler() {
         val portInstantiations = (incoming + outgoing).joinToString("\n") {"""const ${it!!.name} = ${it.text.instantiation}"""}
         val librariesDeclarations = dependencies.joinToString("\n"){ it!!.text.declaration }
         val librariesInstantiations = dependencies.joinToString("\n"){"""const ${it!!.name} = ${it.text.instantiation}"""}
-        val childrenDeclarations = children.values.joinToString("\n") { it.text.declaration }
-        val linksTransportInvocations = (incoming + outgoing).joinToString("\n") {"""const ${it!!.name} = ${it.text.instantiation}"""}
-        val childrenInvocations = children.values.joinToString("\n") { "${it.name}()" }
+        val childProcessingNodesDeclarations = children.values.filter{it.kind == NodeKind.Processor}.joinToString("\n") { it.text.declaration }
+        val childLinksTransportInvocations = (incoming + outgoing).joinToString("\n") {"""const ${it!!.name} = ${it.text.instantiation}"""}
+        val childProcessingNodesInvocations = children.values.filter{it.kind == NodeKind.Processor}.joinToString("\n") { "${it.name}()" }
         return """
             function ${node.name}(){
+                //node.text.declaration
                 ${node.text.declaration}
-                ${portDeclarations}
-                ${portInstantiations}
-                ${librariesDeclarations}
-                ${librariesInstantiations}
-                ${childrenDeclarations}
+                //portDeclarations
+                $portDeclarations
+                //portInstantiations
+                $portInstantiations
+                //librariesDeclarations
+                $librariesDeclarations
+                //librariesInstantiations
+                $librariesInstantiations
+                //childProcessingNodesDeclarations
+                $childProcessingNodesDeclarations
                 
                 function run(){
-                    ${linksTransportInvocations}
-                    ${childrenInvocations}
+                    //linksTransportInvocations
+                    $childLinksTransportInvocations
+                    //childrenInvocations
+                    $childProcessingNodesInvocations
                 }
                 return run()
             }
