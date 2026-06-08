@@ -52,4 +52,30 @@ class TechnologyMetadataResolutionTest {
         assertEquals(VOID_LANGUAGE_ID, document.effectiveLanguageId(root.id))
         assertEquals(VOID_TECHNOLOGY_ID, document.effectiveTechnologyId(root.id))
     }
+
+    @Test
+    fun `effective layout strategy skips explicit none values and inherits from parent`() {
+        val root = Node(
+            id = NodeId("root"),
+            name = "root",
+            kind = NodeKind.Group,
+            fileLayoutStrategyId = "single-file",
+        )
+        val child = Node(
+            id = NodeId("child"),
+            name = "child",
+            kind = NodeKind.Processor,
+            parentId = root.id,
+            fileLayoutStrategyId = VOID_LAYOUT_STRATEGY_ID,
+        )
+        root.children += child.id
+        val document = InflowDocument(
+            id = "doc",
+            name = "doc",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root, child.id to child),
+        )
+
+        assertEquals("single-file", document.effectiveLayoutStrategyId(child.id))
+    }
 }

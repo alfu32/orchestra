@@ -24,6 +24,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -50,7 +51,7 @@
         },
         {
             "id": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
-            "name": "nodej_compiler_tst",
+            "name": "nodejs_compiler_tst",
             "kind": "Processor",
             "parentId": "root",
             "children": [
@@ -78,14 +79,15 @@
             "layout": {
                 "x": -732.0,
                 "y": 230.0,
-                "width": 1762.0,
-                "height": 1125.0,
+                "width": 1184.0,
+                "height": 889.0,
                 "closedWidth": 276.0,
                 "closedHeight": 100.0,
-                "openWidth": 1762.0,
-                "openHeight": 1125.0,
+                "openWidth": 1184.0,
+                "openHeight": 889.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "single-file",
             "text": {
                 "initialization": "nodej_compiler_tst()",
                 "initializationLanguageId": "",
@@ -125,8 +127,8 @@
                 "link_39b12ed2-3672-4426-98c0-8ed86b109be3"
             ],
             "layout": {
-                "x": -699.0,
-                "y": 926.0,
+                "x": -698.0,
+                "y": 875.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -135,6 +137,7 @@
                 "openHeight": 168.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "read_file(input_record,out_record,lib_config1,lib_error_logging1,lib_file3)",
                 "initializationLanguageId": "",
@@ -188,8 +191,8 @@
                 "link_164c6126-9a92-4720-8897-b4e18504129f"
             ],
             "layout": {
-                "x": -93.0,
-                "y": 771.0,
+                "x": -258.0,
+                "y": 751.0,
                 "width": 276.0,
                 "height": 108.0,
                 "closedWidth": 276.0,
@@ -198,6 +201,7 @@
                 "openHeight": 108.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "transform_data(input_record,out_record,lib_error_logging2)",
                 "initializationLanguageId": "",
@@ -251,8 +255,8 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 291.0,
-                "y": 552.0,
+                "x": 144.0,
+                "y": 903.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -261,6 +265,7 @@
                 "openHeight": 168.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "write_response_file(out_record,lib_file4,lib_error_logging3,lib_config2)",
                 "initializationLanguageId": "",
@@ -319,6 +324,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "{\n   \"file_location\":\"./data\",\n   \"source\":\"init\"\n}",
                 "initializationLanguageId": "json",
@@ -376,6 +382,7 @@
                 "openHeight": 168.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "new log()",
                 "initializationLanguageId": "",
@@ -439,6 +446,7 @@
                 "openHeight": 108.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "new Config()",
                 "initializationLanguageId": "",
@@ -502,6 +510,7 @@
                 "openHeight": 168.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "new Fs()",
                 "initializationLanguageId": "",
@@ -553,6 +562,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "new WorkOrder()",
                 "initializationLanguageId": "",
@@ -604,6 +614,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "new WorkOrderConfirmation()",
                 "initializationLanguageId": "",
@@ -655,6 +666,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -706,6 +718,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -757,6 +770,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -808,6 +822,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -859,6 +874,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -910,6 +926,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -961,6 +978,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -1012,6 +1030,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -1063,6 +1082,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",

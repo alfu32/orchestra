@@ -7,6 +7,8 @@ import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
+import com.orchestra.core.model.VOID_LAYOUT_STRATEGY_ID
+import com.orchestra.core.model.effectiveLayoutStrategyId
 import com.orchestra.core.model.getElementById
 import java.nio.file.Files
 import java.nio.file.Path
@@ -112,6 +114,12 @@ interface CompilerPlugin {
     fun layoutStrategy(options: CompilerOptions): LayoutStrategy =
         ClassifiedFilesystemLayoutStrategy
 
+    fun layoutStrategy(document: InflowDocument, options: CompilerOptions): LayoutStrategy {
+        val scopeNodeId = options.scopeNodeIds.singleOrNull() ?: document.rootNodeId
+        val resolvedStrategyId = document.effectiveLayoutStrategyId(scopeNodeId)
+        return if (resolvedStrategyId == VOID_LAYOUT_STRATEGY_ID) layoutStrategy(options) else layoutStrategyById(resolvedStrategyId)
+    }
+
     fun compile(document: InflowDocument, options: CompilerOptions = CompilerOptions()): CompilationResult
 }
 
@@ -180,6 +188,32 @@ object DirectFileSystemHomorphismLayoutStrategy : LayoutStrategy {
     }
 }
 
+object SingleFileLayoutStrategy : LayoutStrategy {
+    override val id: String = "single-file"
+    override val displayName: String = "Single file layout"
+
+    override fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject {
+        val nameSource = options.scopeNodeIds.singleOrNull()
+            ?.let(document::getElementById)
+            ?.name
+            ?.takeIf { it.isNotBlank() }
+            ?: projectName.trim().ifBlank { document.name.ifBlank { "project" } }
+        val normalizedProjectName = nameSource.safeLayoutSegment()
+        val extension = files.singleFileExtension()
+        val content = files
+            .joinToString(separator = "\n\n") { it.content.trimEnd() }
+            .trimEnd()
+        val merged = GeneratedFile(
+            path = "$normalizedProjectName.$extension",
+            content = content,
+            originNodeId = null,
+            reason = "Merged ${files.size} generated files using single-file layout",
+            elementKind = GeneratedElementKind.ProjectLayout,
+        )
+        return GeneratedProject(projectName, listOf(merged))
+    }
+}
+
 object SourceSetLayoutStrategy : LayoutStrategy {
     override val id: String = "source-set"
     override val displayName: String = "Source set layout"
@@ -233,3 +267,24 @@ private fun Node.safeNodeSegment(): String =
         .replace(Regex("[^A-Za-z0-9_.-]+"), "_")
         .trim('_')
         .ifBlank { id.value.take(12) }
+
+private fun String.safeLayoutSegment(): String =
+    trim()
+        .replace(Regex("[^A-Za-z0-9_.-]+"), "_")
+        .trim('_')
+        .ifBlank { "project" }
+
+private fun List<GeneratedFile>.singleFileExtension(): String =
+    map { file -> file.path.substringAfterLast('.', "txt").trim().ifBlank { "txt" } }
+        .distinct()
+        .singleOrNull()
+        ?: "txt"
+
+fun layoutStrategyById(id: String): LayoutStrategy =
+    when (id) {
+        ClassifiedFilesystemLayoutStrategy.id -> ClassifiedFilesystemLayoutStrategy
+        DirectFileSystemHomorphismLayoutStrategy.id -> DirectFileSystemHomorphismLayoutStrategy
+        SingleFileLayoutStrategy.id -> SingleFileLayoutStrategy
+        SourceSetLayoutStrategy.id -> SourceSetLayoutStrategy
+        else -> ClassifiedFilesystemLayoutStrategy
+    }

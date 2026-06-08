@@ -32,6 +32,8 @@ data class NodeLayout(
     var isExpanded: Boolean = true,
 )
 
+const val VOID_LAYOUT_STRATEGY_ID = "none"
+
 @Serializable
 data class NodeText(
     @SerialName("initialization")
@@ -104,6 +106,7 @@ data class Node(
     val incomingLinks: MutableList<NodeId> = mutableListOf(),
     val outgoingLinks: MutableList<NodeId> = mutableListOf(),
     var layout: NodeLayout = NodeLayout(),
+    var fileLayoutStrategyId: String = VOID_LAYOUT_STRATEGY_ID,
     var text: NodeText = NodeText(),
     var technology: TechnologyMetadata = TechnologyMetadata(),
     val ports: MutableList<NodePort> = mutableListOf(),
@@ -162,6 +165,12 @@ fun InflowDocument.effectiveLanguageId(nodeId: NodeId): String =
 
 fun InflowDocument.effectiveTechnologyId(nodeId: NodeId): String =
     inheritedTechnologyValue(nodeId, VOID_TECHNOLOGY_ID) { it.technologyId }
+
+fun InflowDocument.effectiveLayoutStrategyId(nodeId: NodeId): String =
+    inheritedNodeValue(nodeId, VOID_LAYOUT_STRATEGY_ID) {
+        val value = it.fileLayoutStrategyId.trim()
+        if (value.isBlank() || value == VOID_LAYOUT_STRATEGY_ID) "" else value
+    }
 
 fun InflowDocument.effectiveTextLanguageId(nodeId: NodeId, section: NodeTextSection): String {
     val visited = mutableSetOf<NodeId>()
@@ -228,11 +237,19 @@ private fun InflowDocument.inheritedTechnologyValue(
     fallback: String,
     selector: (TechnologyMetadata) -> String,
 ): String {
+    return inheritedNodeValue(nodeId, fallback) { selector(it.technology) }
+}
+
+private fun InflowDocument.inheritedNodeValue(
+    nodeId: NodeId,
+    fallback: String,
+    selector: (Node) -> String,
+): String {
     val visited = mutableSetOf<NodeId>()
     var current = nodes[nodeId]
     while (current != null && current.id !in visited) {
         visited += current.id
-        val value = selector(current.technology).trim()
+        val value = selector(current).trim()
         if (value.isNotBlank()) return value
         current = current.parentId?.let(nodes::get)
     }

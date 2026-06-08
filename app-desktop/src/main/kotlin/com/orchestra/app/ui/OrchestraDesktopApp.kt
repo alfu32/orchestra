@@ -9,6 +9,11 @@ import com.orchestra.Version
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerPlugin
 import com.orchestra.compiler.api.CompilerTechnology
+import com.orchestra.compiler.api.ClassifiedFilesystemLayoutStrategy
+import com.orchestra.compiler.api.DirectFileSystemHomorphismLayoutStrategy
+import com.orchestra.compiler.api.LayoutStrategy
+import com.orchestra.compiler.api.SingleFileLayoutStrategy
+import com.orchestra.compiler.api.SourceSetLayoutStrategy
 import com.orchestra.compiler.generated.nodejs.JSCompiler
 import com.orchestra.compiler.generic.CompilerCompiler
 import com.orchestra.compiler.generic.GenericCompiler
@@ -30,8 +35,10 @@ import com.orchestra.core.model.NodeText
 import com.orchestra.core.model.NodeTextSection
 import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.TechnologyMetadata
+import com.orchestra.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.orchestra.core.model.VOID_LANGUAGE_ID
 import com.orchestra.core.model.effectiveLanguageId
+import com.orchestra.core.model.effectiveLayoutStrategyId
 import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.model.effectiveTextLanguageId
 import com.orchestra.core.model.rootNode
@@ -87,6 +94,7 @@ import java.util.ServiceLoader
 import javax.imageio.ImageIO
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
+import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
 import javax.swing.DefaultListCellRenderer
@@ -172,7 +180,8 @@ class OrchestraDesktopApp(
     private val compilerTechnologies = availableCompilerTechnologies()
     private val languageIds = availableLanguageIds(compilerTechnologies)
     private val technologyIds = availableTechnologyIds(compilerTechnologies)
-    private val inspector = InspectorPanel(repository, ::refreshAll, languageIds, technologyIds)
+    private val layoutStrategies = availableLayoutStrategies()
+    private val inspector = InspectorPanel(repository, ::refreshAll, languageIds, technologyIds, layoutStrategies)
     private val editorTabs = NodeEditorTabs(repository, ::refreshAll, ::checkpointHistory, ::undoDocument, ::redoDocument, languageIds)
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
@@ -605,6 +614,14 @@ class OrchestraDesktopApp(
             .filter { it.isNotBlank() }
             .distinct()
             .sorted()
+
+    private fun availableLayoutStrategies(): List<LayoutStrategy> =
+        listOf(
+            ClassifiedFilesystemLayoutStrategy,
+            DirectFileSystemHomorphismLayoutStrategy,
+            SingleFileLayoutStrategy,
+            SourceSetLayoutStrategy,
+        )
 
     private fun openFile() {
         val path = chooseDocumentPath("Open .orch", FileDialog.LOAD) ?: return
@@ -3131,8 +3148,8 @@ class GraphCanvas(
 
     private fun technologyLabel(node: Node): String? {
         if (node.kind != NodeKind.Processor || node.isLink) return null
-        val language = inheritedTechnologyValue(node.id) { it.languageId }
-        val technology = inheritedTechnologyValue(node.id) { it.technologyId }
+        val language = node.technology.languageId.trim()
+        val technology = node.technology.technologyId.trim()
         return when {
             language.isBlank() && technology.isBlank() -> null
             language.isBlank() -> "tech: $technology"
@@ -3143,19 +3160,6 @@ class GraphCanvas(
 
     private fun monospaceTextWidth(text: String, charWidth: Int = 8, padding: Int = 24): Int =
         text.length * charWidth + padding
-
-    private fun inheritedTechnologyValue(nodeId: NodeId, selector: (TechnologyMetadata) -> String): String {
-        val document = repository.getDocument()
-        val visited = mutableSetOf<NodeId>()
-        var current = document.nodes[nodeId]
-        while (current != null && current.id !in visited) {
-            visited += current.id
-            val value = selector(current.technology).trim()
-            if (value.isNotBlank()) return value
-            current = current.parentId?.let(document.nodes::get)
-        }
-        return ""
-    }
 
     private fun linkColor(stereotype: LinkStereotype, selected: Boolean): Color = when {
         selected -> Color(0x1565c0)
@@ -3179,6 +3183,7 @@ private class InspectorPanel(
     private val refreshAll: () -> Unit,
     languageIds: List<String>,
     technologyIds: List<String>,
+    layoutStrategies: List<LayoutStrategy>,
 ) : JPanel(BorderLayout()) {
     private val knownLanguageIds = languageIds
         .map { it.trim() }
@@ -3196,6 +3201,9 @@ private class InspectorPanel(
     private val transportDisplayById = LinkTransportKinds.catalog.associate { it.id to "${it.label} (${it.id})" }
     private val transportIdByDisplay = transportDisplayById.entries.associate { (id, display) -> display to id }
     private val transportKindOptions = LinkTransportKinds.catalog.map { transportDisplayById.getValue(it.id) } + OtherTransportChoice
+    private val layoutDisplayById = layoutStrategies.associate { it.id to "${it.displayName} (${it.id})" }
+    private val layoutIdByDisplay = layoutDisplayById.entries.associate { (id, display) -> display to id }
+    private val layoutStrategyOptions = listOf(NoneLayoutChoice) + layoutStrategies.map { layoutDisplayById.getValue(it.id) }
     private var nodeId: NodeId? = null
     private var boundNodeIsLink = false
     private var boundNodeIsCompiler = false
@@ -3233,6 +3241,8 @@ private class InspectorPanel(
     }
     private val state = JTextField()
     private val linkTransportKind = JComboBox(transportKindOptions.toTypedArray()).apply { isEditable = false }
+    private val layoutStrategy = JComboBox(layoutStrategyOptions.toTypedArray()).apply { isEditable = false }
+    private val computedLayoutStrategy = JLabel()
     private val linkTypeName = JTextField()
     private val customTransportKind = JTextField()
     private val customTransportKindPanel = JPanel(BorderLayout(0, 4)).apply {
@@ -3245,6 +3255,16 @@ private class InspectorPanel(
     private val nameRow = fieldRow("Name", nameField)
     private val languageRow = fieldRow("Language", language)
     private val technologyRow = fieldRow("Technology", technology)
+    private val layoutStrategyRow = fieldRow(
+        "File layout strategy",
+        JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            alignmentX = Component.LEFT_ALIGNMENT
+            add(layoutStrategy)
+            add(Box.createVerticalStrut(4))
+            add(computedLayoutStrategy)
+        },
+    )
     private val stateRow = fieldRow("State", state)
     private val linkTransportKindRow = fieldRow("Link transport kind", linkTransportKind)
     private val linkTypeNameRow = fieldRow("Link type name", linkTypeName)
@@ -3256,6 +3276,7 @@ private class InspectorPanel(
         listOf(nameField, customLanguage, customTechnology, state, linkTypeName, customTransportKind).forEach(::applyOnCommit)
         applyOnCommit(language)
         applyOnCommit(technology)
+        applyOnCommit(layoutStrategy)
         applyOnCommit(linkTransportKind)
         listOf(metadata, payloadDefinition).forEach(::applyOnFocusLost)
         val form = JPanel().apply {
@@ -3266,6 +3287,7 @@ private class InspectorPanel(
             add(customLanguagePanel)
             add(technologyRow)
             add(customTechnologyPanel)
+            add(layoutStrategyRow)
             add(stateRow)
             add(linkTransportKindRow)
             add(linkTypeNameRow)
@@ -3290,6 +3312,7 @@ private class InspectorPanel(
         nameField.text = node?.name.orEmpty()
         bindLanguage(node?.technology?.languageId.orEmpty())
         bindTechnology(node?.technology?.technologyId.orEmpty(), forceCustom = boundNodeIsCompiler)
+        bindLayoutStrategy(node?.fileLayoutStrategyId.orEmpty())
         state.text = node?.metadata?.get("state").orEmpty()
         bindTransportKind(node?.link?.transportKind.orEmpty())
         linkTypeName.text = node?.link?.typeName.orEmpty()
@@ -3402,7 +3425,8 @@ private class InspectorPanel(
         nameField.hasFocus() ||
             language.hasFocus() ||
             customLanguage.hasFocus() ||
-            technology.hasFocus() ||
+        technology.hasFocus() ||
+            layoutStrategy.hasFocus() ||
             customTechnology.hasFocus() ||
             state.hasFocus() ||
             linkTransportKind.hasFocus() ||
@@ -3431,6 +3455,7 @@ private class InspectorPanel(
         if (!isLink) {
             repository.updateNodeTechnology(id, node.technology.copy(languageId = selectedLanguage(), technologyId = selectedTechnology()))
         }
+        node.fileLayoutStrategyId = selectedLayoutStrategy()
         node.metadata.clear()
         node.metadata.putAll(parseMetadata(includeState = !isLink))
         if (isLink) node.link?.let {
@@ -3528,6 +3553,16 @@ private class InspectorPanel(
         updateConditionalChoiceVisibility()
     }
 
+    private fun bindLayoutStrategy(layoutStrategyId: String) {
+        val value = layoutStrategyId.trim()
+        val display = layoutDisplayById[value]
+        layoutStrategy.selectedItem = when {
+            value.isBlank() || value == VOID_LAYOUT_STRATEGY_ID || display == null -> NoneLayoutChoice
+            else -> display
+        }
+        refreshLayoutStrategyComputedLabel()
+    }
+
     private fun updateConditionalChoiceVisibility() {
         customLanguagePanel.isVisible = languageRow.isVisible && language.selectedItem == OtherLanguageChoice
         customLanguage.isEnabled = customLanguagePanel.isVisible
@@ -3535,6 +3570,7 @@ private class InspectorPanel(
         customTechnology.isEnabled = customTechnologyPanel.isVisible
         customTransportKindPanel.isVisible = linkTransportKindRow.isVisible && linkTransportKind.selectedItem == OtherTransportChoice
         customTransportKind.isEnabled = customTransportKindPanel.isVisible
+        refreshLayoutStrategyComputedLabel()
         revalidate()
         repaint()
     }
@@ -3542,6 +3578,7 @@ private class InspectorPanel(
     private fun updateEntityFieldVisibility() {
         val showNodeFields = boundHasNode && !boundNodeIsLink
         val showLinkFields = boundHasNode && boundNodeIsLink
+        layoutStrategyRow.isVisible = boundHasNode
         languageRow.isVisible = showNodeFields
         technologyRow.isVisible = showNodeFields
         customTechnologyPanel.isVisible = showNodeFields && (boundNodeIsCompiler || technology.selectedItem == OtherTechnologyChoice)
@@ -3550,6 +3587,23 @@ private class InspectorPanel(
         linkTypeNameRow.isVisible = showLinkFields
         payloadDefinitionRow.isVisible = showLinkFields
         updateConditionalChoiceVisibility()
+    }
+
+    private fun selectedLayoutStrategy(): String =
+        when (val selected = layoutStrategy.selectedItem?.toString().orEmpty()) {
+            "" -> VOID_LAYOUT_STRATEGY_ID
+            NoneLayoutChoice -> VOID_LAYOUT_STRATEGY_ID
+            else -> layoutIdByDisplay[selected] ?: selected.trim()
+        }
+
+    private fun refreshLayoutStrategyComputedLabel() {
+        val node = nodeId?.let(repository::getNode)
+        val computed = node?.id?.let { nodeId -> repository.getDocument().effectiveLayoutStrategyId(nodeId) }.orEmpty()
+        computedLayoutStrategy.text = when {
+            computed.isBlank() || computed == VOID_LAYOUT_STRATEGY_ID -> "effective: none"
+            else -> "effective: ${layoutDisplayById[computed] ?: computed}"
+        }
+        computedLayoutStrategy.isVisible = layoutStrategyRow.isVisible
     }
 
     private fun metadataText(node: Node?): String =
@@ -3579,6 +3633,7 @@ private class InspectorPanel(
         private const val NoneTechnologyChoice = "None"
         private const val OtherTechnologyChoice = "Other"
         private const val OtherTransportChoice = "Other"
+        private const val NoneLayoutChoice = "None"
     }
 }
 
@@ -3645,6 +3700,7 @@ private class NodeTextEditor(
     private val completionService = ModelAwareCompletionService(repository::getDocument)
     private val editorsBySection = mutableMapOf<NodeTextSection, GridCodeEditorAdapter>()
     private val languageSelectorsBySection = mutableMapOf<NodeTextSection, JComboBox<String>>()
+    private val effectiveLanguageLabelsBySection = mutableMapOf<NodeTextSection, JLabel>()
     private val componentsBySection = mutableMapOf<NodeTextSection, JComponent>()
     private var testsPanel: TestTextEditorPanel? = null
     private var binding = false
@@ -3718,6 +3774,7 @@ private class NodeTextEditor(
                 languageSelectorsBySection[spec.section]?.let { selector ->
                     selector.selectedItem = languageDisplayFor(spec, node.text, effectiveLanguage)
                 }
+                refreshEffectiveLanguageLabel(spec)
                 editorsBySection[spec.section]?.let { editor ->
                     editor.setText(spec.textGetter(node.text))
                     editor.setTechnology(technology.copy(languageId = effectiveLanguage))
@@ -3748,6 +3805,10 @@ private class NodeTextEditor(
             border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
             add(JLabel("Language"))
             add(languageSelector)
+            if (spec.section == NodeTextSection.Instantiation || spec.section == NodeTextSection.Declaration) {
+                add(JLabel("Effective"))
+                add(JLabel().also { effectiveLanguageLabelsBySection[spec.section] = it })
+            }
         }
         val editorPanel = JPanel(BorderLayout()).apply {
             add(controls, BorderLayout.NORTH)
@@ -3794,6 +3855,7 @@ private class NodeTextEditor(
         binding = true
         try {
             syncTextLanguageBinding(spec, node.text)
+            refreshEffectiveLanguageLabel(spec)
         } finally {
             binding = false
         }
@@ -3907,6 +3969,12 @@ private class NodeTextEditor(
         val selector = languageSelectorsBySection[spec.section] ?: return
         val current = languageDisplayFor(spec, nodeText, effectiveTextLanguage(spec.section))
         selector.selectedItem = current
+    }
+
+    private fun refreshEffectiveLanguageLabel(spec: TextTabSpec) {
+        val label = effectiveLanguageLabelsBySection[spec.section] ?: return
+        val effective = effectiveTextLanguage(spec.section)
+        label.text = effective.ifBlank { spec.defaultLanguageId }
     }
 
     private data class TextTabSpec(
