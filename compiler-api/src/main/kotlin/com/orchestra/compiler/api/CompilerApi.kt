@@ -2,12 +2,16 @@ package com.orchestra.compiler.api
 
 import com.orchestra.core.classification.LinkClassifier
 import com.orchestra.core.classification.LinkStereotype
+import com.orchestra.core.classification.NodeStereotype
+import com.orchestra.core.classification.stereotype
 import com.orchestra.core.diagnostics.Diagnostic
+import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.VOID_LAYOUT_STRATEGY_ID
+import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveLayoutStrategyId
 import com.orchestra.core.model.getElementById
 import java.nio.file.Files
@@ -48,76 +52,24 @@ interface CompilerPlugin {
     fun linkStereotype(document: InflowDocument, linkNode: Node): LinkStereotype =
         LinkClassifier.classify(document, linkNode)
 
-    fun generatedDeclarationFor(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        when (node.kind) {
-            NodeKind.Node -> getNodeDeclaration(document, node, options)
-            NodeKind.Processor -> getProcessorDeclaration(document, node, options)
-            NodeKind.Link -> getLinkDeclaration(document, node, options)
-            NodeKind.Group -> getGroupDeclaration(document, node, options)
-            NodeKind.Note -> getNoteDeclaration(document, node, options)
-        }
-
-    fun generatedInstantiationFor(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        when (node.kind) {
-            NodeKind.Node -> getNodeInstantiation(document, node, options)
-            NodeKind.Processor -> getProcessorInstantiation(document, node, options)
-            NodeKind.Link -> getLinkInstantiation(document, node, options)
-            NodeKind.Group -> getGroupInstantiation(document, node, options)
-            NodeKind.Note -> getNoteInstantiation(document, node, options)
-        }
-
-    fun getNodeDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        ""
-
-    fun getNodeInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getNodeDeclaration(document, node, options)
-
-    fun getProcessorDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        ""
-
-    fun getProcessorInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getProcessorDeclaration(document, node, options)
-
-    fun getLinkDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        ""
-
-    fun getLinkInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getLinkDeclaration(document, node, options)
-
-    fun getGroupDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        ""
-
-    fun getGroupInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getGroupDeclaration(document, node, options)
-
-    fun getNoteDeclaration(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        ""
-
-    fun getNoteInstantiation(document: InflowDocument, node: Node, options: CompilerOptions): String =
-        getNoteDeclaration(document, node, options)
-
     fun getStaticFiles(document: InflowDocument, options: CompilerOptions): List<String> =
         magicFileNames.toList()
-
-    fun generateTerminalEntity(document: InflowDocument, node: Node, options: CompilerOptions): List<GeneratedFile> =
-        emptyList()
-
-    fun generateCompositeEntity(document: InflowDocument, node: Node, options: CompilerOptions): List<GeneratedFile> =
-        emptyList()
-
-    fun generateLink(document: InflowDocument, linkNode: Node, options: CompilerOptions): List<GeneratedFile> =
-        emptyList()
-
-    fun generateMagicFile(document: InflowDocument, node: Node, options: CompilerOptions): GeneratedFile? =
-        null
 
     fun layoutStrategy(options: CompilerOptions): LayoutStrategy =
         ClassifiedFilesystemLayoutStrategy
 
+    fun layoutStrategy(document: InflowDocument, nodeId: NodeId, options: CompilerOptions): LayoutStrategy {
+        val resolvedStrategyId = document.effectiveLayoutStrategyId(nodeId)
+        return if (resolvedStrategyId == VOID_LAYOUT_STRATEGY_ID) {
+            layoutStrategy(options)
+        } else {
+            layoutStrategyById(resolvedStrategyId)
+        }
+    }
+
     fun layoutStrategy(document: InflowDocument, options: CompilerOptions): LayoutStrategy {
         val scopeNodeId = options.scopeNodeIds.singleOrNull() ?: document.rootNodeId
-        val resolvedStrategyId = document.effectiveLayoutStrategyId(scopeNodeId)
-        return if (resolvedStrategyId == VOID_LAYOUT_STRATEGY_ID) layoutStrategy(options) else layoutStrategyById(resolvedStrategyId)
+        return layoutStrategy(document, scopeNodeId, options)
     }
 
     fun compile(document: InflowDocument, options: CompilerOptions = CompilerOptions()): CompilationResult
@@ -155,42 +107,373 @@ data class GeneratedFile(
     val elementKind: GeneratedElementKind = GeneratedElementKind.TerminalEntity,
 )
 
+data class CompiledNodeArtifact(
+    val node: Node,
+    val layoutStrategy: LayoutStrategy,
+    val declarationText: String,
+    val instantiationText: String,
+    val primaryFile: GeneratedFile?,
+    val files: List<GeneratedFile>,
+) {
+    val isComposite: Boolean get() = node.children.isNotEmpty() && !node.isLink
+}
+
+data class NodeCompilerContext(
+    val compiler: CompilerPlugin,
+    val document: InflowDocument,
+    val node: Node,
+    val options: CompilerOptions,
+    val projectName: String,
+    val layoutStrategy: LayoutStrategy,
+    val extension: String,
+    val childArtifacts: List<CompiledNodeArtifact>,
+    val linkArtifacts: List<CompiledNodeArtifact>,
+) {
+    val isSingleFileLayout: Boolean get() = layoutStrategy.id == SingleFileLayoutStrategy.id
+    val childDeclarations: String get() = childArtifacts.joinToString("\n\n") { it.declarationText }.trim()
+    val childInstantiations: String get() = childArtifacts.joinToString("\n") { it.instantiationText }.trim()
+    val linkDeclarations: String get() = linkArtifacts.joinToString("\n\n") { it.declarationText }.trim()
+    val linkInstantiations: String get() = linkArtifacts.joinToString("\n") { it.instantiationText }.trim()
+
+    fun primaryPath(): String =
+        layoutStrategy.primaryPathFor(document, node, projectName, extension, options)
+}
+
+abstract class StructuredCompiler : CompilerPlugin {
+    final override fun compile(document: InflowDocument, options: CompilerOptions): CompilationResult {
+        val diagnostics = validate(document).toMutableList()
+        if (diagnostics.any { it.severity == DiagnosticSeverity.Error }) {
+            return CompilationResult(null, diagnostics, success = false)
+        }
+
+        beforeCompile(document, options)
+        val projectName = normalizedProjectName(document, options)
+        val scopeIds = compileScopeIds(document, options.scopeNodeIds)
+        val roots = compilationRoots(document, scopeIds)
+        val files = mutableListOf<GeneratedFile>()
+        files += projectFiles(document, options, projectName)
+
+        roots.forEach { root ->
+            compileNode(document, root, options, projectName, scopeIds, diagnostics, linkedSetOf())
+                ?.let { files += it.files }
+        }
+        afterCompile(document, options)
+
+        if (diagnostics.any { it.severity == DiagnosticSeverity.Error }) {
+            return CompilationResult(null, diagnostics, success = false)
+        }
+        return CompilationResult(
+            generatedProject = finalizeProject(document, projectName, files.distinctBy { it.path }, options),
+            diagnostics = diagnostics,
+            success = true,
+        )
+    }
+
+    protected open fun beforeCompile(document: InflowDocument, options: CompilerOptions) {
+    }
+
+    protected open fun afterCompile(document: InflowDocument, options: CompilerOptions) {
+    }
+
+    protected open fun normalizedProjectName(document: InflowDocument, options: CompilerOptions): String =
+        options.projectName?.takeIf { it.isNotBlank() } ?: document.name.ifBlank { "project" }
+
+    protected open fun projectFiles(document: InflowDocument, options: CompilerOptions, projectName: String): List<GeneratedFile> =
+        emptyList()
+
+    protected open fun finalizeProject(
+        document: InflowDocument,
+        projectName: String,
+        files: List<GeneratedFile>,
+        options: CompilerOptions,
+    ): GeneratedProject =
+        GeneratedProject(projectName, files)
+
+    protected open fun fileExtension(context: NodeCompilerContext): String =
+        context.node.technology.fileExtension.ifBlank {
+            when (context.document.effectiveLanguageId(context.node.id)) {
+                "markdown" -> "md"
+                "kotlin" -> "kt"
+                "javascript" -> "js"
+                "typescript" -> "ts"
+                "php" -> "php"
+                "json" -> "json"
+                else -> "txt"
+            }
+        }.trim().trimStart('.').ifBlank { "txt" }
+
+    protected open fun shouldSkipNode(context: NodeCompilerContext): Boolean =
+        false
+
+    protected open fun staticFileFor(context: NodeCompilerContext): GeneratedFile? =
+        null
+
+    protected open fun declarationFor(context: NodeCompilerContext): String =
+        when (context.node.kind) {
+            NodeKind.Node -> getNodeDeclaration(context)
+            NodeKind.Processor -> getProcessorDeclaration(context)
+            NodeKind.Link -> getLinkDeclaration(context)
+            NodeKind.Group -> getGroupDeclaration(context)
+            NodeKind.Note -> getNoteDeclaration(context)
+        }
+
+    protected open fun instantiationFor(context: NodeCompilerContext): String =
+        when (context.node.kind) {
+            NodeKind.Node -> getNodeInstantiation(context)
+            NodeKind.Processor -> getProcessorInstantiation(context)
+            NodeKind.Link -> getLinkInstantiation(context)
+            NodeKind.Group -> getGroupInstantiation(context)
+            NodeKind.Note -> getNoteInstantiation(context)
+        }
+
+    protected open fun getNodeDeclaration(context: NodeCompilerContext): String =
+        defaultDeclaration(context)
+
+    protected open fun getNodeInstantiation(context: NodeCompilerContext): String =
+        context.node.text.instantiation
+
+    protected open fun getProcessorDeclaration(context: NodeCompilerContext): String =
+        if (context.node.children.isNotEmpty()) defaultCompositeDeclaration(context) else defaultDeclaration(context)
+
+    protected open fun getProcessorInstantiation(context: NodeCompilerContext): String =
+        context.node.text.instantiation
+
+    protected open fun getLinkDeclaration(context: NodeCompilerContext): String =
+        context.node.link?.payloadDefinition?.ifBlank { context.node.text.declaration } ?: context.node.text.declaration
+
+    protected open fun getLinkInstantiation(context: NodeCompilerContext): String =
+        context.node.text.instantiation
+
+    protected open fun getGroupDeclaration(context: NodeCompilerContext): String =
+        defaultCompositeDeclaration(context)
+
+    protected open fun getGroupInstantiation(context: NodeCompilerContext): String =
+        context.node.text.instantiation
+
+    protected open fun getNoteDeclaration(context: NodeCompilerContext): String =
+        defaultDeclaration(context)
+
+    protected open fun getNoteInstantiation(context: NodeCompilerContext): String =
+        context.node.text.instantiation
+
+    protected open fun defaultDeclaration(context: NodeCompilerContext): String =
+        listOf(context.node.text.instantiation, context.node.text.declaration)
+            .filter { it.isNotBlank() }
+            .joinToString("\n")
+
+    protected open fun defaultCompositeDeclaration(context: NodeCompilerContext): String {
+        val childBlock = if (context.isSingleFileLayout) context.childDeclarations else childImportsFor(context)
+        return listOf(
+            childBlock,
+            context.linkDeclarations,
+            context.node.text.instantiation,
+            context.node.text.declaration,
+            context.childInstantiations,
+            context.linkInstantiations,
+        ).filter { it.isNotBlank() }.joinToString("\n\n")
+    }
+
+    protected open fun childImportsFor(context: NodeCompilerContext): String =
+        context.childArtifacts.joinToString("\n") { importForChild(context, it) }.trim()
+
+    protected open fun importForChild(context: NodeCompilerContext, child: CompiledNodeArtifact): String =
+        ""
+
+    protected open fun shouldEmitPrimaryFile(context: NodeCompilerContext, declaration: String): Boolean =
+        declaration.isNotBlank() && !context.node.isLink
+
+    protected open fun primaryFileFor(context: NodeCompilerContext, declaration: String): GeneratedFile? {
+        if (!shouldEmitPrimaryFile(context, declaration)) return null
+        return GeneratedFile(
+            path = context.primaryPath(),
+            content = declaration.trimEnd(),
+            originNodeId = context.node.id,
+            reason = if (context.node.children.isNotEmpty()) "Composite node declaration" else "Terminal node declaration",
+            elementKind = if (context.node.children.isNotEmpty()) GeneratedElementKind.CompositeEntity else GeneratedElementKind.TerminalEntity,
+        )
+    }
+
+    private fun compileNode(
+        document: InflowDocument,
+        node: Node,
+        options: CompilerOptions,
+        projectName: String,
+        scopeIds: Set<NodeId>,
+        diagnostics: MutableList<Diagnostic>,
+        stack: LinkedHashSet<NodeId>,
+    ): CompiledNodeArtifact? {
+        if (node.id !in scopeIds) return null
+        if (!stack.add(node.id)) {
+            diagnostics += Diagnostic(DiagnosticSeverity.Error, "Cycle detected while compiling '${node.name}'.", node.id, sourcePluginId = id)
+            return null
+        }
+
+        val childNodes = node.children.mapNotNull(document::getElementById).filter { it.id in scopeIds }
+        val childArtifacts = childNodes
+            .filterNot { it.isLink }
+            .mapNotNull { compileNode(document, it, options, projectName, scopeIds, diagnostics, stack) }
+        val linkArtifacts = childNodes
+            .filter { it.isLink }
+            .mapNotNull { compileNode(document, it, options, projectName, scopeIds, diagnostics, stack) }
+        val strategy = layoutStrategy(document, node.id, options)
+        val baseContext = NodeCompilerContext(
+            compiler = this,
+            document = document,
+            node = node,
+            options = options,
+            projectName = projectName,
+            layoutStrategy = strategy,
+            extension = "txt",
+            childArtifacts = childArtifacts,
+            linkArtifacts = linkArtifacts,
+        )
+        val context = baseContext.copy(extension = fileExtension(baseContext))
+        val artifact = staticFileFor(context)?.let { file ->
+            CompiledNodeArtifact(node, strategy, file.content, "", file, listOf(file))
+        } ?: when {
+            shouldSkipNode(context) -> CompiledNodeArtifact(node, strategy, "", "", null, emptyList())
+            else -> regularArtifact(context)
+        }
+        stack.remove(node.id)
+        return artifact
+    }
+
+    private fun regularArtifact(context: NodeCompilerContext): CompiledNodeArtifact {
+        val declaration = declarationFor(context).trimEnd()
+        val instantiation = instantiationFor(context).trimEnd()
+        val primary = primaryFileFor(context, declaration)
+        val inheritedSingleFile = context.layoutStrategy.id == SingleFileLayoutStrategy.id
+        val childFiles = (context.childArtifacts + context.linkArtifacts).flatMap { artifact ->
+            if (inheritedSingleFile && artifact.layoutStrategy.id == SingleFileLayoutStrategy.id) {
+                emptyList()
+            } else {
+                artifact.files
+            }
+        }
+        val ownFiles = listOfNotNull(primary)
+        return CompiledNodeArtifact(
+            node = context.node,
+            layoutStrategy = context.layoutStrategy,
+            declarationText = declaration,
+            instantiationText = instantiation,
+            primaryFile = primary,
+            files = ownFiles + childFiles,
+        )
+    }
+
+    private fun compileScopeIds(document: InflowDocument, requested: Set<NodeId>): Set<NodeId> {
+        if (requested.isEmpty()) return document.nodes.keys
+        val result = linkedSetOf<NodeId>()
+        fun includeAncestors(id: NodeId) {
+            var currentParentId = document.getElementById(id)?.parentId
+            while (currentParentId != null) {
+                val parent = document.getElementById(currentParentId) ?: break
+                result += parent.id
+                currentParentId = parent.parentId
+            }
+        }
+        fun include(id: NodeId) {
+            val node = document.getElementById(id) ?: return
+            if (result.add(id) && !node.isLink) node.children.forEach(::include)
+        }
+        requested.forEach(::includeAncestors)
+        requested.forEach(::include)
+        val selectedNodes = result.mapNotNull(document::getElementById).filterNot { it.isLink }.map { it.id }.toSet()
+        document.nodes.values.filter { it.isLink }.forEach { linkNode ->
+            val link = linkNode.link ?: return@forEach
+            if (link.sourceNodeId in selectedNodes && link.targetNodeId in selectedNodes) result += linkNode.id
+        }
+        return result
+    }
+
+    private fun compilationRoots(document: InflowDocument, scopeIds: Set<NodeId>): List<Node> {
+        if (scopeIds.contains(document.rootNodeId)) return listOfNotNull(document.getElementById(document.rootNodeId))
+        return scopeIds
+            .mapNotNull(document::getElementById)
+            .filterNot { it.isLink }
+            .filter { it.parentId !in scopeIds }
+            .ifEmpty { listOfNotNull(document.getElementById(document.rootNodeId)) }
+    }
+}
+
 interface LayoutStrategy {
     val id: String
     val displayName: String
 
-    fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject
+    fun primaryPathFor(
+        document: InflowDocument,
+        node: Node,
+        projectName: String,
+        extension: String,
+        options: CompilerOptions,
+    ): String
+
+    fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject =
+        GeneratedProject(projectName, files)
 }
 
 object ClassifiedFilesystemLayoutStrategy : LayoutStrategy {
     override val id: String = "classified-filesystem"
     override val displayName: String = "Classified filesystem layout"
 
-    override fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject =
-        GeneratedProject(projectName, files)
+    override fun primaryPathFor(
+        document: InflowDocument,
+        node: Node,
+        projectName: String,
+        extension: String,
+        options: CompilerOptions,
+    ): String {
+        node.explicitPath()?.let { return it }
+        val stereotype = node.stereotype(document)
+        val directory = when {
+            node.isLink -> "links"
+            stereotype in setOf(NodeStereotype.CompositeWorker, NodeStereotype.CompositeErrorHandler, NodeStereotype.TestSuite) -> "composites"
+            stereotype == NodeStereotype.ServiceLibrary -> "libraries"
+            else -> "nodes"
+        }
+        return "$directory/${node.safeNodeSegment()}.${extension.safeExtension()}"
+    }
 }
 
 object DirectFileSystemHomorphismLayoutStrategy : LayoutStrategy {
     override val id: String = "direct-file-system-homomorphism"
     override val displayName: String = "Direct file-system homomorphism"
 
-    override fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject {
-        val rootPrefix = projectName.trim().ifBlank { document.name.ifBlank { "project" } }
-        val remapped = files.mapNotNull { file ->
-            val node = file.originNodeId?.let(document::getElementById)
-            when {
-                node == null -> file.copy(path = normalizeDirectPath(file.path))
-                node.isLink -> null
-                else -> file.copy(path = directPathForNode(document, node, file, rootPrefix))
-            }
-        }
-        return GeneratedProject(projectName, remapped.distinctBy { it.path })
+    override fun primaryPathFor(
+        document: InflowDocument,
+        node: Node,
+        projectName: String,
+        extension: String,
+        options: CompilerOptions,
+    ): String {
+        node.explicitPath()?.let { return it }
+        val rootPrefix = projectName.safeLayoutSegment()
+        val segments = node.directLayoutSegments(document, rootPrefix)
+        return (segments + "${node.safeNodeSegment()}.${extension.safeExtension()}").joinToString("/")
     }
+
+    override fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject =
+        GeneratedProject(projectName, files.filterNot { file -> file.originNodeId?.let(document::getElementById)?.isLink == true })
 }
 
 object SingleFileLayoutStrategy : LayoutStrategy {
     override val id: String = "single-file"
     override val displayName: String = "Single file layout"
+
+    override fun primaryPathFor(
+        document: InflowDocument,
+        node: Node,
+        projectName: String,
+        extension: String,
+        options: CompilerOptions,
+    ): String {
+        val nameSource = options.scopeNodeIds.singleOrNull()
+            ?.let(document::getElementById)
+            ?.name
+            ?.takeIf { it.isNotBlank() }
+            ?: if (node.id == document.rootNodeId) projectName else node.name
+        return "${nameSource.safeLayoutSegment()}.${extension.safeExtension()}"
+    }
 
     override fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject {
         val nameSource = options.scopeNodeIds.singleOrNull()
@@ -198,13 +481,12 @@ object SingleFileLayoutStrategy : LayoutStrategy {
             ?.name
             ?.takeIf { it.isNotBlank() }
             ?: projectName.trim().ifBlank { document.name.ifBlank { "project" } }
-        val normalizedProjectName = nameSource.safeLayoutSegment()
         val extension = files.singleFileExtension()
         val content = files
             .joinToString(separator = "\n\n") { it.content.trimEnd() }
             .trimEnd()
         val merged = GeneratedFile(
-            path = "$normalizedProjectName.$extension",
+            path = "${nameSource.safeLayoutSegment()}.$extension",
             content = content,
             originNodeId = null,
             reason = "Merged ${files.size} generated files using single-file layout",
@@ -218,32 +500,21 @@ object SourceSetLayoutStrategy : LayoutStrategy {
     override val id: String = "source-set"
     override val displayName: String = "Source set layout"
 
-    override fun layout(document: InflowDocument, projectName: String, files: List<GeneratedFile>, options: CompilerOptions): GeneratedProject =
-        GeneratedProject(
-            projectName,
-            files.map { file ->
-                if (file.path.contains('/')) {
-                    file
-                } else {
-                    file.copy(path = "src/main/resources/${file.path}")
-                }
-            },
-        )
-}
-
-private fun normalizeDirectPath(path: String): String =
-    path.trim().replace('\\', '/').trimStart('/')
-
-private fun directPathForNode(document: InflowDocument, node: Node, file: GeneratedFile, rootPrefix: String): String {
-    val segments = node.directLayoutSegments(document, rootPrefix)
-    val extension = file.path.substringAfterLast('.', missingDelimiterValue = "txt")
-    val fileName = if (node.children.isNotEmpty()) {
-        "${node.safeNodeSegment()}.$extension"
-    } else {
-        node.directLayoutFileName(extension)
+    override fun primaryPathFor(
+        document: InflowDocument,
+        node: Node,
+        projectName: String,
+        extension: String,
+        options: CompilerOptions,
+    ): String {
+        node.explicitPath()?.let { return it }
+        return "src/main/resources/${node.safeNodeSegment()}.${extension.safeExtension()}"
     }
-    return (segments + fileName).joinToString("/")
 }
+
+private fun Node.explicitPath(): String? =
+    metadata["path"]?.takeIf { it.isNotBlank() }
+        ?: metadata["file"]?.takeIf { it.isNotBlank() }
 
 private fun Node.directLayoutSegments(document: InflowDocument, rootPrefix: String): List<String> {
     val segments = mutableListOf(rootPrefix)
@@ -259,9 +530,6 @@ private fun Node.directLayoutSegments(document: InflowDocument, rootPrefix: Stri
     return segments
 }
 
-private fun Node.directLayoutFileName(extension: String): String =
-    "${safeNodeSegment()}.${extension.trimStart('.').ifBlank { "txt" }}"
-
 private fun Node.safeNodeSegment(): String =
     name.trim()
         .replace(Regex("[^A-Za-z0-9_.-]+"), "_")
@@ -273,6 +541,9 @@ private fun String.safeLayoutSegment(): String =
         .replace(Regex("[^A-Za-z0-9_.-]+"), "_")
         .trim('_')
         .ifBlank { "project" }
+
+private fun String.safeExtension(): String =
+    trim().trimStart('.').ifBlank { "txt" }
 
 private fun List<GeneratedFile>.singleFileExtension(): String =
     map { file -> file.path.substringAfterLast('.', "txt").trim().ifBlank { "txt" } }

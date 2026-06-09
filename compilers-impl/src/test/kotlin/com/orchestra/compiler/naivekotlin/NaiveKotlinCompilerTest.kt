@@ -97,8 +97,7 @@ class NaiveKotlinCompilerTest {
         val project = assertNotNull(result.generatedProject)
         val file = assertNotNull(project.files.singleOrNull { it.path == "src/main/kotlin/generated/compiler/FlowGeneratedCompiler.kt" })
         assertTrue(file.content.contains("class FlowGeneratedCompiler : GenericCompiler()"))
-        assertTrue(file.content.contains("override fun getGenerator"))
-        assertTrue(file.content.contains("override fun compile(document: InflowDocument, options: CompilerOptions)"))
+        assertTrue(file.content.contains("override fun templateOverrideFor(key: String): String?"))
         assertTrue(file.content.contains("generated ${'$'}{'$'}{node.name}"))
         assertTrue(file.content.contains("listOf(\"settings.gradle.kts\", \"build.gradle.kts\")"))
     }

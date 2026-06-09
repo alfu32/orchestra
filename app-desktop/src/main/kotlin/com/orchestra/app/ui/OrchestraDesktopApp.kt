@@ -18,6 +18,7 @@ import com.orchestra.compiler.generated.nodejs.JSCompiler
 import com.orchestra.compiler.generic.CompilerCompiler
 import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
+import com.orchestra.compiler.php.PhpCompiler
 import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.completion.ModelAwareCompletionService
 import com.orchestra.core.classification.LinkClassifier
@@ -178,7 +179,7 @@ class OrchestraDesktopApp(
     private val detailsHierarchyTree = JTree()
     private val selectedEntitiesTree = JTree()
     private val compilerCompiler = CompilerCompiler()
-    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + JSCompiler() + GenericCompiler() + NaiveKotlinCompiler()
+    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + JSCompiler() + PhpCompiler() + GenericCompiler() + NaiveKotlinCompiler()
     private val compilerTechnologies = availableCompilerTechnologies()
     private val languageIds = availableLanguageIds(compilerTechnologies)
     private val technologyIds = availableTechnologyIds(compilerTechnologies)

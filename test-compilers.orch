@@ -77,13 +77,13 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 9.0,
+                "x": 11.0,
                 "y": 12.0,
-                "width": 1184.0,
+                "width": 1182.0,
                 "height": 889.0,
                 "closedWidth": 276.0,
                 "closedHeight": 100.0,
-                "openWidth": 1184.0,
+                "openWidth": 1182.0,
                 "openHeight": 889.0,
                 "isExpanded": true
             },
@@ -500,8 +500,8 @@
                 "link_c7b9a826-c940-4502-b758-ac529c55b61d"
             ],
             "layout": {
-                "x": 41.0,
-                "y": 158.0,
+                "x": 55.0,
+                "y": 135.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,

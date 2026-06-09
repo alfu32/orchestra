@@ -6,6 +6,7 @@ import com.orchestra.compiler.generated.nodejs.JSCompiler
 import com.orchestra.compiler.generic.CompilerCompiler
 import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
+import com.orchestra.compiler.php.PhpCompiler
 import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
@@ -121,7 +122,7 @@ private fun compile(args: Array<String>) {
 }
 
 private fun compilersFrom(pluginsFolder: Path): List<CompilerPlugin> =
-    loadCompilerPlugins(pluginsFolder) + CompilerCompiler() + GenericCompiler() + NaiveKotlinCompiler() + JSCompiler()
+    loadCompilerPlugins(pluginsFolder) + CompilerCompiler() + GenericCompiler() + NaiveKotlinCompiler() + JSCompiler() + PhpCompiler()
 
 private fun selectCompiler(document: com.orchestra.core.model.InflowDocument, compilers: List<CompilerPlugin>): CompilerPlugin? {
     val root = document.rootNode()

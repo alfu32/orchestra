@@ -1,4 +1,4 @@
-package com.orchestra.compiler.generated.nodejs
+package com.orchestra.compiler.php
 
 import com.orchestra.compiler.api.CompiledNodeArtifact
 import com.orchestra.compiler.api.CompilerOptions
@@ -14,17 +14,16 @@ import com.orchestra.core.classification.stereotype
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.NodeKind
-import com.orchestra.core.model.getElementById
 import com.orchestra.core.validation.DocumentValidator
 import java.nio.file.Path
 
-class JSCompiler : StructuredCompiler() {
-    override val id: String = "nodejs-compiler"
-    override val displayName: String = "Node.js CommonJS Compiler"
-    override val supportedLanguageIds: Set<String> = setOf("javascript")
-    override val supportedTechnologyIds: Set<String> = setOf("nodejs")
-    override val providedTechnologies: List<CompilerTechnology> = listOf(CompilerTechnology("javascript", "nodejs"))
-    override val magicFileNames: Set<String> = setOf("package.json", "config.json")
+class PhpCompiler : StructuredCompiler() {
+    override val id: String = "php-compiler"
+    override val displayName: String = "PHP Compiler"
+    override val supportedLanguageIds: Set<String> = setOf("php")
+    override val supportedTechnologyIds: Set<String> = setOf("php")
+    override val providedTechnologies: List<CompilerTechnology> = listOf(CompilerTechnology("php", "php"))
+    override val magicFileNames: Set<String> = setOf("composer.json", ".env")
 
     override fun supports(document: InflowDocument): Boolean = true
 
@@ -34,26 +33,25 @@ class JSCompiler : StructuredCompiler() {
     override fun layoutStrategy(options: CompilerOptions): LayoutStrategy =
         DirectFileSystemHomorphismLayoutStrategy
 
+    override fun fileExtension(context: NodeCompilerContext): String =
+        "php"
+
     override fun projectFiles(document: InflowDocument, options: CompilerOptions, projectName: String): List<GeneratedFile> =
         listOf(
             GeneratedFile(
-                path = "${safeSegment(projectName)}/package.json",
+                path = "${safeSegment(projectName)}/composer.json",
                 content = """
 {
-  "name": "${safePackageName(projectName)}",
-  "version": "0.0.0",
-  "type": "commonjs",
-  "main": "${safeFunctionName(rootName(document))}.js"
+  "name": "orchestra/${safePackageName(projectName)}",
+  "type": "project",
+  "require": {}
 }
 """.trimStart(),
                 originNodeId = null,
-                reason = "Node.js package manifest",
+                reason = "Composer manifest",
                 elementKind = GeneratedElementKind.ProjectLayout,
             ),
         )
-
-    override fun fileExtension(context: NodeCompilerContext): String =
-        "js"
 
     override fun staticFileFor(context: NodeCompilerContext): GeneratedFile? {
         val node = context.node
@@ -80,103 +78,99 @@ class JSCompiler : StructuredCompiler() {
         compositeDeclaration(context)
 
     override fun getNoteDeclaration(context: NodeCompilerContext): String =
-        commentBlock(context.node.text.declaration.ifBlank { context.node.text.specification })
+        phpComment(context.node.text.declaration.ifBlank { context.node.text.specification })
 
     override fun getLinkDeclaration(context: NodeCompilerContext): String {
         val link = context.node.link
         val typeName = link?.typeName?.takeIf { it.isNotBlank() } ?: context.node.name
         val definition = link?.payloadDefinition?.ifBlank { context.node.text.declaration } ?: context.node.text.declaration
-        return listOf(
-            "/**",
-            " * Link ${context.node.name}:${typeName}",
-            definition.lines().joinToString("\n") { " * $it" },
-            " */",
-        ).joinToString("\n")
+        return phpComment("Link ${context.node.name}:$typeName\n$definition")
     }
 
     override fun getLinkInstantiation(context: NodeCompilerContext): String {
         val link = context.node.link ?: return ""
-        return "transport(context, \"${link.sourcePortName.escapeJs()}\", \"${link.targetPortName.escapeJs()}\");"
+        return "transport(\$context, '${link.sourcePortName.escapePhp()}', '${link.targetPortName.escapePhp()}');"
     }
 
     override fun importForChild(context: NodeCompilerContext, child: CompiledNodeArtifact): String {
         val childFile = child.primaryFile ?: return ""
-        val currentFile = context.primaryPath()
-        val relative = relativeRequire(currentFile, childFile.path)
-        val functionName = safeFunctionName(child.node.name)
-        return "const { $functionName } = require(\"$relative\");"
+        val relative = relativePath(context.primaryPath(), childFile.path)
+        return "require_once __DIR__ . '/$relative';"
     }
 
     private fun processorDeclaration(context: NodeCompilerContext): String {
         val functionName = safeFunctionName(context.node.name)
+        val initialization = context.node.text.instantiation.trimEnd()
         val body = context.node.text.declaration.trimEnd().ifBlank {
             "// ${context.node.name} has no declaration text yet."
         }
-        val initialization = context.node.text.instantiation.trimEnd()
         return """
-function $functionName(context = {}) {
-${initialization.indentJs()}
-${body.indentJs()}
-}
+<?php
 
-module.exports = { $functionName };
+function $functionName(array &${'$'}context = []): void
+{
+${initialization.indentPhp()}
+${body.indentPhp()}
+}
 """.trimStart()
     }
 
     private fun compositeDeclaration(context: NodeCompilerContext): String {
         val functionName = safeFunctionName(context.node.name)
         val imports = if (context.isSingleFileLayout) "" else childImportsFor(context)
-        val inlineChildren = if (context.isSingleFileLayout) context.childDeclarations else ""
+        val inlineChildren = if (context.isSingleFileLayout) context.childDeclarations.replace("<?php", "").trim() else ""
         val links = context.linkDeclarations
         val childCalls = context.childArtifacts
             .filter { it.node.kind != NodeKind.Note }
-            .joinToString("\n") { "${safeFunctionName(it.node.name)}(context);" }
+            .joinToString("\n") { "${safeFunctionName(it.node.name)}(\$context);" }
         val linkCalls = context.linkArtifacts.joinToString("\n") { it.instantiationText }
         val ownDeclaration = context.node.text.declaration.trimEnd()
         val ownInstantiation = context.node.text.instantiation.trimEnd()
-        return listOf(
-            imports,
-            runtimeSupport(),
-            inlineChildren,
-            links,
-            """
-function $functionName(context = {}) {
-${ownInstantiation.indentJs()}
-${ownDeclaration.indentJs()}
-${childCalls.indentJs()}
-${linkCalls.indentJs()}
-}
+        return """
+<?php
 
-module.exports = { $functionName };
-""".trimStart(),
-        ).filter { it.isNotBlank() }.joinToString("\n\n")
+$imports
+
+${runtimeSupport()}
+
+$inlineChildren
+
+$links
+
+function $functionName(array &${'$'}context = []): void
+{
+${ownInstantiation.indentPhp()}
+${ownDeclaration.indentPhp()}
+${childCalls.indentPhp()}
+${linkCalls.indentPhp()}
+}
+""".trimStart()
     }
 
     private fun runtimeSupport(): String =
         """
-function transport(context, source, target) {
-  context.outputs = context.outputs || {};
-  context.inputs = context.inputs || {};
-  const queue = context.outputs[source] || [];
-  context.inputs[target] = context.inputs[target] || [];
-  while (queue.length > 0) context.inputs[target].push(queue.shift());
+function transport(array &${'$'}context, string ${'$'}source, string ${'$'}target): void
+{
+    ${'$'}context['outputs'] ??= [];
+    ${'$'}context['inputs'] ??= [];
+    ${'$'}queue = ${'$'}context['outputs'][${'$'}source] ?? [];
+    ${'$'}context['inputs'][${'$'}target] ??= [];
+    while (count(${'$'}queue) > 0) {
+        ${'$'}context['inputs'][${'$'}target][] = array_shift(${'$'}queue);
+    }
 }
 """.trimStart()
 }
 
-private fun rootName(document: InflowDocument): String =
-    document.getElementById(document.rootNodeId)?.name ?: document.name.ifBlank { "main" }
-
-private fun relativeRequire(from: String, to: String): String {
+private fun relativePath(from: String, to: String): String {
     val fromParent = Path.of(from).parent ?: Path.of("")
-    val rel = fromParent.relativize(Path.of(to)).toString().replace('\\', '/').removeSuffix(".js")
-    return if (rel.startsWith(".")) rel else "./$rel"
+    return fromParent.relativize(Path.of(to)).toString().replace('\\', '/')
 }
 
-private fun String.indentJs(): String =
-    trimEnd().lines().filter { it.isNotBlank() }.joinToString("\n") { "  $it" }
+private fun String.indentPhp(): String =
+    trimEnd().lines().filter { it.isNotBlank() }.joinToString("\n") { "    $it" }
 
-private fun commentBlock(value: String): String =
+private fun phpComment(value: String): String =
     value.lines().joinToString(prefix = "/**\n", postfix = "\n */") { " * $it" }
 
 private fun safeFunctionName(value: String): String {
@@ -190,5 +184,5 @@ private fun safeSegment(value: String): String =
 private fun safePackageName(value: String): String =
     value.lowercase().replace(Regex("[^a-z0-9_.-]+"), "-").trim('-').ifBlank { "project" }
 
-private fun String.escapeJs(): String =
-    replace("\\", "\\\\").replace("\"", "\\\"")
+private fun String.escapePhp(): String =
+    replace("\\", "\\\\").replace("'", "\\'")
