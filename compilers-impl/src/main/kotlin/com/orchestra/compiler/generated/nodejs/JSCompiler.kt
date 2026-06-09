@@ -96,7 +96,12 @@ class JSCompiler : StructuredCompiler() {
 
     override fun getLinkInstantiation(context: NodeCompilerContext): String {
         val link = context.node.link ?: return ""
-        return "transport(context, \"${link.sourcePortName.escapeJs()}\", \"${link.targetPortName.escapeJs()}\");"
+        val sourceNode = context.document.getElementById(link.sourceNodeId)
+        val targetNode = context.document.getElementById(link.targetNodeId)
+        val linkReference = context.node.name
+        val sourceReference = "${sourceNode?.name ?: link.sourceNodeId.value}.${link.sourcePortName}"
+        val targetReference = "${targetNode?.name ?: link.targetNodeId.value}.${link.targetPortName}"
+        return "transport(context, \"${linkReference.escapeJs()}\", \"${sourceReference.escapeJs()}\", \"${targetReference.escapeJs()}\");"
     }
 
     override fun importForChild(context: NodeCompilerContext, child: CompiledNodeArtifact): String {
@@ -154,9 +159,11 @@ module.exports = { $functionName };
 
     private fun runtimeSupport(): String =
         """
-function transport(context, source, target) {
+function transport(context, linkReference, source, target) {
   context.outputs = context.outputs || {};
   context.inputs = context.inputs || {};
+  context.links = context.links || {};
+  context.links[linkReference] = { source, target };
   const queue = context.outputs[source] || [];
   context.inputs[target] = context.inputs[target] || [];
   while (queue.length > 0) context.inputs[target].push(queue.shift());

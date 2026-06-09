@@ -14,6 +14,7 @@ import com.orchestra.core.classification.stereotype
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.NodeKind
+import com.orchestra.core.model.getElementById
 import com.orchestra.core.validation.DocumentValidator
 import java.nio.file.Path
 
@@ -89,7 +90,12 @@ class PhpCompiler : StructuredCompiler() {
 
     override fun getLinkInstantiation(context: NodeCompilerContext): String {
         val link = context.node.link ?: return ""
-        return "transport(\$context, '${link.sourcePortName.escapePhp()}', '${link.targetPortName.escapePhp()}');"
+        val sourceNode = context.document.getElementById(link.sourceNodeId)
+        val targetNode = context.document.getElementById(link.targetNodeId)
+        val linkReference = context.node.name
+        val sourceReference = "${sourceNode?.name ?: link.sourceNodeId.value}.${link.sourcePortName}"
+        val targetReference = "${targetNode?.name ?: link.targetNodeId.value}.${link.targetPortName}"
+        return "transport(\$context, '${linkReference.escapePhp()}', '${sourceReference.escapePhp()}', '${targetReference.escapePhp()}');"
     }
 
     override fun importForChild(context: NodeCompilerContext, child: CompiledNodeArtifact): String {
@@ -149,10 +155,12 @@ ${linkCalls.indentPhp()}
 
     private fun runtimeSupport(): String =
         """
-function transport(array &${'$'}context, string ${'$'}source, string ${'$'}target): void
+function transport(array &${'$'}context, string ${'$'}linkReference, string ${'$'}source, string ${'$'}target): void
 {
     ${'$'}context['outputs'] ??= [];
     ${'$'}context['inputs'] ??= [];
+    ${'$'}context['links'] ??= [];
+    ${'$'}context['links'][${'$'}linkReference] = ['source' => ${'$'}source, 'target' => ${'$'}target];
     ${'$'}queue = ${'$'}context['outputs'][${'$'}source] ?? [];
     ${'$'}context['inputs'][${'$'}target] ??= [];
     while (count(${'$'}queue) > 0) {
