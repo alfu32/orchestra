@@ -25,7 +25,9 @@ class JSCompiler : GenericCompiler() {
         CompilerTechnology(supportedLanguageIds.first(), supportedTechnologyIds.first()),
     )
 
-    override fun layoutStrategy(options: CompilerOptions): LayoutStrategy = DirectFileSystemHomorphismLayoutStrategy
+    override fun layoutStrategy(options: CompilerOptions): LayoutStrategy {
+        return com.orchestra.compiler.api.SingleFileLayoutStrategy
+    }
 
     override fun supports(document: InflowDocument): Boolean = true
     override fun validate(document: InflowDocument) = emptyList<com.orchestra.core.diagnostics.Diagnostic>()

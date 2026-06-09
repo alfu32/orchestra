@@ -77,8 +77,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -732.0,
-                "y": 230.0,
+                "x": 9.0,
+                "y": 12.0,
                 "width": 1184.0,
                 "height": 889.0,
                 "closedWidth": 276.0,
@@ -127,8 +127,8 @@
                 "link_39b12ed2-3672-4426-98c0-8ed86b109be3"
             ],
             "layout": {
-                "x": -698.0,
-                "y": 875.0,
+                "x": 43.0,
+                "y": 657.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -191,8 +191,8 @@
                 "link_164c6126-9a92-4720-8897-b4e18504129f"
             ],
             "layout": {
-                "x": -258.0,
-                "y": 751.0,
+                "x": 483.0,
+                "y": 533.0,
                 "width": 276.0,
                 "height": 108.0,
                 "closedWidth": 276.0,
@@ -255,8 +255,8 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 144.0,
-                "y": 903.0,
+                "x": 885.0,
+                "y": 685.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -314,8 +314,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": -61.0,
-                "y": 545.0,
+                "x": 680.0,
+                "y": 327.0,
                 "width": 228.0,
                 "height": 100.0,
                 "closedWidth": 228.0,
@@ -372,8 +372,8 @@
                 "link_135fb536-8e1b-4157-ab41-ccb89b4ad623"
             ],
             "layout": {
-                "x": -689.0,
-                "y": 598.0,
+                "x": 52.0,
+                "y": 380.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -436,8 +436,8 @@
                 "link_08bf1636-d52d-4b3b-a5b9-42d275f5911e"
             ],
             "layout": {
-                "x": -157.0,
-                "y": 346.0,
+                "x": 584.0,
+                "y": 128.0,
                 "width": 276.0,
                 "height": 108.0,
                 "closedWidth": 276.0,
@@ -500,8 +500,8 @@
                 "link_c7b9a826-c940-4502-b758-ac529c55b61d"
             ],
             "layout": {
-                "x": -700.0,
-                "y": 376.0,
+                "x": 41.0,
+                "y": 158.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,

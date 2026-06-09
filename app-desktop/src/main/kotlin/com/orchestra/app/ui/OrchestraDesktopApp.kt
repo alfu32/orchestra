@@ -123,7 +123,9 @@ import javax.swing.JTextArea
 import javax.swing.JTextField
 import javax.swing.JTree
 import javax.swing.JToggleButton
+import javax.swing.JToolBar
 import javax.swing.KeyStroke
+import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 import javax.swing.Timer
 import javax.swing.TransferHandler
@@ -206,6 +208,7 @@ class OrchestraDesktopApp(
         registerBuiltInCommands()
         configurePlugins()
         frame.defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
+        OrchestraIcons.appIconImage()?.let(frame::setIconImage)
         frame.jMenuBar = menuBar()
         frame.contentPane = layout()
         applyFontOptions()
@@ -221,17 +224,21 @@ class OrchestraDesktopApp(
     }
 
     private fun layout(): JComponent {
-        val toolbar = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+        val toolbar = JToolBar(JToolBar.HORIZONTAL).apply {
+            isFloatable = true
+            isRollover = true
             val modes = ButtonGroup()
             listOf(
-                modeButton("Select", CanvasMode.Select),
-                modeButton("Node", CanvasMode.CreateNode),
-                modeButton("Link", CanvasMode.CreateLink),
+                modeButton("Select", CanvasMode.Select, "select"),
+                button("Undo", "undo") { executeCommand("edit.undo") },
+                button("Redo", "redo") { executeCommand("edit.redo") },
+                modeButton("Node", CanvasMode.CreateNode, "node"),
+                modeButton("Link", CanvasMode.CreateLink, "link"),
             ).forEach {
                 modes.add(it)
                 add(it)
             }
-            add(button("Sheet") { executeCommand("sheet.toggle") })
+            add(button("Sheet", "sheet") { executeCommand("sheet.toggle") })
             add(JComboBox(canvas.sheetFormatChoices().toTypedArray()).apply {
                 isEditable = false
                 selectedItem = canvas.selectedSheetFormatChoice()
@@ -239,12 +246,12 @@ class OrchestraDesktopApp(
                 preferredSize = Dimension(120, preferredSize.height)
                 maximumSize = preferredSize
             })
-            add(button("Compile") { executeCommand("compile.project") })
-            add(button("Gen Compiler") { executeCommand("compile.compiler") })
+            add(button("Build", "build") { executeCommand("compile.project") })
+            add(button("Build Compiler", "build") { executeCommand("compile.compiler") })
             pluginToolbarButtons.forEach { button ->
                 add(JButton(button.label).apply { addActionListener { button.action() } })
             }
-            add(button("About") { executeCommand("help.about") })
+            add(button("About", "document") { executeCommand("help.about") })
             modeButtons[canvas.mode]?.isSelected = true
         }
 
@@ -294,13 +301,13 @@ class OrchestraDesktopApp(
 
     private fun menuBar() = JMenuBar().apply {
         add(JMenu("File").apply {
-            add(commandItem("file.new"))
-            add(commandItem("file.open"))
-            add(commandItem("file.save"))
-            add(commandItem("file.saveAs"))
-            add(commandItem("sheet.export"))
-            add(commandItem("compile.project"))
-            add(commandItem("compile.compiler"))
+            add(commandItem("file.new", "document"))
+            add(commandItem("file.open", "open"))
+            add(commandItem("file.save", "save"))
+            add(commandItem("file.saveAs", "disk"))
+            add(commandItem("sheet.export", "sheet"))
+            add(commandItem("compile.project", "build"))
+            add(commandItem("compile.compiler", "build"))
             add(commandItem("app.options"))
             add(commandItem("file.quit"))
         })
@@ -313,9 +320,9 @@ class OrchestraDesktopApp(
             add(commandItem("edit.paste"))
         })
         add(JMenu("Graph").apply {
-            add(commandItem("graph.mode.select"))
-            add(commandItem("graph.mode.node"))
-            add(commandItem("graph.mode.link"))
+            add(commandItem("graph.mode.select", "select"))
+            add(commandItem("graph.mode.node", "node"))
+            add(commandItem("graph.mode.link", "link"))
             add(commandItem("graph.deleteSelection"))
             add(commandItem("commands.palette"))
         })
@@ -363,8 +370,8 @@ class OrchestraDesktopApp(
         })
         registerCommand(AppCommand("sheet.toggle", "Sheet: Toggle Preview") { canvas.toggleSheet() })
         registerCommand(AppCommand("sheet.export", "Sheet: Export...") { canvas.exportSheet(frame) })
-        registerCommand(AppCommand("compile.project", "Compile: Project or Selection") { compileProject() })
-        registerCommand(AppCommand("compile.compiler", "Compile: Generate Compiler From @Compiler") { generateCompilerFromDesign() })
+        registerCommand(AppCommand("compile.project", "Build: Project or Selection") { compileProject() })
+        registerCommand(AppCommand("compile.compiler", "Build: Generate Compiler From @Compiler") { generateCompilerFromDesign() })
         registerCommand(AppCommand("commands.palette", "Commands: Open Palette", KeyStroke.getKeyStroke(KeyEvent.VK_P, shiftShortcut)) { showCommandPalette() })
         registerCommand(AppCommand("help.about", "Help: About") { showAbout() })
     }
@@ -408,11 +415,16 @@ class OrchestraDesktopApp(
         command.action()
     }
 
-    private fun commandItem(id: String): JMenuItem {
+    private fun commandItem(id: String, iconId: String? = null): JMenuItem {
         val command = commands.getValue(id)
         return JMenuItem(command.title.substringAfter(": ")).apply {
             accelerator = command.keyStroke
             isEnabled = command.enabled()
+            iconId?.let(OrchestraIcons::buttonIcon)?.let {
+                icon = it
+                horizontalTextPosition = SwingConstants.RIGHT
+                iconTextGap = 6
+            }
             addActionListener { executeCommand(id) }
         }
     }
@@ -1036,12 +1048,24 @@ class OrchestraDesktopApp(
         }
     }
 
-    private fun modeButton(label: String, mode: CanvasMode) = JToggleButton(label).apply {
+    private fun modeButton(label: String, mode: CanvasMode, iconId: String? = null) = JToggleButton(label).apply {
         modeButtons[mode] = this
+        iconId?.let(OrchestraIcons::buttonIcon)?.let {
+            icon = it
+            horizontalTextPosition = SwingConstants.RIGHT
+            iconTextGap = 6
+        }
         addActionListener { canvas.setMode(mode) }
     }
 
-    private fun button(label: String, action: () -> Unit) = JButton(label).apply { addActionListener { action() } }
+    private fun button(label: String, iconId: String? = null, action: () -> Unit) = JButton(label).apply {
+        iconId?.let(OrchestraIcons::buttonIcon)?.let {
+            icon = it
+            horizontalTextPosition = SwingConstants.RIGHT
+            iconTextGap = 6
+        }
+        addActionListener { action() }
+    }
     private fun item(label: String, action: () -> Unit) = JMenuItem(label).apply { addActionListener { action() } }
 }
 
@@ -2186,7 +2210,8 @@ class GraphCanvas(
     }
 
     private fun drawCompositeToggle(g2: Graphics2D, node: Node) {
-        val rect = compositeToggleRect(node) ?: return
+        val label = if (node.layout.isExpanded) "-" else "+"
+        val rect = compositeToggleRect(node,label) ?: return
         val selected = node.id in selection
         val stroke = if (selected) Color(0x3366cc) else Color(0x666666)
         val previousColor = g2.color
@@ -2198,7 +2223,6 @@ class GraphCanvas(
         g2.stroke = BasicStroke(1f)
         g2.drawRect(rect.x, rect.y, rect.width, rect.height)
         g2.font = g2.font.deriveFont(9f)
-        val label = if (node.layout.isExpanded) "min" else "max"
         val metrics = g2.fontMetrics
         val textX = rect.x + (rect.width - metrics.stringWidth(label)) / 2
         val textY = rect.y + (rect.height - metrics.height) / 2 + metrics.ascent
@@ -2209,10 +2233,10 @@ class GraphCanvas(
     }
 
     private fun svgCompositeToggle(svg: StringBuilder, node: Node) {
-        val rect = compositeToggleRect(node) ?: return
-        val stroke = if (node.id in selection) "#3366cc" else "#666666"
-        svgRect(svg, rect, fill = "#ffffff", stroke = stroke, strokeWidth = 1.0)
-        svgText(svg, if (node.layout.isExpanded) "min" else "max", rect.x + 7, rect.y + 12, 9, stroke)
+        // val rect = compositeToggleRect(node) ?: return
+        // val stroke = if (node.id in selection) "#3366cc" else "#666666"
+        // svgRect(svg, rect, fill = "#ffffff", stroke = stroke, strokeWidth = 1.0)
+        // svgText(svg, if (node.layout.isExpanded) "min" else "max", rect.x + 7, rect.y + 12, 9, stroke)
     }
 
     private fun drawLink(g2: Graphics2D, node: Node) {
@@ -2282,13 +2306,13 @@ class GraphCanvas(
 
     private fun hitCompositeToggle(point: Point): NodeId? =
         visibleNodes().firstOrNull { node ->
-            node.isComposite && compositeToggleRect(node)?.contains(point) == true
+            node.isComposite && compositeToggleRect(node,"   ")?.contains(point) == true
         }?.id
 
-    private fun compositeToggleRect(node: Node): Rectangle? {
+    private fun compositeToggleRect(node: Node,txt:String): Rectangle? {
         if (!node.isComposite || node.id == repository.getDocument().rootNodeId) return null
         val r = node.layout.rect()
-        val width = 34
+        val width = 4+txt.length*10
         val height = 16
         return Rectangle(r.x + 8, r.y + 8, width, height)
     }
