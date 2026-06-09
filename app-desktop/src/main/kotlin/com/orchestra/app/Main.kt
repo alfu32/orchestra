@@ -110,9 +110,10 @@ private fun compile(args: Array<String>) {
     val output = positionals.getOrNull(1)?.let(Path::of) ?: error("Usage: compile <file.orch> <dir> [--plugins <dir>]")
     val pluginsFolder = parsePluginsFolderOrDefault(commandArgs)
     val document = KotlinxJsonDocumentStore().load(file)
-    val compiler = selectCompiler(document, compilersFrom(pluginsFolder))
+    val compilers = compilersFrom(pluginsFolder)
+    val compiler = selectCompiler(document, compilers)
         ?: error("No compiler plugin supports ${file.fileName}")
-    val result = compiler.compile(document, CompilerOptions(projectName = document.name))
+    val result = compiler.compile(document, CompilerOptions(projectName = document.name, compilerPlugins = compilers))
     result.diagnostics.forEach { println("${it.severity}: ${it.message}") }
     val generatedProject = result.generatedProject
     if (!result.success || generatedProject == null) error("Compilation failed")

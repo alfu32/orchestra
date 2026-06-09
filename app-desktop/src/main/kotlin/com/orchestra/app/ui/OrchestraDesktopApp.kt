@@ -38,6 +38,7 @@ import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.orchestra.core.model.VOID_LANGUAGE_ID
+import com.orchestra.core.model.VOID_TECHNOLOGY_ID
 import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveLayoutStrategyId
 import com.orchestra.core.model.effectiveTechnologyId
@@ -624,7 +625,7 @@ class OrchestraDesktopApp(
     private fun availableTechnologyIds(technologies: List<CompilerTechnology>): List<String> =
         (compilerPlugins.flatMap { it.supportedTechnologyIds } + technologies.map { it.technologyId })
             .map { it.trim() }
-            .filter { it.isNotBlank() }
+            .filter { it.isNotBlank() && it != VOID_TECHNOLOGY_ID }
             .distinct()
             .sorted()
 
@@ -698,6 +699,7 @@ class OrchestraDesktopApp(
             CompilerOptions(
                 projectName = projectName,
                 scopeNodeIds = scopedSelection,
+                compilerPlugins = compilerPlugins,
             ),
         )
         val diagnostics = result.diagnostics.joinToString(separator = "\n") { "${it.severity}: ${it.message}" }
@@ -3173,8 +3175,9 @@ class GraphCanvas(
 
     private fun technologyLabel(node: Node): String? {
         if (node.kind != NodeKind.Processor || node.isLink) return null
-        val language = node.technology.languageId.trim()
-        val technology = node.technology.technologyId.trim()
+        val document = repository.getDocument()
+        val language = document.effectiveLanguageId(node.id).trim()
+        val technology = document.effectiveTechnologyId(node.id).trim()
         return when {
             language.isBlank() && technology.isBlank() -> null
             language.isBlank() -> "tech: $technology"

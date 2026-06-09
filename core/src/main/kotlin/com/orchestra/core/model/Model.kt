@@ -164,7 +164,10 @@ fun InflowDocument.effectiveLanguageId(nodeId: NodeId): String =
     inheritedTechnologyValue(nodeId, VOID_LANGUAGE_ID) { it.languageId }
 
 fun InflowDocument.effectiveTechnologyId(nodeId: NodeId): String =
-    inheritedTechnologyValue(nodeId, VOID_TECHNOLOGY_ID) { it.technologyId }
+    inheritedNodeValue(nodeId, VOID_TECHNOLOGY_ID) {
+        val value = it.technology.technologyId.trim()
+        if (value.isBlank() || value == VOID_TECHNOLOGY_ID) "" else value
+    }
 
 fun InflowDocument.effectiveLayoutStrategyId(nodeId: NodeId): String =
     inheritedNodeValue(nodeId, VOID_LAYOUT_STRATEGY_ID) {

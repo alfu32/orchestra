@@ -54,6 +54,32 @@ class TechnologyMetadataResolutionTest {
     }
 
     @Test
+    fun `effective technology skips explicit none values and inherits from parent`() {
+        val root = Node(
+            id = NodeId("root"),
+            name = "root",
+            kind = NodeKind.Group,
+            technology = TechnologyMetadata(technologyId = "nodejs"),
+        )
+        val child = Node(
+            id = NodeId("child"),
+            name = "child",
+            kind = NodeKind.Processor,
+            parentId = root.id,
+            technology = TechnologyMetadata(technologyId = VOID_TECHNOLOGY_ID),
+        )
+        root.children += child.id
+        val document = InflowDocument(
+            id = "doc",
+            name = "doc",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root, child.id to child),
+        )
+
+        assertEquals("nodejs", document.effectiveTechnologyId(child.id))
+    }
+
+    @Test
     fun `effective layout strategy skips explicit none values and inherits from parent`() {
         val root = Node(
             id = NodeId("root"),

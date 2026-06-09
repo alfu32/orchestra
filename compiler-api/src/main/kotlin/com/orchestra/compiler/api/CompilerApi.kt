@@ -13,6 +13,7 @@ import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveLayoutStrategyId
+import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.model.getElementById
 import java.nio.file.Files
 import java.nio.file.Path
@@ -78,6 +79,9 @@ interface CompilerPlugin {
 data class CompilerOptions(
     val projectName: String? = null,
     val scopeNodeIds: Set<NodeId> = emptySet(),
+    val compilerPlugins: List<CompilerPlugin> = emptyList(),
+    val includeScopeAncestors: Boolean = true,
+    val allowCompilerDelegation: Boolean = true,
 )
 
 data class CompilationResult(
@@ -148,7 +152,7 @@ abstract class StructuredCompiler : CompilerPlugin {
 
         beforeCompile(document, options)
         val projectName = normalizedProjectName(document, options)
-        val scopeIds = compileScopeIds(document, options.scopeNodeIds)
+        val scopeIds = compileScopeIds(document, options.scopeNodeIds, options.includeScopeAncestors)
         val roots = compilationRoots(document, scopeIds)
         val files = mutableListOf<GeneratedFile>()
         files += projectFiles(document, options, projectName)
@@ -308,6 +312,37 @@ abstract class StructuredCompiler : CompilerPlugin {
             return null
         }
 
+        findDelegateCompiler(document, node, options)?.let { delegate ->
+            val result = delegate.compile(
+                document,
+                options.copy(
+                    scopeNodeIds = setOf(node.id),
+                    includeScopeAncestors = false,
+                ),
+            )
+            diagnostics += result.diagnostics
+            stack.remove(node.id)
+            val files = result.generatedProject?.files.orEmpty()
+            return if (result.success && result.generatedProject != null) {
+                CompiledNodeArtifact(
+                    node = node,
+                    layoutStrategy = layoutStrategy(document, node.id, options),
+                    declarationText = "",
+                    instantiationText = "",
+                    primaryFile = null,
+                    files = files,
+                )
+            } else {
+                diagnostics += Diagnostic(
+                    DiagnosticSeverity.Error,
+                    "Delegated compiler '${delegate.id}' failed for '${node.name}'.",
+                    node.id,
+                    sourcePluginId = id,
+                )
+                null
+            }
+        }
+
         val childNodes = node.children.mapNotNull(document::getElementById).filter { it.id in scopeIds }
         val childArtifacts = childNodes
             .filterNot { it.isLink }
@@ -361,7 +396,7 @@ abstract class StructuredCompiler : CompilerPlugin {
         )
     }
 
-    private fun compileScopeIds(document: InflowDocument, requested: Set<NodeId>): Set<NodeId> {
+    private fun compileScopeIds(document: InflowDocument, requested: Set<NodeId>, includeAncestors: Boolean): Set<NodeId> {
         if (requested.isEmpty()) return document.nodes.keys
         val result = linkedSetOf<NodeId>()
         fun includeAncestors(id: NodeId) {
@@ -376,7 +411,7 @@ abstract class StructuredCompiler : CompilerPlugin {
             val node = document.getElementById(id) ?: return
             if (result.add(id) && !node.isLink) node.children.forEach(::include)
         }
-        requested.forEach(::includeAncestors)
+        if (includeAncestors) requested.forEach(::includeAncestors)
         requested.forEach(::include)
         val selectedNodes = result.mapNotNull(document::getElementById).filterNot { it.isLink }.map { it.id }.toSet()
         document.nodes.values.filter { it.isLink }.forEach { linkNode ->
@@ -394,6 +429,29 @@ abstract class StructuredCompiler : CompilerPlugin {
             .filter { it.parentId !in scopeIds }
             .ifEmpty { listOfNotNull(document.getElementById(document.rootNodeId)) }
     }
+
+    private fun findDelegateCompiler(document: InflowDocument, node: Node, options: CompilerOptions): CompilerPlugin? {
+        if (!options.allowCompilerDelegation || options.compilerPlugins.isEmpty()) return null
+        val technologyId = document.effectiveTechnologyId(node.id).trim()
+        val languageId = document.effectiveLanguageId(node.id).trim()
+        if (technologyId.isBlank() || compilerSupports(this, technologyId, languageId)) return null
+        return options.compilerPlugins
+            .asSequence()
+            .filter { it.id != id }
+            .filter { compiler -> runCatching { compiler.supports(document) }.getOrDefault(false) }
+            .filter { compiler -> compilerSupports(compiler, technologyId, languageId) }
+            .sortedWith(compareByDescending<CompilerPlugin> { compiler ->
+                compiler.providedTechnologies.any { it.technologyId == technologyId && (it.languageId == languageId || it.languageId == ANY_LANGUAGE_ID) }
+            }.thenBy { it.id })
+            .firstOrNull()
+    }
+
+    private fun compilerSupports(compiler: CompilerPlugin, technologyId: String, languageId: String): Boolean =
+        technologyId in compiler.supportedTechnologyIds ||
+            compiler.providedTechnologies.any { technology ->
+                technology.technologyId == technologyId &&
+                    (languageId.isBlank() || technology.languageId == languageId || technology.languageId == ANY_LANGUAGE_ID)
+            }
 }
 
 interface LayoutStrategy {
