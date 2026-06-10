@@ -1190,7 +1190,7 @@ class GraphCanvas(
         const val PORT_BOTTOM_SPACING = 20
         const val PORT_STUB_LENGTH = 46
         const val PORT_OUTSIDE_OFFSET = 20
-        const val LINK_ENDPOINT_INSET = 30
+        const val LINK_ENDPOINT_INSET = 20
         const val ROUTING_STEP = 40
         const val ROUTING_CHAMFER = 22
         const val ROUTING_OBSTACLE_PADDING = 24
