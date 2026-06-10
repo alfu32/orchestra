@@ -12,7 +12,10 @@
                 "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
                 "node_ff9c427f-7de4-42e8-80ab-dd6bd81e4a90",
                 "link_30f79928-dd51-49b1-8235-6b2ac4245b0e",
-                "link_086af593-a909-4372-aad6-4d7c0e8f703a"
+                "link_086af593-a909-4372-aad6-4d7c0e8f703a",
+                "node_1a3267d7-7fcd-4156-8e05-0dfa1e6bc67a",
+                "link_0c9306f7-2f5b-4c17-9c0d-62ec43715907",
+                "link_ff9db09d-d032-4d06-bf06-c8a5c350a47d"
             ],
             "incomingLinks": [],
             "outgoingLinks": [],
@@ -77,19 +80,21 @@
                 "link_22fccfed-ab5c-45d8-a04e-783647c84194",
                 "link_c7b9a826-c940-4502-b758-ac529c55b61d"
             ],
-            "incomingLinks": [],
+            "incomingLinks": [
+                "link_0c9306f7-2f5b-4c17-9c0d-62ec43715907"
+            ],
             "outgoingLinks": [
                 "link_30f79928-dd51-49b1-8235-6b2ac4245b0e"
             ],
             "layout": {
-                "x": -350.0,
+                "x": -935.0,
                 "y": 332.0,
-                "width": 1542.0,
-                "height": 1091.0,
+                "width": 2127.0,
+                "height": 1116.0,
                 "closedWidth": 276.0,
                 "closedHeight": 114.0,
-                "openWidth": 1542.0,
-                "openHeight": 1091.0,
+                "openWidth": 2127.0,
+                "openHeight": 1116.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "single-file",
@@ -119,6 +124,13 @@
                     "direction": "Output",
                     "dataType": "",
                     "metadata": {}
+                },
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
                 }
             ],
             "link": null,
@@ -134,7 +146,8 @@
             "incomingLinks": [
                 "link_37dad0c0-5e12-4bc7-9391-a91dcaa4d26a",
                 "link_558d2ac3-8c3e-473a-9b3f-88899bb7d6d8",
-                "link_22fccfed-ab5c-45d8-a04e-783647c84194"
+                "link_22fccfed-ab5c-45d8-a04e-783647c84194",
+                "link_ff9db09d-d032-4d06-bf06-c8a5c350a47d"
             ],
             "outgoingLinks": [
                 "link_39b12ed2-3672-4426-98c0-8ed86b109be3"
@@ -143,11 +156,11 @@
                 "x": -299.0,
                 "y": 992.0,
                 "width": 276.0,
-                "height": 168.0,
+                "height": 198.0,
                 "closedWidth": 276.0,
-                "closedHeight": 168.0,
+                "closedHeight": 198.0,
                 "openWidth": 276.0,
-                "openHeight": 168.0,
+                "openHeight": 198.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -387,8 +400,8 @@
                 "link_135fb536-8e1b-4157-ab41-ccb89b4ad623"
             ],
             "layout": {
-                "x": -318.0,
-                "y": 682.0,
+                "x": 277.0,
+                "y": 650.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -515,8 +528,8 @@
                 "link_c7b9a826-c940-4502-b758-ac529c55b61d"
             ],
             "layout": {
-                "x": -311.0,
-                "y": 467.0,
+                "x": -903.0,
+                "y": 1232.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -1623,6 +1636,174 @@
                 "sourceNodeId": "node_69061a17-8c19-4d0e-96a7-2a5a36ca7a7c",
                 "sourcePortName": "out",
                 "targetNodeId": "link_30f79928-dd51-49b1-8235-6b2ac4245b0e",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_1a3267d7-7fcd-4156-8e05-0dfa1e6bc67a",
+            "name": "New Node",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_0c9306f7-2f5b-4c17-9c0d-62ec43715907"
+            ],
+            "layout": {
+                "x": -1645.0,
+                "y": 438.0,
+                "width": 220.0,
+                "height": 90.0,
+                "closedWidth": 220.0,
+                "closedHeight": 90.0,
+                "openWidth": 220.0,
+                "openHeight": 90.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_0c9306f7-2f5b-4c17-9c0d-62ec43715907",
+            "name": "New Node -> nodejs_compiler_tst",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_ff9db09d-d032-4d06-bf06-c8a5c350a47d"
+            ],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": {
+                "sourceNodeId": "node_1a3267d7-7fcd-4156-8e05-0dfa1e6bc67a",
+                "sourcePortName": "out",
+                "targetNodeId": "node_6816936f-d74e-4fd5-8e7c-21e8e07faa48",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_ff9db09d-d032-4d06-bf06-c8a5c350a47d",
+            "name": "New Node -> nodejs_compiler_tst -> read_file",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "link_0c9306f7-2f5b-4c17-9c0d-62ec43715907",
+                "sourcePortName": "out",
+                "targetNodeId": "node_34f90565-e16e-4590-a0ae-948e4ec26e94",
                 "targetPortName": "in",
                 "transportKind": "in-process",
                 "typeName": "",

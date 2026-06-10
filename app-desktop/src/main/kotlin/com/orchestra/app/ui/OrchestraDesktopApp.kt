@@ -2815,21 +2815,31 @@ class GraphCanvas(
     }
 
     private fun linkSide(node: Node, linkNode: Node, outgoing: Boolean): Int {
-        val link = linkNode.link ?: return 1
-        val otherId = if (outgoing) link.targetNodeId else link.sourceNodeId
         val center = node.layout.center()
-        val otherCenter = repository.getNode(otherId)?.layout?.center() ?: center
-        return if (otherCenter.x >= center.x) 1 else -1
+        val otherPoint = linkedEndpointReferencePoint(linkNode, outgoing, center)
+        return if (otherPoint.x >= center.x) 1 else -1
     }
 
     private fun portOrderValue(node: Node, linkNode: Node, side: Int): Double {
         val center = node.layout.center()
         val link = linkNode.link ?: return 0.0
         val outgoing = link.sourceNodeId == node.id
-        val otherId = if (outgoing) link.targetNodeId else link.sourceNodeId
-        val otherCenter = repository.getNode(otherId)?.layout?.center() ?: center
-        val sideRelativeX = ((otherCenter.x - center.x) * side).toDouble().coerceAtLeast(1.0)
-        return atan2((otherCenter.y - center.y).toDouble(), sideRelativeX)
+        val otherPoint = linkedEndpointReferencePoint(linkNode, outgoing, center)
+        val sideRelativeX = ((otherPoint.x - center.x) * side).toDouble().coerceAtLeast(1.0)
+        return atan2((otherPoint.y - center.y).toDouble(), sideRelativeX)
+    }
+
+    private fun linkedEndpointReferencePoint(linkNode: Node, outgoingFromNode: Boolean, fallback: Point): Point {
+        val link = linkNode.link ?: return fallback
+        val otherId = if (outgoingFromNode) link.targetNodeId else link.sourceNodeId
+        val other = repository.getNode(otherId) ?: return fallback
+        if (!other.isLink) return other.layout.center()
+        val route = routeCache[other.id] ?: routeLink(other)
+        return when {
+            route != null && outgoingFromNode -> route.source
+            route != null -> route.target
+            else -> other.layout.center()
+        }
     }
 
     private fun compact(points: List<Point>): List<Point> =
