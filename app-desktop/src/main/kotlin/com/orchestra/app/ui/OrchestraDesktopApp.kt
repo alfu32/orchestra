@@ -2783,9 +2783,9 @@ class GraphCanvas(
         if (endpointLink.id == ownerLink.id) return null
         val route = routeCache[endpointLink.id] ?: routeLink(endpointLink)
         return when {
-            route != null && outgoing -> PortAnchor(route.target, route.targetDirection)
-            route != null -> PortAnchor(route.source, route.sourceDirection)
-            else -> PortAnchor(endpointLink.layout.center(), if (outgoing) 1 else -1)
+            route != null && outgoing -> PortAnchor(route.target, -route.targetDirection)
+            route != null -> PortAnchor(route.source, -route.sourceDirection)
+            else -> PortAnchor(endpointLink.layout.center(), if (outgoing) -1 else 1)
         }
     }
 
