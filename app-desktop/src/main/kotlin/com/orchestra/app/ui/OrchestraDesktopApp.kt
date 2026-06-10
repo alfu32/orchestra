@@ -92,6 +92,7 @@ import java.io.StringReader
 import java.nio.file.Path
 import java.nio.file.Files
 import java.net.URLClassLoader
+import java.util.LinkedHashMap
 import java.util.ServiceLoader
 import javax.imageio.ImageIO
 import javax.swing.AbstractAction
@@ -148,6 +149,7 @@ import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.hypot
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.abs
@@ -879,6 +881,7 @@ class OrchestraDesktopApp(
         inspector.bind(selection.firstOrNull())
         editorTabs.bind(selection.toList(), activeSection)
         refreshSelectedEntitiesTree()
+        canvas.invalidateRenderCache()
         canvas.repaint()
     }
 
@@ -1152,7 +1155,23 @@ class GraphCanvas(
     private val routeCache = mutableMapOf<NodeId, LinkRoute>()
     private val activeRouteLinks = mutableSetOf<NodeId>()
     private val rerouteTimer = Timer(180) { rebuildRouteCache() }.apply { isRepeats = false }
+    private var renderRevision = 0L
+    // In-memory only. Do not persist project image tiles without a user-selected project-owned cache path.
+    private val tileCache = object : LinkedHashMap<FlowTileKey, BufferedImage>(128, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<FlowTileKey, BufferedImage>?): Boolean =
+            size > MAX_TILE_CACHE_ENTRIES
+    }
 
+    private enum class FlowTileLayer {
+        Static,
+    }
+    private data class FlowTileKey(
+        val layer: FlowTileLayer,
+        val sceneRevision: Long,
+        val zoomBucket: Int,
+        val tileX: Int,
+        val tileY: Int,
+    )
     private data class PortAnchor(val point: Point, val xDirection: Int)
     private data class LinkAnchors(val source: PortAnchor, val target: PortAnchor, val sourceNodeId: NodeId, val targetNodeId: NodeId)
     private data class LinkRoute(
@@ -1202,6 +1221,10 @@ class GraphCanvas(
         const val MIN_ZOOM = 0.02
         const val MAX_ZOOM = 2.5
         const val ZOOM_STEP = 1.12
+        const val TILE_SIZE_PX = 512
+        const val TILE_RENDER_PADDING = 240
+        const val MAX_TILE_CACHE_ENTRIES = 384
+        const val ZOOM_BUCKET_STEP = 1.25
         const val COMPOSITE_TOP_PADDING = 80
         const val COMPOSITE_HEADER_EXTRA_HEIGHT = 36
         const val SHEET_UNITS_PER_MM = 4.0
@@ -1272,8 +1295,14 @@ class GraphCanvas(
         repaint()
     }
 
+    fun invalidateRenderCache() {
+        renderRevision++
+        tileCache.clear()
+    }
+
     fun toggleSheet() {
         showSheet = !showSheet
+        invalidateRenderCache()
         repaint()
     }
 
@@ -1285,12 +1314,14 @@ class GraphCanvas(
         val next = choice.ifBlank { AUTO_SHEET_FORMAT }
         if (sheetFormatChoice == next) return
         sheetFormatChoice = next
+        invalidateRenderCache()
         repaint()
     }
 
     fun setDesignerFont(font: Font) {
         designerFont = font
         this.font = font
+        invalidateRenderCache()
         repaint()
     }
 
@@ -1348,6 +1379,7 @@ class GraphCanvas(
     }
 
     fun refreshBoundsFromChildren() {
+        invalidateRenderCache()
         val document = repository.getDocument()
         document.nodes.values
             .filter { !it.isLink && it.id != document.rootNodeId }
@@ -1448,18 +1480,78 @@ class GraphCanvas(
         val g2 = g as Graphics2D
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         g2.font = designerFont
-        g2.scale(zoom, zoom)
-        g2.translate(panX, panY)
-        if (showSheet) drawIsoSheet(g2, includeGrid = true)
-        if (!showSheet) drawGrid(g2)
-        drawGraph(g2, viewport = viewportModelRect())
+        drawCachedStaticScene(g2)
+        val overlay = g2.create() as Graphics2D
+        overlay.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        overlay.font = designerFont
+        overlay.scale(zoom, zoom)
+        overlay.translate(panX, panY)
         selectionRect?.let {
-            g2.color = Color(0x3366cc55, true)
-            g2.fill(it)
-            g2.color = Color(0x3366cc)
-            g2.draw(it)
+            overlay.color = Color(0x3366cc55, true)
+            overlay.fill(it)
+            overlay.color = Color(0x3366cc)
+            overlay.draw(it)
+        }
+        overlay.dispose()
+    }
+
+    private fun drawCachedStaticScene(g2: Graphics2D) {
+        if (width <= 0 || height <= 0) return
+        val bucket = zoomBucket()
+        val bucketZoom = zoomForBucket(bucket)
+        val tileModelSize = TILE_SIZE_PX / bucketZoom
+        val viewport = viewportModelRect(padding = 0)
+        val minTileX = floor(viewport.x / tileModelSize).toInt()
+        val minTileY = floor(viewport.y / tileModelSize).toInt()
+        val maxTileX = floor((viewport.x + viewport.width) / tileModelSize).toInt()
+        val maxTileY = floor((viewport.y + viewport.height) / tileModelSize).toInt()
+        for (tileY in minTileY..maxTileY) {
+            for (tileX in minTileX..maxTileX) {
+                val key = FlowTileKey(FlowTileLayer.Static, renderRevision, bucket, tileX, tileY)
+                val tile = tileCache.getOrPut(key) { renderStaticTile(tileX, tileY, bucketZoom, tileModelSize) }
+                val tileLeft = tileX * tileModelSize
+                val tileTop = tileY * tileModelSize
+                val screenX = ((tileLeft + panX) * zoom).roundToInt()
+                val screenY = ((tileTop + panY) * zoom).roundToInt()
+                val screenSize = (tileModelSize * zoom).roundToInt().coerceAtLeast(1) + 1
+                g2.drawImage(tile, screenX, screenY, screenSize, screenSize, null)
+            }
         }
     }
+
+    private fun renderStaticTile(tileX: Int, tileY: Int, bucketZoom: Double, tileModelSize: Double): BufferedImage {
+        val tileLeft = tileX * tileModelSize
+        val tileTop = tileY * tileModelSize
+        val tileViewport = Rectangle(
+            floor(tileLeft).toInt() - TILE_RENDER_PADDING,
+            floor(tileTop).toInt() - TILE_RENDER_PADDING,
+            ceil(tileModelSize).toInt() + TILE_RENDER_PADDING * 2,
+            ceil(tileModelSize).toInt() + TILE_RENDER_PADDING * 2,
+        )
+        val image = BufferedImage(TILE_SIZE_PX, TILE_SIZE_PX, BufferedImage.TYPE_INT_ARGB)
+        val g2 = image.createGraphics()
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2.font = designerFont
+        g2.color = background
+        g2.fillRect(0, 0, image.width, image.height)
+        g2.scale(bucketZoom, bucketZoom)
+        g2.translate(-tileLeft, -tileTop)
+        drawStaticScene(g2, tileViewport)
+        g2.dispose()
+        return image
+    }
+
+    private fun drawStaticScene(g2: Graphics2D, viewport: Rectangle) {
+        if (showSheet) drawIsoSheet(g2, includeGrid = true)
+        if (!showSheet) drawGrid(g2, viewport)
+        drawGraph(g2, viewport = viewport)
+    }
+
+    private fun zoomBucket(): Int =
+        (ln(zoom) / ln(ZOOM_BUCKET_STEP)).roundToInt()
+
+    private fun zoomForBucket(bucket: Int): Double =
+        ZOOM_BUCKET_STEP.pow(bucket.toDouble())
 
     private fun drawGrid(g2: Graphics2D, bounds: Rectangle? = null) {
         g2.color = Color(0xe2e2e2)
@@ -2617,6 +2709,7 @@ class GraphCanvas(
             }
         routeCache.clear()
         routeCache.putAll(nextCache)
+        invalidateRenderCache()
         repaint()
     }
 
@@ -2778,6 +2871,7 @@ class GraphCanvas(
 
     private fun invalidateRoutesFor(nodeIds: Collection<NodeId>) {
         if (nodeIds.isEmpty()) return
+        invalidateRenderCache()
         val document = repository.getDocument()
         val affectedNodes = linkedSetOf<NodeId>().apply {
             addAll(nodeIds)
