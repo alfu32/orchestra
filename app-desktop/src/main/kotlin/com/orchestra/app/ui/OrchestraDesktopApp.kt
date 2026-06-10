@@ -1671,9 +1671,8 @@ class GraphCanvas(
     private fun drawGraph(g2: Graphics2D, scopeIds: Set<NodeId>? = null, viewport: Rectangle? = null) {
         val links = visibleLinks(scopeIds)
             .filter { viewport == null || linkMayIntersectViewport(it, viewport) }
-        visibleNodes(scopeIds)
+        orderedVisibleNodes(scopeIds)
             .filter { viewport == null || it.id in selection || it.layout.rect().intersects(viewport) }
-            .sortedBy { it.children.isEmpty() }
             .forEach { drawNode(g2, it) }
         links.filterNot(::isDependencyAnnotation).forEach { drawLink(g2, it) }
         drawDependencyAnnotations(g2, links.filter(::isDependencyAnnotation))
@@ -2020,9 +2019,7 @@ class GraphCanvas(
 
     private fun svgGraph(svg: StringBuilder, scopeIds: Set<NodeId>) {
         val links = visibleLinks(scopeIds)
-        visibleNodes(scopeIds)
-            .sortedBy { it.children.isEmpty() }
-            .forEach { svgNode(svg, it) }
+        orderedVisibleNodes(scopeIds).forEach { svgNode(svg, it) }
         links.filterNot(::isDependencyAnnotation).forEach { svgLink(svg, it) }
         svgDependencyAnnotations(svg, links.filter(::isDependencyAnnotation))
     }
@@ -2489,6 +2486,15 @@ class GraphCanvas(
                 isVisibleInCanvas(node)
         }
     }
+
+    private fun orderedVisibleNodes(scopeIds: Set<NodeId>? = null): List<Node> =
+        visibleNodes(scopeIds).sortedWith(
+            compareBy<Node> { depthOf(it) }
+                .thenBy { it.children.isEmpty() }
+                .thenBy { it.layout.y }
+                .thenBy { it.layout.x }
+                .thenBy { it.id.value },
+        )
 
     private fun visibleLinks(scopeIds: Set<NodeId>? = null): List<Node> {
         val document = repository.getDocument()
