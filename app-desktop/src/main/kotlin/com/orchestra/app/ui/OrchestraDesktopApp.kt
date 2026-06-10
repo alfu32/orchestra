@@ -1161,6 +1161,7 @@ class GraphCanvas(
         val targetDirection: Int,
         val points: List<Point>,
     )
+    private data class LinkEndpoint(val point: Point, val xDirection: Int)
     private data class SheetFormat(val id: String, val widthMm: Double, val heightMm: Double, val roll: Boolean = false)
     private data class BomRow(val index: Int, val name: String, val kind: String)
     private data class SheetPlan(
@@ -2783,18 +2784,39 @@ class GraphCanvas(
     private fun linkEndpointAnchor(endpointLink: Node, ownerLink: Node, outgoing: Boolean): PortAnchor? {
         if (endpointLink.id == ownerLink.id) return null
         val route = routeCache[endpointLink.id] ?: routeLink(endpointLink)
-        return when {
-            route != null && outgoing -> PortAnchor(
-                Point(route.target.x + LINK_ENDPOINT_INSET * route.targetDirection, route.target.y),
-                -route.targetDirection,
-            )
-            route != null -> PortAnchor(
-                Point(route.source.x - LINK_ENDPOINT_INSET * route.sourceDirection, route.source.y),
-                -route.sourceDirection,
-            )
-            else -> PortAnchor(endpointLink.layout.center(), if (outgoing) -1 else 1)
-        }
+        val referencePoint = ownerLinkCounterpartReferencePoint(endpointLink, ownerLink, outgoing)
+            ?: endpointLink.layout.center()
+        val endpoint = route?.nearestEndpoint(referencePoint)
+            ?: LinkEndpoint(endpointLink.layout.center(), if (outgoing) -1 else 1)
+        val insideDirection = horizontalDirection(endpoint.point, referencePoint) ?: endpoint.xDirection
+        return PortAnchor(
+            Point(endpoint.point.x + LINK_ENDPOINT_INSET * insideDirection, endpoint.point.y),
+            insideDirection,
+        )
     }
+
+    private fun LinkRoute.nearestEndpoint(referencePoint: Point): LinkEndpoint =
+        if (source.distance(referencePoint) <= target.distance(referencePoint)) {
+            LinkEndpoint(source, sourceDirection)
+        } else {
+            LinkEndpoint(target, targetDirection)
+        }
+
+    private fun ownerLinkCounterpartReferencePoint(endpointLink: Node, ownerLink: Node, outgoing: Boolean): Point? {
+        val owner = ownerLink.link ?: return null
+        val otherId = if (outgoing) owner.targetNodeId else owner.sourceNodeId
+        val other = repository.getNode(otherId) ?: return null
+        if (!other.isLink) return other.layout.center()
+        val route = routeCache[other.id] ?: routeLink(other) ?: return other.layout.center()
+        return route.nearestEndpoint(endpointLink.layout.center()).point
+    }
+
+    private fun horizontalDirection(from: Point, to: Point): Int? =
+        when {
+            to.x > from.x -> 1
+            to.x < from.x -> -1
+            else -> null
+        }
 
     private fun routeDirectionNear(points: List<Point>, point: Point): Int {
         val segment = points.zipWithNext().minByOrNull { (a, b) -> distanceToSegment(point, a, b) }
@@ -2842,11 +2864,7 @@ class GraphCanvas(
         val other = repository.getNode(otherId) ?: return fallback
         if (!other.isLink) return other.layout.center()
         val route = routeCache[other.id] ?: routeLink(other)
-        return when {
-            route != null && outgoingFromNode -> route.source
-            route != null -> route.target
-            else -> other.layout.center()
-        }
+        return route?.nearestEndpoint(fallback)?.point ?: other.layout.center()
     }
 
     private fun compact(points: List<Point>): List<Point> =
