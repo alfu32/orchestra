@@ -2785,11 +2785,11 @@ class GraphCanvas(
         val route = routeCache[endpointLink.id] ?: routeLink(endpointLink)
         return when {
             route != null && outgoing -> PortAnchor(
-                Point(route.target.x + LINK_ENDPOINT_INSET, route.target.y),
+                Point(route.target.x + LINK_ENDPOINT_INSET * route.targetDirection, route.target.y),
                 -route.targetDirection,
             )
             route != null -> PortAnchor(
-                Point(route.source.x - LINK_ENDPOINT_INSET, route.source.y),
+                Point(route.source.x - LINK_ENDPOINT_INSET * route.sourceDirection, route.source.y),
                 -route.sourceDirection,
             )
             else -> PortAnchor(endpointLink.layout.center(), if (outgoing) -1 else 1)
