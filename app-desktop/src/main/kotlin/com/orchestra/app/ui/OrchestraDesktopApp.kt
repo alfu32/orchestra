@@ -95,7 +95,6 @@ import java.nio.file.Files
 import java.net.URLClassLoader
 import java.util.LinkedHashMap
 import java.util.ServiceLoader
-import java.util.concurrent.Executors
 import javax.imageio.ImageIO
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
@@ -205,6 +204,7 @@ class OrchestraDesktopApp(
         string = "tiles idle"
         value = 0
     }
+    private var lastTileProgressUpdateMs = 0L
     private val resourceStatus = JLabel().apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
         font = Font(Font.MONOSPACED, Font.PLAIN, 12)
@@ -466,19 +466,27 @@ class OrchestraDesktopApp(
     }
 
     private fun updateTileProgress(done: Int, total: Int, active: Boolean) {
-        if (total <= 0) {
-            tileProgress.maximum = 1
-            tileProgress.value = 0
-            tileProgress.string = "tiles idle"
+        val maximum = if (total <= 0) 1 else total
+        val value = if (total <= 0) 0 else done.coerceIn(0, total)
+        val text = when {
+            total <= 0 -> "tiles idle"
+            active && value < total -> "tiles $value/$total"
+            else -> "tiles ready"
+        }
+        val finalState = total <= 0 || !active || value >= total
+        val now = System.currentTimeMillis()
+        if (!finalState && now - lastTileProgressUpdateMs < 180) return
+        if (
+            tileProgress.maximum == maximum &&
+            tileProgress.value == value &&
+            tileProgress.string == text
+        ) {
             return
         }
-        tileProgress.maximum = total
-        tileProgress.value = done.coerceIn(0, total)
-        tileProgress.string = if (active && done < total) {
-            "tiles ${tileProgress.value}/$total"
-        } else {
-            "tiles ready"
-        }
+        lastTileProgressUpdateMs = now
+        tileProgress.maximum = maximum
+        tileProgress.value = value
+        tileProgress.string = text
     }
 
     private fun updateResourceStatus() {
@@ -1224,14 +1232,6 @@ class GraphCanvas(
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<FlowTileKey, BufferedImage>?): Boolean =
             size > MAX_TILE_CACHE_ENTRIES
     }
-    private val pendingTiles = mutableSetOf<FlowTileKey>()
-    private var tileWorkKeys: Set<FlowTileKey> = emptySet()
-    private val tileRouteSnapshot = ThreadLocal<Map<NodeId, LinkRoute>?>()
-    private val tileExecutor = Executors.newFixedThreadPool(
-        max(2, Runtime.getRuntime().availableProcessors() / 2),
-    ) { runnable ->
-        Thread(runnable, "flow-designer-tile-renderer").apply { isDaemon = true }
-    }
 
     private enum class FlowTileLayer {
         Static,
@@ -1369,8 +1369,6 @@ class GraphCanvas(
     fun invalidateRenderCache() {
         renderRevision++
         tileCache.clear()
-        pendingTiles.clear()
-        tileWorkKeys = emptySet()
         onTileProgress(0, 0, false)
     }
 
@@ -1579,7 +1577,17 @@ class GraphCanvas(
         val minTileY = floor(viewport.y / tileModelSize).toInt()
         val maxTileX = floor((viewport.x + viewport.width) / tileModelSize).toInt()
         val maxTileY = floor((viewport.y + viewport.height) / tileModelSize).toInt()
-        val visibleKeys = mutableSetOf<FlowTileKey>()
+        val totalTiles = ((maxTileX - minTileX) + 1).coerceAtLeast(0) *
+            ((maxTileY - minTileY) + 1).coerceAtLeast(0)
+        var missingTiles = 0
+        for (tileY in minTileY..maxTileY) {
+            for (tileX in minTileX..maxTileX) {
+                val key = FlowTileKey(FlowTileLayer.Static, renderRevision, bucket, tileX, tileY)
+                if (key !in tileCache) missingTiles++
+            }
+        }
+        var completedTiles = totalTiles - missingTiles
+        if (missingTiles > 0) onTileProgress(completedTiles, totalTiles, true)
         for (tileY in minTileY..maxTileY) {
             for (tileX in minTileX..maxTileX) {
                 val key = FlowTileKey(FlowTileLayer.Static, renderRevision, bucket, tileX, tileY)
@@ -1588,52 +1596,17 @@ class GraphCanvas(
                 val screenX = ((tileLeft + panX) * zoom).roundToInt()
                 val screenY = ((tileTop + panY) * zoom).roundToInt()
                 val screenSize = (tileModelSize * zoom).roundToInt().coerceAtLeast(1) + 1
-                visibleKeys += key
-                val tile = tileCache[key]
-                if (tile == null) {
-                    scheduleTileRender(key, tileX, tileY, bucketZoom, tileModelSize)
-                    g2.color = background
-                    g2.fillRect(screenX, screenY, screenSize, screenSize)
-                } else {
-                    g2.drawImage(tile, screenX, screenY, screenSize, screenSize, null)
+                val tile = tileCache[key] ?: renderStaticTile(tileX, tileY, bucketZoom, tileModelSize).also {
+                    tileCache[key] = it
+                    completedTiles++
+                    if (completedTiles == totalTiles || completedTiles % 4 == 0) {
+                        onTileProgress(completedTiles, totalTiles, completedTiles < totalTiles)
+                    }
                 }
+                g2.drawImage(tile, screenX, screenY, screenSize, screenSize, null)
             }
         }
-        tileWorkKeys = visibleKeys
-        reportTileProgress()
-    }
-
-    private fun scheduleTileRender(key: FlowTileKey, tileX: Int, tileY: Int, bucketZoom: Double, tileModelSize: Double) {
-        if (key in tileCache || !pendingTiles.add(key)) return
-        val routes = routeCache.toMap()
-        tileExecutor.execute {
-            val image = runCatching {
-                tileRouteSnapshot.set(routes)
-                renderStaticTile(tileX, tileY, bucketZoom, tileModelSize)
-            }.also {
-                tileRouteSnapshot.remove()
-            }.getOrNull()
-            SwingUtilities.invokeLater {
-                pendingTiles.remove(key)
-                if (image != null && key.sceneRevision == renderRevision) {
-                    tileCache[key] = image
-                }
-                reportTileProgress()
-                if (key.sceneRevision == renderRevision) repaint()
-            }
-        }
-        reportTileProgress()
-    }
-
-    private fun reportTileProgress() {
-        val total = tileWorkKeys.size
-        if (total == 0) {
-            onTileProgress(0, 0, false)
-            return
-        }
-        val done = tileWorkKeys.count { it in tileCache }
-        val active = done < total || tileWorkKeys.any { it in pendingTiles }
-        onTileProgress(done, total, active)
+        onTileProgress(totalTiles, totalTiles, false)
     }
 
     private fun renderStaticTile(tileX: Int, tileY: Int, bucketZoom: Double, tileModelSize: Double): BufferedImage {
@@ -2481,9 +2454,7 @@ class GraphCanvas(
 
     private fun drawLink(g2: Graphics2D, node: Node) {
         node.link ?: return
-        val route = cachedRoute(node.id) ?: run {
-            if (SwingUtilities.isEventDispatchThread()) routeLink(node) else null
-        } ?: return
+        val route = cachedRoute(node.id) ?: routeLink(node) ?: return
         val previousStroke = g2.stroke
         val previousFont = g2.font
         val selected = node.id in selection
@@ -2502,7 +2473,7 @@ class GraphCanvas(
     }
 
     private fun cachedRoute(id: NodeId): LinkRoute? =
-        tileRouteSnapshot.get()?.get(id) ?: routeCache[id]
+        routeCache[id]
 
     private fun linkLabel(node: Node): String {
         val typeName = node.link?.typeName?.trim().orEmpty()
