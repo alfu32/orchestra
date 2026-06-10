@@ -151,6 +151,7 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 class OrchestraDesktopApp(
@@ -262,7 +263,7 @@ class OrchestraDesktopApp(
         val flowDesigner = JSplitPane(
             JSplitPane.HORIZONTAL_SPLIT,
             labeledPanel("Entity Hierarchy Tree", JScrollPane(hierarchyTree)),
-            JScrollPane(canvas),
+            canvas,
         ).apply {
             resizeWeight = 0.16
         }
@@ -1198,6 +1199,9 @@ class GraphCanvas(
         const val ROUTING_LANE_SPAN = 7
         const val SNAP_GRID_STEP = 40
         const val SNAP_RADIUS_PX = 5.0
+        const val MIN_ZOOM = 0.02
+        const val MAX_ZOOM = 2.5
+        const val ZOOM_STEP = 1.12
         const val COMPOSITE_TOP_PADDING = 80
         const val COMPOSITE_HEADER_EXTRA_HEIGHT = 36
         const val SHEET_UNITS_PER_MM = 4.0
@@ -1230,7 +1234,7 @@ class GraphCanvas(
 
     init {
         background = Color(0xf7f7f7)
-        preferredSize = Dimension(2400, 1800)
+        preferredSize = Dimension(900, 700)
         toolTipText = ""
         val mouse = object : MouseAdapter() {
             override fun mousePressed(e: MouseEvent) = handlePressed(e)
@@ -1239,7 +1243,7 @@ class GraphCanvas(
             override fun mouseClicked(e: MouseEvent) = handleClicked(e)
             override fun mouseWheelMoved(e: MouseWheelEvent) {
                 val before = modelPoint(e.point)
-                zoom = (zoom - e.preciseWheelRotation * 0.08).coerceIn(0.25, 2.5)
+                zoom = (zoom * ZOOM_STEP.pow(-e.preciseWheelRotation)).coerceIn(MIN_ZOOM, MAX_ZOOM)
                 panX = e.point.x / zoom - before.x
                 panY = e.point.y / zoom - before.y
                 repaint()
@@ -1448,7 +1452,7 @@ class GraphCanvas(
         g2.translate(panX, panY)
         if (showSheet) drawIsoSheet(g2, includeGrid = true)
         if (!showSheet) drawGrid(g2)
-        drawGraph(g2)
+        drawGraph(g2, viewport = viewportModelRect())
         selectionRect?.let {
             g2.color = Color(0x3366cc55, true)
             g2.fill(it)
@@ -1474,13 +1478,34 @@ class GraphCanvas(
         }
     }
 
-    private fun drawGraph(g2: Graphics2D, scopeIds: Set<NodeId>? = null) {
+    private fun viewportModelRect(padding: Int = 200): Rectangle {
+        val left = floor(-panX).toInt() - padding
+        val top = floor(-panY).toInt() - padding
+        val right = ceil(width / zoom - panX).toInt() + padding
+        val bottom = ceil(height / zoom - panY).toInt() + padding
+        return Rectangle(left, top, (right - left).coerceAtLeast(1), (bottom - top).coerceAtLeast(1))
+    }
+
+    private fun drawGraph(g2: Graphics2D, scopeIds: Set<NodeId>? = null, viewport: Rectangle? = null) {
         val links = visibleLinks(scopeIds)
+            .filter { viewport == null || linkMayIntersectViewport(it, viewport) }
         visibleNodes(scopeIds)
+            .filter { viewport == null || it.id in selection || it.layout.rect().intersects(viewport) }
             .sortedBy { it.children.isEmpty() }
             .forEach { drawNode(g2, it) }
         links.filterNot(::isDependencyAnnotation).forEach { drawLink(g2, it) }
         drawDependencyAnnotations(g2, links.filter(::isDependencyAnnotation))
+    }
+
+    private fun linkMayIntersectViewport(linkNode: Node, viewport: Rectangle): Boolean {
+        if (isDependencyAnnotation(linkNode)) {
+            return dependencyAnnotationBounds(linkNode).any { it.intersects(viewport) }
+        }
+        routeCache[linkNode.id]?.let { return it.bounds().intersects(viewport) }
+        val link = linkNode.link ?: return false
+        val source = repository.getNode(link.sourceNodeId)?.layout?.rect() ?: return false
+        val target = repository.getNode(link.targetNodeId)?.layout?.rect() ?: return false
+        return source.union(target).apply { grow(PORT_STUB_LENGTH * 2, PORT_SPACING * 2) }.intersects(viewport)
     }
 
     private fun drawIsoSheet(g2: Graphics2D, plan: SheetPlan? = null, includeGrid: Boolean = true) {
@@ -2707,6 +2732,17 @@ class GraphCanvas(
 
     private fun routeLength(points: List<Point>): Double =
         points.zipWithNext().sumOf { (a, b) -> a.distance(b) }
+
+    private fun LinkRoute.bounds(): Rectangle {
+        if (points.isEmpty()) return Rectangle(source)
+        val minX = points.minOf { it.x }
+        val minY = points.minOf { it.y }
+        val maxX = points.maxOf { it.x }
+        val maxY = points.maxOf { it.y }
+        return Rectangle(minX, minY, (maxX - minX).coerceAtLeast(1), (maxY - minY).coerceAtLeast(1)).apply {
+            grow(PORT_STUB_LENGTH, PORT_SPACING)
+        }
+    }
 
     private fun isOctilinearPath(points: List<Point>): Boolean =
         points.zipWithNext().all { (a, b) ->
