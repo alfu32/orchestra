@@ -1149,6 +1149,7 @@ class GraphCanvas(
     private var sheetFormatChoice = AUTO_SHEET_FORMAT
     private var designerFont: Font = OrchestraFonts.designerFont(13f)
     private val routeCache = mutableMapOf<NodeId, LinkRoute>()
+    private val activeRouteLinks = mutableSetOf<NodeId>()
     private val rerouteTimer = Timer(180) { rebuildRouteCache() }.apply { isRepeats = false }
 
     private data class PortAnchor(val point: Point, val xDirection: Int)
@@ -2552,11 +2553,16 @@ class GraphCanvas(
         }
 
     private fun routeLink(linkNode: Node): LinkRoute? {
-        val anchors = linkAnchors(linkNode) ?: return null
-        routeCache[linkNode.id]
-            ?.takeIf { it.source == anchors.source.point && it.target == anchors.target.point }
-            ?.let { return it }
-        return routedRoute(linkNode, anchors, emptyList())
+        if (!activeRouteLinks.add(linkNode.id)) return null
+        return try {
+            val anchors = linkAnchors(linkNode) ?: return null
+            routeCache[linkNode.id]
+                ?.takeIf { it.source == anchors.source.point && it.target == anchors.target.point }
+                ?.let { return it }
+            routedRoute(linkNode, anchors, emptyList())
+        } finally {
+            activeRouteLinks.remove(linkNode.id)
+        }
     }
 
     private fun linkAnchors(linkNode: Node): LinkAnchors? {
@@ -2757,6 +2763,7 @@ class GraphCanvas(
 
     private fun portAnchor(node: Node, linkNode: Node, outgoing: Boolean): PortAnchor? {
         linkNode.link ?: return null
+        if (node.isLink) return linkEndpointAnchor(node, linkNode, outgoing)
         val r = node.layout.rect()
         val side = linkSide(node, linkNode, outgoing)
         val sorted = normalLinksOnSide(node, side)
@@ -2770,6 +2777,27 @@ class GraphCanvas(
         }
         val y = r.y + PORT_TOP_SPACING + index * PORT_SPACING
         return PortAnchor(Point(x, y), side)
+    }
+
+    private fun linkEndpointAnchor(endpointLink: Node, ownerLink: Node, outgoing: Boolean): PortAnchor? {
+        if (endpointLink.id == ownerLink.id) return null
+        val route = routeCache[endpointLink.id] ?: routeLink(endpointLink)
+        val point = route?.points?.let { pointAlongRoute(it, 0.5) }
+            ?: endpointLink.layout.center()
+        val direction = route?.points?.let { routeDirectionNear(it, point) }
+            ?: if (outgoing) 1 else -1
+        return PortAnchor(point, if (outgoing) direction else -direction)
+    }
+
+    private fun routeDirectionNear(points: List<Point>, point: Point): Int {
+        val segment = points.zipWithNext().minByOrNull { (a, b) -> distanceToSegment(point, a, b) }
+            ?: return 1
+        val dx = segment.second.x - segment.first.x
+        return when {
+            dx > 0 -> 1
+            dx < 0 -> -1
+            else -> 1
+        }
     }
 
     private fun normalLinksOnSide(node: Node, side: Int): List<Node> {
@@ -2900,13 +2928,14 @@ class GraphCanvas(
                 refreshAll()
             }
             CanvasMode.CreateLink -> {
-                if (hit != null) {
+                val endpoint = hit ?: hitLink
+                if (endpoint != null) {
                     if (linkSource == null) {
-                        linkSource = hit
+                        linkSource = endpoint
                         selection.clear()
-                        selection += hit
-                    } else if (linkSource != hit) {
-                        createLink(linkSource!!, hit)
+                        selection += endpoint
+                    } else if (linkSource != endpoint) {
+                        createLink(linkSource!!, endpoint)
                         linkSource = null
                     }
                     onSelectionChanged()
@@ -2995,13 +3024,29 @@ class GraphCanvas(
         ensureDefaultPort(targetId, PortDirection.Input, "in")
         val source = repository.requireNode(sourceId)
         val target = repository.requireNode(targetId)
-        val link = repository.createLink(repository.getDocument().rootNodeId, "${source.name} -> ${target.name}", sourceId, "out", targetId, "in")
+        val parentId = nearestCommonParent(sourceId, targetId) ?: repository.getDocument().rootNodeId
+        val link = repository.createLink(parentId, "${source.name} -> ${target.name}", sourceId, "out", targetId, "in")
         link.link?.transportKind = LinkTransportKinds.Default
         selection.clear()
         selection += link.id
         routeCache.remove(link.id)
         invalidateRoutesFor(listOf(sourceId, targetId))
         repository.markDirty()
+    }
+
+    private fun nearestCommonParent(first: NodeId, second: NodeId): NodeId? {
+        val firstParents = parentChain(first).toSet()
+        return parentChain(second).firstOrNull { it in firstParents }
+    }
+
+    private fun parentChain(id: NodeId): List<NodeId> {
+        val chain = mutableListOf<NodeId>()
+        var current = repository.getNode(id)?.parentId
+        while (current != null) {
+            chain += current
+            current = repository.getNode(current)?.parentId
+        }
+        return chain
     }
 
     private fun ensureDefaultPort(nodeId: NodeId, direction: PortDirection, name: String) {

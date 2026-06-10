@@ -62,6 +62,26 @@ class InMemoryDocumentRepositoryTest {
     }
 
     @Test
+    fun `links can target another link as an endpoint`() {
+        val repository = InMemoryDocumentRepository(newDocument("test"))
+        val root = repository.getDocument().rootNodeId
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "data", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "data", PortDirection.Input))
+        val outerLink = repository.createLink(root, "outer", source.id, "data", target.id, "data")
+        repository.addPort(source.id, NodePort("out_tap", "tap", PortDirection.Output))
+        repository.addPort(outerLink.id, NodePort("in_tap", "tap", PortDirection.Input))
+
+        val tapLink = repository.createLink(root, "tap outer", source.id, "tap", outerLink.id, "tap")
+
+        assertEquals(listOf(outerLink.id), repository.requireNode(target.id).incomingLinks)
+        assertTrue(tapLink.id in repository.requireNode(source.id).outgoingLinks)
+        assertEquals(listOf(tapLink.id), repository.requireNode(outerLink.id).incomingLinks)
+        assertTrue(DocumentValidator.validate(repository.getDocument()).isEmpty())
+    }
+
+    @Test
     fun `move node updates old and new parent children`() {
         val repository = InMemoryDocumentRepository(newDocument("test"))
         val root = repository.getDocument().rootNodeId
