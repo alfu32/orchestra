@@ -2782,11 +2782,11 @@ class GraphCanvas(
     private fun linkEndpointAnchor(endpointLink: Node, ownerLink: Node, outgoing: Boolean): PortAnchor? {
         if (endpointLink.id == ownerLink.id) return null
         val route = routeCache[endpointLink.id] ?: routeLink(endpointLink)
-        val point = route?.points?.let { pointAlongRoute(it, 0.5) }
-            ?: endpointLink.layout.center()
-        val direction = route?.points?.let { routeDirectionNear(it, point) }
-            ?: if (outgoing) 1 else -1
-        return PortAnchor(point, if (outgoing) direction else -direction)
+        return when {
+            route != null && outgoing -> PortAnchor(route.target, route.targetDirection)
+            route != null -> PortAnchor(route.source, route.sourceDirection)
+            else -> PortAnchor(endpointLink.layout.center(), if (outgoing) 1 else -1)
+        }
     }
 
     private fun routeDirectionNear(points: List<Point>, point: Point): Int {
