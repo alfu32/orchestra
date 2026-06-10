@@ -248,8 +248,6 @@ class OrchestraDesktopApp(
                 preferredSize = Dimension(120, preferredSize.height)
                 maximumSize = preferredSize
             })
-            add(button("Build", "build") { executeCommand("compile.project") })
-            add(button("Build Compiler", "build") { executeCommand("compile.compiler") })
             pluginToolbarButtons.forEach { button ->
                 add(JButton(button.label).apply { addActionListener { button.action() } })
             }
@@ -308,8 +306,6 @@ class OrchestraDesktopApp(
             add(commandItem("file.save", "save"))
             add(commandItem("file.saveAs", "disk"))
             add(commandItem("sheet.export", "sheet"))
-            add(commandItem("compile.project", "build"))
-            add(commandItem("compile.compiler", "build"))
             add(commandItem("app.options"))
             add(commandItem("file.quit"))
         })
@@ -327,6 +323,10 @@ class OrchestraDesktopApp(
             add(commandItem("graph.mode.link", "link"))
             add(commandItem("graph.deleteSelection"))
             add(commandItem("commands.palette"))
+        })
+        add(JMenu("Build").apply {
+            add(commandItem("compile.project", "build", "Build"))
+            add(commandItem("compile.compiler", "build", "Build Compiler"))
         })
         add(JMenu("Help").apply {
             add(commandItem("help.about"))
@@ -417,9 +417,9 @@ class OrchestraDesktopApp(
         command.action()
     }
 
-    private fun commandItem(id: String, iconId: String? = null): JMenuItem {
+    private fun commandItem(id: String, iconId: String? = null, labelOverride: String? = null): JMenuItem {
         val command = commands.getValue(id)
-        return JMenuItem(command.title.substringAfter(": ")).apply {
+        return JMenuItem(labelOverride ?: command.title.substringAfter(": ")).apply {
             accelerator = command.keyStroke
             isEnabled = command.enabled()
             iconId?.let(OrchestraIcons::buttonIcon)?.let {
