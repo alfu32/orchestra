@@ -644,11 +644,26 @@ class OrchestraDesktopApp(
             selectedItem = OrchestraFonts.optionLabel(OrchestraFonts.codeFontId, OrchestraFonts.codeOptions)
         }
         val indentSpaces = JSpinner(SpinnerNumberModel(OrchestraEditorSettings.indentSpaces, 1, 16, 1))
+        val compositeTargetPx = JSpinner(
+            SpinnerNumberModel(OrchestraDesignerSettings.compositeTitleTargetScreenPx, 8.0, 48.0, 1.0),
+        )
+        val compositeReferenceWidth = JSpinner(
+            SpinnerNumberModel(OrchestraDesignerSettings.compositeReferenceViewportWidth, 400.0, 10000.0, 50.0),
+        )
+        val compositeReferenceHeight = JSpinner(
+            SpinnerNumberModel(OrchestraDesignerSettings.compositeReferenceViewportHeight, 300.0, 10000.0, 50.0),
+        )
         val content = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
             add(JLabel("Flow Designer font"))
             add(designerSelector)
+            add(JLabel("Composite title target screen size").apply { border = BorderFactory.createEmptyBorder(12, 0, 0, 0) })
+            add(compositeTargetPx)
+            add(JLabel("Composite reference viewport width").apply { border = BorderFactory.createEmptyBorder(12, 0, 0, 0) })
+            add(compositeReferenceWidth)
+            add(JLabel("Composite reference viewport height").apply { border = BorderFactory.createEmptyBorder(12, 0, 0, 0) })
+            add(compositeReferenceHeight)
             add(JLabel("Code editor font").apply { border = BorderFactory.createEmptyBorder(12, 0, 0, 0) })
             add(codeSelector)
             add(JLabel("Code editor indent spaces").apply { border = BorderFactory.createEmptyBorder(12, 0, 0, 0) })
@@ -660,7 +675,12 @@ class OrchestraDesktopApp(
         OrchestraFonts.designerFontId = OrchestraFonts.optionId(designerSelector.selectedItem?.toString().orEmpty(), OrchestraFonts.designerOptions)
         OrchestraFonts.codeFontId = OrchestraFonts.optionId(codeSelector.selectedItem?.toString().orEmpty(), OrchestraFonts.codeOptions)
         OrchestraEditorSettings.indentSpaces = (indentSpaces.value as? Int) ?: OrchestraEditorSettings.indentSpaces
+        OrchestraDesignerSettings.compositeTitleTargetScreenPx = (compositeTargetPx.value as Number).toDouble()
+        OrchestraDesignerSettings.compositeReferenceViewportWidth = (compositeReferenceWidth.value as Number).toDouble()
+        OrchestraDesignerSettings.compositeReferenceViewportHeight = (compositeReferenceHeight.value as Number).toDouble()
         applyFontOptions()
+        canvas.refreshBoundsFromChildren()
+        canvas.repaint()
         status.text = "Options updated"
     }
 
@@ -1422,9 +1442,6 @@ class GraphCanvas(
         const val COMPOSITE_TOP_PADDING = 80
         const val COMPOSITE_HEADER_EXTRA_HEIGHT = 36
         const val COMPOSITE_BOTTOM_PADDING = 48
-        const val COMPOSITE_TEXT_REFERENCE_WIDTH = 1500.0
-        const val COMPOSITE_TEXT_REFERENCE_HEIGHT = 1000.0
-        const val COMPOSITE_TITLE_TARGET_SCREEN_PX = 16.0
         const val COMPOSITE_INFO_TEXT_RATIO = 0.875
         const val COMPOSITE_TEXT_CHILD_BOOST_DIVISOR = 64.0
         const val COMPOSITE_TEXT_MIN_MODEL_SIZE = 6.0
@@ -1705,11 +1722,11 @@ class GraphCanvas(
         height: Double = node.layout.height,
     ): CompositeTextMetrics {
         val normalizedChebyshev = max(
-            width / COMPOSITE_TEXT_REFERENCE_WIDTH,
-            height / COMPOSITE_TEXT_REFERENCE_HEIGHT,
+            width / OrchestraDesignerSettings.compositeReferenceViewportWidth,
+            height / OrchestraDesignerSettings.compositeReferenceViewportHeight,
         ).coerceAtLeast(0.0)
         val descendantBoost = 1.0 + ln(totalDescendantCount(node) + 1.0) / COMPOSITE_TEXT_CHILD_BOOST_DIVISOR
-        val titleSize = (COMPOSITE_TITLE_TARGET_SCREEN_PX * normalizedChebyshev * descendantBoost)
+        val titleSize = (OrchestraDesignerSettings.compositeTitleTargetScreenPx * normalizedChebyshev * descendantBoost)
             .coerceIn(COMPOSITE_TEXT_MIN_MODEL_SIZE, COMPOSITE_TEXT_MAX_MODEL_SIZE)
             .toFloat()
         val infoSize = (titleSize * COMPOSITE_INFO_TEXT_RATIO).toFloat()
