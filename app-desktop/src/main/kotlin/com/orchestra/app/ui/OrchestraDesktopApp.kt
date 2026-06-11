@@ -1703,9 +1703,39 @@ class GraphCanvas(
             }
             g2.draw(screenRect)
         }
+        drawSelectionBounds(g2)
         drawViewportHierarchyPath(g2)
         g2.stroke = previousStroke
         g2.font = previousFont
+    }
+
+    private fun drawSelectionBounds(g2: Graphics2D) {
+        if (selection.isEmpty()) return
+        val bounds = selectionBounds() ?: return
+        val screenRect = modelRectToScreen(bounds).apply { grow(6, 6) }
+        g2.color = Color(0x1f5fd8)
+        g2.stroke = BasicStroke(1.5f)
+        g2.draw(screenRect)
+    }
+
+    private fun selectionBounds(): Rectangle? {
+        val document = repository.getDocument()
+        var bounds: Rectangle? = null
+        fun add(rect: Rectangle) {
+            bounds = bounds?.union(rect) ?: Rectangle(rect)
+        }
+        selection.mapNotNull(document.nodes::get).forEach { node ->
+            if (node.isLink) {
+                if (isDependencyAnnotation(node)) {
+                    dependencyAnnotationBounds(node).forEach(::add)
+                } else {
+                    (cachedRoute(node.id) ?: routeLink(node))?.bounds()?.let(::add)
+                }
+            } else if (isVisibleInCanvas(node)) {
+                add(node.layout.rect())
+            }
+        }
+        return bounds
     }
 
     private fun modelRectToScreen(rect: Rectangle): Rectangle {
