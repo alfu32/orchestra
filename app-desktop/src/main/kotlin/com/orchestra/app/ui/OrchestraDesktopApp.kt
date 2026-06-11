@@ -282,6 +282,13 @@ class OrchestraDesktopApp(
                 preferredSize = Dimension(120, preferredSize.height)
                 maximumSize = preferredSize
             })
+            add(JComboBox(canvas.sheetScaleChoices().toTypedArray()).apply {
+                isEditable = false
+                selectedItem = canvas.selectedSheetScaleChoice()
+                addActionListener { canvas.setSheetScaleChoice(selectedItem?.toString().orEmpty()) }
+                preferredSize = Dimension(80, preferredSize.height)
+                maximumSize = preferredSize
+            })
             pluginToolbarButtons.forEach { button ->
                 add(JButton(button.label).apply { addActionListener { button.action() } })
             }
@@ -1211,6 +1218,7 @@ class GraphCanvas(
     var mode: CanvasMode = CanvasMode.Select
         private set
     private var dragStart: Point? = null
+    private var selectionDragLeftToRight = true
     private var dragAllowsReparent = false
     private var moveDragReference: Point? = null
     private var panDragStart: Point? = null
@@ -1222,6 +1230,7 @@ class GraphCanvas(
     private var panY = 0.0
     private var showSheet = false
     private var sheetFormatChoice = AUTO_SHEET_FORMAT
+    private var sheetScale = 1
     private var designerFont: Font = OrchestraFonts.designerFont(13f)
     private val routeCache = mutableMapOf<NodeId, LinkRoute>()
     private val activeRouteLinks = mutableSetOf<NodeId>()
@@ -1257,6 +1266,7 @@ class GraphCanvas(
     private data class BomRow(val index: Int, val name: String, val kind: String)
     private data class SheetPlan(
         val format: SheetFormat,
+        val scale: Int,
         val sheet: Rectangle,
         val drawing: Rectangle,
         val titleBlock: Rectangle,
@@ -1307,6 +1317,7 @@ class GraphCanvas(
         val compilerDesignStereotypes = setOf(NodeStereotype.CompilerTemplate, NodeStereotype.StaticFile)
         const val PARTS_ROW_HEIGHT = 20
         const val ROLL_MAX_LENGTH_MM = 1500.0
+        val SHEET_SCALES = listOf(1, 2, 5, 10, 20, 50, 100, 200, 500, 1000)
 
         val SHEET_FORMATS = listOf(
             SheetFormat("A4", 210.0, 297.0),
@@ -1386,6 +1397,22 @@ class GraphCanvas(
         val next = choice.ifBlank { AUTO_SHEET_FORMAT }
         if (sheetFormatChoice == next) return
         sheetFormatChoice = next
+        invalidateRenderCache()
+        repaint()
+    }
+
+    fun sheetScaleChoices(): List<String> = SHEET_SCALES.map { "1:$it" }
+
+    fun selectedSheetScaleChoice(): String = "1:$sheetScale"
+
+    fun setSheetScaleChoice(choice: String) {
+        val next = choice.substringAfter(':', choice)
+            .trim()
+            .toIntOrNull()
+            ?.takeIf { it in SHEET_SCALES }
+            ?: 1
+        if (sheetScale == next) return
+        sheetScale = next
         invalidateRenderCache()
         repaint()
     }
@@ -1701,43 +1728,53 @@ class GraphCanvas(
         g2.stroke = BasicStroke(1f)
         g2.draw(sheet)
 
-        drawFoldingMarkers(g2, sheet)
+        drawFoldingMarkers(g2, sheet, activePlan.scale)
         g2.color = Color(0x777777)
         g2.draw(activePlan.drawing)
 
         val titleBlock = activePlan.titleBlock
+        val scale = activePlan.scale
+        val rowHeight = titleBlock.height / 5
+        val firstColumn = titleBlock.x + sheetMm(45.0, scale)
+        val secondColumn = titleBlock.x + sheetMm(112.0, scale)
         g2.color = Color(0x777777)
         g2.draw(titleBlock)
         repeat(4) { row ->
-            val y = titleBlock.y + (row + 1) * titleBlock.height / 5
+            val y = titleBlock.y + (row + 1) * rowHeight
             g2.drawLine(titleBlock.x, y, titleBlock.x + titleBlock.width, y)
         }
-        g2.drawLine(titleBlock.x + mm(45.0), titleBlock.y, titleBlock.x + mm(45.0), titleBlock.y + titleBlock.height)
-        g2.drawLine(titleBlock.x + mm(112.0), titleBlock.y, titleBlock.x + mm(112.0), titleBlock.y + titleBlock.height)
+        g2.drawLine(firstColumn, titleBlock.y, firstColumn, titleBlock.y + titleBlock.height)
+        g2.drawLine(secondColumn, titleBlock.y, secondColumn, titleBlock.y + titleBlock.height)
         g2.color = Color(0x444444)
-        g2.font = g2.font.deriveFont(12f)
-        g2.drawString("orchestra", titleBlock.x + 12, titleBlock.y + 22)
-        g2.drawString(repository.getDocument().name, titleBlock.x + 132, titleBlock.y + 22)
-        g2.drawString(activePlan.format.id, titleBlock.x + titleBlock.width - 72, titleBlock.y + 22)
-        g2.drawString("build ${Version.CURRENT.buildDate.take(10)}", titleBlock.x + 12, titleBlock.y + titleBlock.height - 14)
+        g2.font = g2.font.deriveFont(12f * scale)
+        val inset = sheetUnits(10, scale)
+        val firstRowBaseline = titleBlock.y + rowHeight / 2 + g2.fontMetrics.ascent / 2 - sheetUnits(2, scale)
+        val secondRowBaseline = titleBlock.y + rowHeight + rowHeight / 2 + g2.fontMetrics.ascent / 2 - sheetUnits(2, scale)
+        val bottomBaseline = titleBlock.y + titleBlock.height - sheetUnits(8, scale)
+        g2.drawString("Project", titleBlock.x + inset, firstRowBaseline)
+        g2.drawString(projectTitle(), firstColumn + inset, firstRowBaseline)
+        g2.drawString("Format: ${activePlan.format.id}", secondColumn + inset, firstRowBaseline)
+        g2.drawString("Scale 1:${activePlan.scale}", secondColumn + inset, secondRowBaseline)
+        g2.drawString("version ${versionTimestamp()}", titleBlock.x + inset, bottomBaseline)
 
         val partsList = activePlan.partsList
+        val partsRowHeight = sheetUnits(PARTS_ROW_HEIGHT, scale)
         g2.color = Color(0xb0b0b0)
         g2.draw(partsList)
-        g2.font = g2.font.deriveFont(10f)
-        g2.drawString("Parts List", partsList.x + 8, partsList.y + 15)
-        repeat((partsList.height / PARTS_ROW_HEIGHT).coerceAtLeast(1)) { row ->
-            val y = partsList.y + row * PARTS_ROW_HEIGHT
+        g2.font = g2.font.deriveFont(10f * scale)
+        g2.drawString("Parts List", partsList.x + sheetUnits(8, scale), partsList.y + sheetUnits(15, scale))
+        repeat((partsList.height / partsRowHeight).coerceAtLeast(1)) { row ->
+            val y = partsList.y + row * partsRowHeight
             g2.drawLine(partsList.x, y, partsList.x + partsList.width, y)
         }
-        g2.drawLine(partsList.x + 42, partsList.y, partsList.x + 42, partsList.y + partsList.height)
-        g2.drawLine(partsList.x + 128, partsList.y, partsList.x + 128, partsList.y + partsList.height)
-        activePlan.bomRows.take((partsList.height / PARTS_ROW_HEIGHT - 1).coerceAtLeast(0)).forEachIndexed { rowIndex, row ->
-            val y = partsList.y + (rowIndex + 2) * PARTS_ROW_HEIGHT - 6
+        g2.drawLine(partsList.x + sheetUnits(42, scale), partsList.y, partsList.x + sheetUnits(42, scale), partsList.y + partsList.height)
+        g2.drawLine(partsList.x + sheetUnits(128, scale), partsList.y, partsList.x + sheetUnits(128, scale), partsList.y + partsList.height)
+        activePlan.bomRows.take((partsList.height / partsRowHeight - 1).coerceAtLeast(0)).forEachIndexed { rowIndex, row ->
+            val y = partsList.y + (rowIndex + 2) * partsRowHeight - sheetUnits(6, scale)
             g2.color = Color(0x444444)
-            g2.drawString(row.index.toString(), partsList.x + 6, y)
-            g2.drawString(row.name.take(18), partsList.x + 48, y)
-            g2.drawString(row.kind.take(14), partsList.x + 132, y)
+            g2.drawString(row.index.toString(), partsList.x + sheetUnits(6, scale), y)
+            g2.drawString(row.name.take(18), partsList.x + sheetUnits(48, scale), y)
+            g2.drawString(row.kind.take(14), partsList.x + sheetUnits(132, scale), y)
         }
         g2.font = previousFont
         g2.stroke = previousStroke
@@ -1747,13 +1784,15 @@ class GraphCanvas(
         val scopeIds = sheetScopeIds()
         val contentBounds = contentBounds(scopeIds) ?: return null
         val bomRows = bomRows(scopeIds)
-        val drawingPad = mm(DRAWING_PAD_MM)
-        val margin = mm(SHEET_MARGIN_MM)
-        val titleWidth = mm(TITLE_BLOCK_WIDTH_MM)
-        val titleHeight = mm(TITLE_BLOCK_HEIGHT_MM)
-        val partsWidth = mm(PARTS_LIST_WIDTH_MM)
-        val partsRequiredHeight = ((bomRows.size + 2) * PARTS_ROW_HEIGHT).coerceAtLeast(mm(80.0))
-        val gap = mm(8.0)
+        val scale = sheetScale
+        val drawingPad = sheetMm(DRAWING_PAD_MM, scale)
+        val margin = sheetMm(SHEET_MARGIN_MM, scale)
+        val titleWidth = sheetMm(TITLE_BLOCK_WIDTH_MM, scale)
+        val titleHeight = sheetMm(TITLE_BLOCK_HEIGHT_MM, scale)
+        val partsWidth = sheetMm(PARTS_LIST_WIDTH_MM, scale)
+        val partsRowHeight = sheetUnits(PARTS_ROW_HEIGHT, scale)
+        val partsRequiredHeight = ((bomRows.size + 2) * partsRowHeight).coerceAtLeast(sheetMm(80.0, scale))
+        val gap = sheetMm(8.0, scale)
 
         val requiredWidth = margin * 2 + partsWidth + gap + contentBounds.width + drawingPad * 2
         val requiredHeight = margin * 2 + titleHeight + gap + max(partsRequiredHeight, contentBounds.height + drawingPad * 2)
@@ -1761,11 +1800,11 @@ class GraphCanvas(
             partsWidth * partsRequiredHeight +
             titleWidth * titleHeight
         val best = when (val choice = sheetFormatChoice) {
-            AUTO_SHEET_FORMAT -> autoSheetCandidate(requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea)
+            AUTO_SHEET_FORMAT -> autoSheetCandidate(requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, scale)
             else -> SHEET_FORMATS.firstOrNull { it.id == choice }?.let {
-                sheetCandidateFor(it, requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, enforceFit = false)
+                sheetCandidateFor(it, requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, scale, enforceFit = false)
             }
-        } ?: autoSheetCandidate(requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea)
+        } ?: autoSheetCandidate(requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, scale)
             ?: return null
 
         val format = best.format
@@ -1793,7 +1832,7 @@ class GraphCanvas(
             partsWidth,
             partsHeight,
         )
-        return SheetPlan(format, sheet, drawing, titleBlock, partsList, contentBounds, scopeIds, bomRows)
+        return SheetPlan(format, scale, sheet, drawing, titleBlock, partsList, contentBounds, scopeIds, bomRows)
     }
 
     private fun autoSheetCandidate(
@@ -1804,14 +1843,15 @@ class GraphCanvas(
         titleHeight: Int,
         gap: Int,
         occupiedArea: Int,
+        scale: Int,
     ): SheetCandidate? =
         SHEET_FORMATS
             .mapNotNull { format ->
-                sheetCandidateFor(format, requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, enforceFit = true)
+                sheetCandidateFor(format, requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, scale, enforceFit = true)
             }
             .maxWithOrNull(compareBy<SheetCandidate> { it.coverage }.thenByDescending { -it.area })
             ?: SHEET_FORMATS
-                .map { SheetCandidate(it, mm(it.widthMm), mm(it.heightMm), coverage = 0.0) }
+                .mapNotNull { sheetCandidateFor(it, requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, scale, enforceFit = false) }
                 .maxByOrNull { it.area }
 
     private fun sheetCandidateFor(
@@ -1823,14 +1863,14 @@ class GraphCanvas(
         titleHeight: Int,
         gap: Int,
         occupiedArea: Int,
+        scale: Int,
         enforceFit: Boolean,
     ): SheetCandidate? {
         val (sheetWidth, sheetHeight) = if (format.roll) {
-            val fixedRollHeight = mm(format.widthMm)
-            val maxRollLength = mm(format.heightMm)
-            requiredWidth.coerceAtMost(maxRollLength) to fixedRollHeight
+            val fixedRollHeight = sheetMm(format.widthMm, scale)
+            requiredWidth to fixedRollHeight
         } else {
-            mm(format.widthMm) to mm(format.heightMm)
+            sheetMm(format.widthMm, scale) to sheetMm(format.heightMm, scale)
         }
         val fits =
             requiredWidth <= sheetWidth &&
@@ -1897,16 +1937,16 @@ class GraphCanvas(
             .sortedWith(compareBy<Node> { it.name.lowercase() }.thenBy { it.id.value })
             .mapIndexed { index, node -> BomRow(index + 1, node.name, nodeStereotype(node).name) }
 
-    private fun drawFoldingMarkers(g2: Graphics2D, sheet: Rectangle) {
-        val marker = mm(5.0)
+    private fun drawFoldingMarkers(g2: Graphics2D, sheet: Rectangle, scale: Int) {
+        val marker = sheetMm(5.0, scale)
         g2.color = Color(0x9a9a9a)
-        listOf(mm(210.0), mm(420.0), mm(630.0), mm(840.0), mm(1050.0)).forEach { offset ->
+        listOf(sheetMm(210.0, scale), sheetMm(420.0, scale), sheetMm(630.0, scale), sheetMm(840.0, scale), sheetMm(1050.0, scale)).forEach { offset ->
             if (offset < sheet.width) {
                 val x = sheet.x + sheet.width - offset
                 g2.drawLine(x, sheet.y + sheet.height, x, sheet.y + sheet.height - marker)
             }
         }
-        listOf(mm(297.0), mm(594.0), mm(891.0), mm(1188.0), mm(1485.0)).forEach { offset ->
+        listOf(sheetMm(297.0, scale), sheetMm(594.0, scale), sheetMm(891.0, scale), sheetMm(1188.0, scale), sheetMm(1485.0, scale)).forEach { offset ->
             if (offset < sheet.height) {
                 val y = sheet.y + sheet.height - offset
                 g2.drawLine(sheet.x + sheet.width, y, sheet.x + sheet.width - marker, y)
@@ -1939,11 +1979,11 @@ class GraphCanvas(
         val svg = StringBuilder()
         svg.appendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
         svg.appendLine(
-            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${plan.sheet.width}\" height=\"${plan.sheet.height}\" viewBox=\"${plan.sheet.x} ${plan.sheet.y} ${plan.sheet.width} ${plan.sheet.height}\">",
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${plan.sheet.width}\" height=\"${plan.sheet.height}\" viewBox=\"0 0 ${plan.sheet.width} ${plan.sheet.height}\">",
         )
-        svg.appendLine("  <title>${xml(repository.getDocument().name)} - ${xml(plan.format.id)}</title>")
+        svg.appendLine("  <title>${xml(projectTitle())} - ${xml(plan.format.id)}</title>")
         svg.appendLine("  <desc>Generated by orchestra ${xml(Version.CURRENT.semver)} (${xml(Version.CURRENT.gitCommitId)})</desc>")
-        svg.appendLine("  <g font-family=\"monospace\" text-rendering=\"geometricPrecision\" shape-rendering=\"crispEdges\">")
+        svg.appendLine("  <g transform=\"translate(${-plan.sheet.x} ${-plan.sheet.y})\" font-family=\"monospace\" text-rendering=\"geometricPrecision\" shape-rendering=\"crispEdges\">")
         svgSheet(svg, plan)
         svgGraph(svg, plan.scopeIds)
         svg.appendLine("  </g>")
@@ -1954,36 +1994,46 @@ class GraphCanvas(
     private fun svgSheet(svg: StringBuilder, plan: SheetPlan) {
         val sheet = plan.sheet
         svgRect(svg, sheet, fill = "#ffffff", stroke = "#999999")
-        svgFoldingMarkers(svg, sheet)
+        svgFoldingMarkers(svg, sheet, plan.scale)
         svgRect(svg, plan.drawing, fill = "none", stroke = "#777777")
 
         val titleBlock = plan.titleBlock
+        val scale = plan.scale
+        val rowHeight = titleBlock.height / 5
+        val firstColumn = titleBlock.x + sheetMm(45.0, scale)
+        val secondColumn = titleBlock.x + sheetMm(112.0, scale)
+        val inset = sheetUnits(10, scale)
         svgRect(svg, titleBlock, fill = "none", stroke = "#777777")
         repeat(4) { row ->
-            val y = titleBlock.y + (row + 1) * titleBlock.height / 5
+            val y = titleBlock.y + (row + 1) * rowHeight
             svgLine(svg, titleBlock.x, y, titleBlock.x + titleBlock.width, y, "#777777")
         }
-        svgLine(svg, titleBlock.x + mm(45.0), titleBlock.y, titleBlock.x + mm(45.0), titleBlock.y + titleBlock.height, "#777777")
-        svgLine(svg, titleBlock.x + mm(112.0), titleBlock.y, titleBlock.x + mm(112.0), titleBlock.y + titleBlock.height, "#777777")
-        svgText(svg, "orchestra", titleBlock.x + 12, titleBlock.y + 22, 12, "#444444")
-        svgText(svg, repository.getDocument().name, titleBlock.x + 132, titleBlock.y + 22, 12, "#444444")
-        svgText(svg, plan.format.id, titleBlock.x + titleBlock.width - 72, titleBlock.y + 22, 12, "#444444")
-        svgText(svg, "build ${Version.CURRENT.buildDate.take(10)}", titleBlock.x + 12, titleBlock.y + titleBlock.height - 14, 12, "#444444")
+        svgLine(svg, firstColumn, titleBlock.y, firstColumn, titleBlock.y + titleBlock.height, "#777777")
+        svgLine(svg, secondColumn, titleBlock.y, secondColumn, titleBlock.y + titleBlock.height, "#777777")
+        val textSize = 12 * scale
+        val firstRowBaseline = titleBlock.y + rowHeight / 2 + textSize / 2
+        val secondRowBaseline = titleBlock.y + rowHeight + rowHeight / 2 + textSize / 2
+        svgText(svg, "Project", titleBlock.x + inset, firstRowBaseline, textSize, "#444444")
+        svgText(svg, projectTitle(), firstColumn + inset, firstRowBaseline, textSize, "#444444")
+        svgText(svg, "Format: ${plan.format.id}", secondColumn + inset, firstRowBaseline, textSize, "#444444")
+        svgText(svg, "Scale 1:${plan.scale}", secondColumn + inset, secondRowBaseline, textSize, "#444444")
+        svgText(svg, "version ${versionTimestamp()}", titleBlock.x + inset, titleBlock.y + titleBlock.height - sheetUnits(8, scale), textSize, "#444444")
 
         val partsList = plan.partsList
+        val partsRowHeight = sheetUnits(PARTS_ROW_HEIGHT, scale)
         svgRect(svg, partsList, fill = "none", stroke = "#b0b0b0")
-        svgText(svg, "Parts List", partsList.x + 8, partsList.y + 15, 10, "#444444")
-        repeat((partsList.height / PARTS_ROW_HEIGHT).coerceAtLeast(1)) { row ->
-            val y = partsList.y + row * PARTS_ROW_HEIGHT
+        svgText(svg, "Parts List", partsList.x + sheetUnits(8, scale), partsList.y + sheetUnits(15, scale), 10 * scale, "#444444")
+        repeat((partsList.height / partsRowHeight).coerceAtLeast(1)) { row ->
+            val y = partsList.y + row * partsRowHeight
             svgLine(svg, partsList.x, y, partsList.x + partsList.width, y, "#b0b0b0")
         }
-        svgLine(svg, partsList.x + 42, partsList.y, partsList.x + 42, partsList.y + partsList.height, "#b0b0b0")
-        svgLine(svg, partsList.x + 128, partsList.y, partsList.x + 128, partsList.y + partsList.height, "#b0b0b0")
-        plan.bomRows.take((partsList.height / PARTS_ROW_HEIGHT - 1).coerceAtLeast(0)).forEachIndexed { rowIndex, row ->
-            val y = partsList.y + (rowIndex + 2) * PARTS_ROW_HEIGHT - 6
-            svgText(svg, row.index.toString(), partsList.x + 6, y, 10, "#444444")
-            svgText(svg, row.name.take(18), partsList.x + 48, y, 10, "#444444")
-            svgText(svg, row.kind.take(14), partsList.x + 132, y, 10, "#444444")
+        svgLine(svg, partsList.x + sheetUnits(42, scale), partsList.y, partsList.x + sheetUnits(42, scale), partsList.y + partsList.height, "#b0b0b0")
+        svgLine(svg, partsList.x + sheetUnits(128, scale), partsList.y, partsList.x + sheetUnits(128, scale), partsList.y + partsList.height, "#b0b0b0")
+        plan.bomRows.take((partsList.height / partsRowHeight - 1).coerceAtLeast(0)).forEachIndexed { rowIndex, row ->
+            val y = partsList.y + (rowIndex + 2) * partsRowHeight - sheetUnits(6, scale)
+            svgText(svg, row.index.toString(), partsList.x + sheetUnits(6, scale), y, 10 * scale, "#444444")
+            svgText(svg, row.name.take(18), partsList.x + sheetUnits(48, scale), y, 10 * scale, "#444444")
+            svgText(svg, row.kind.take(14), partsList.x + sheetUnits(132, scale), y, 10 * scale, "#444444")
         }
     }
 
@@ -2001,15 +2051,15 @@ class GraphCanvas(
         }
     }
 
-    private fun svgFoldingMarkers(svg: StringBuilder, sheet: Rectangle) {
-        val marker = mm(5.0)
-        listOf(mm(210.0), mm(420.0), mm(630.0), mm(840.0), mm(1050.0)).forEach { offset ->
+    private fun svgFoldingMarkers(svg: StringBuilder, sheet: Rectangle, scale: Int) {
+        val marker = sheetMm(5.0, scale)
+        listOf(sheetMm(210.0, scale), sheetMm(420.0, scale), sheetMm(630.0, scale), sheetMm(840.0, scale), sheetMm(1050.0, scale)).forEach { offset ->
             if (offset < sheet.width) {
                 val x = sheet.x + sheet.width - offset
                 svgLine(svg, x, sheet.y + sheet.height, x, sheet.y + sheet.height - marker, "#9a9a9a")
             }
         }
-        listOf(mm(297.0), mm(594.0), mm(891.0), mm(1188.0), mm(1485.0)).forEach { offset ->
+        listOf(sheetMm(297.0, scale), sheetMm(594.0, scale), sheetMm(891.0, scale), sheetMm(1188.0, scale), sheetMm(1485.0, scale)).forEach { offset ->
             if (offset < sheet.height) {
                 val y = sheet.y + sheet.height - offset
                 svgLine(svg, sheet.x + sheet.width, y, sheet.x + sheet.width - marker, y, "#9a9a9a")
@@ -2392,6 +2442,20 @@ class GraphCanvas(
     }
 
     private fun mm(value: Double): Int = (value * SHEET_UNITS_PER_MM).roundToInt()
+
+    private fun sheetMm(value: Double, scale: Int = sheetScale): Int =
+        (value * SHEET_UNITS_PER_MM * scale).roundToInt()
+
+    private fun sheetUnits(value: Int, scale: Int): Int = value * scale
+
+    private fun projectTitle(): String =
+        repository.getDocument().rootNode().name.trim().ifBlank { repository.getDocument().name }
+
+    private fun versionTimestamp(): String =
+        Version.CURRENT.buildDate
+            .replace('T', ' ')
+            .replace(Regex("[Z+]\\S*$"), "")
+            .take(19)
 
     private fun drawNode(g2: Graphics2D, node: Node) {
         val r = node.layout.rect()
@@ -3159,14 +3223,16 @@ class GraphCanvas(
             return
         }
         val point = modelPoint(e.point)
-        hitCompositeToggle(point)?.let {
+        if (!e.isAltDown) hitCompositeToggle(point)?.let {
             toggleCompositeExpansion(it)
             return
         }
         dragStart = point
         moveDragReference = null
-        val hit = hitNode(point)
-        val hitLink = hitLink(point)
+        selectionDragLeftToRight = true
+        val pickSelectionEnabled = mode != CanvasMode.Select || !e.isAltDown
+        val hit = if (pickSelectionEnabled) hitNode(point) else null
+        val hitLink = if (pickSelectionEnabled) hitLink(point) else null
         when (mode) {
             CanvasMode.CreateNode -> {
                 val parent = hit?.takeIf { repository.getNode(it)?.isLink != true }
@@ -3226,6 +3292,7 @@ class GraphCanvas(
                 } else {
                     selection.clear()
                     selectionRect = Rectangle(point)
+                    selectionDragLeftToRight = true
                     dragAllowsReparent = false
                     onSelectionChanged()
                 }
@@ -3244,6 +3311,7 @@ class GraphCanvas(
         val point = modelPoint(e.point)
         if (selectionRect != null) {
             val start = dragStart ?: return
+            selectionDragLeftToRight = point.x >= start.x
             selectionRect = Rectangle(min(start.x, point.x), min(start.y, point.y), kotlin.math.abs(point.x - start.x), kotlin.math.abs(point.y - start.y))
         } else if (selection.isNotEmpty() && mode == CanvasMode.Select) {
             val start = moveDragReference ?: dragStart ?: return
@@ -3269,8 +3337,12 @@ class GraphCanvas(
         }
         selectionRect?.let { rect ->
             selection.clear()
+            val containsOnly = selectionDragLeftToRight
             visibleNodes()
-                .filter { it.layout.rect().intersects(rect) }
+                .filter { if (containsOnly) rect.contains(it.layout.rect()) else it.layout.rect().intersects(rect) }
+                .forEach { selection += it.id }
+            visibleLinks()
+                .filter { linkInsideSelection(it, rect, containsOnly) }
                 .forEach { selection += it.id }
             selectionRect = null
         }
@@ -3404,6 +3476,22 @@ class GraphCanvas(
                 }
             }
             ?.id
+
+    private fun linkInsideSelection(link: Node, rect: Rectangle, containsOnly: Boolean): Boolean {
+        if (isDependencyAnnotation(link)) {
+            val bounds = dependencyAnnotationBounds(link)
+            return if (containsOnly) bounds.isNotEmpty() && bounds.all { rect.contains(it) } else bounds.any { rect.intersects(it) }
+        }
+        val route = routeCache[link.id] ?: routeLink(link) ?: return false
+        return if (containsOnly) {
+            route.points.all { rect.contains(it) }
+        } else {
+            route.points.any { rect.contains(it) } ||
+                route.points.zipWithNext().any { (a, b) ->
+                    rect.intersectsLine(a.x.toDouble(), a.y.toDouble(), b.x.toDouble(), b.y.toDouble())
+                }
+        }
+    }
 
     private fun dependencyAnnotationBounds(linkNode: Node): List<Rectangle> {
         val link = linkNode.link ?: return emptyList()
