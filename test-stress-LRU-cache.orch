@@ -7472,7 +7472,7 @@
         },
         {
             "id": "node_fd204f60-a84e-4fe0-8919-e9641d2508d5",
-            "name": "New Node",
+            "name": "inner_composite",
             "kind": "Processor",
             "parentId": "node_4f613256-aedc-457c-9412-bf6e9f2f8986",
             "children": [
@@ -11061,8 +11061,8 @@
             "parentId": "node_701ee855-5702-4ff8-b2f8-46f78970972f",
             "children": [],
             "incomingLinks": [
-                "link_7539ffd7-eca6-4326-b527-596fbdb37ca3",
-                "link_c58e2aa1-0327-4041-b7dc-7438f930073f"
+                "link_c58e2aa1-0327-4041-b7dc-7438f930073f",
+                "link_7539ffd7-eca6-4326-b527-596fbdb37ca3"
             ],
             "outgoingLinks": [
                 "link_4b2494fd-eb6e-4952-9190-359f5e92e312"
@@ -11125,8 +11125,8 @@
             "parentId": "node_701ee855-5702-4ff8-b2f8-46f78970972f",
             "children": [],
             "incomingLinks": [
-                "link_4b2494fd-eb6e-4952-9190-359f5e92e312",
-                "link_b640c305-bf3b-4467-8b7b-0a3a12cb0adc"
+                "link_b640c305-bf3b-4467-8b7b-0a3a12cb0adc",
+                "link_4b2494fd-eb6e-4952-9190-359f5e92e312"
             ],
             "outgoingLinks": [
                 "link_b37a914c-13b7-4f1f-af0c-303d9edc044b"
@@ -11563,11 +11563,11 @@
             "parentId": "node_701ee855-5702-4ff8-b2f8-46f78970972f",
             "children": [],
             "incomingLinks": [
+                "link_b9571814-6fea-4fd8-841f-0040a98441f5",
                 "link_28380081-d034-4c22-8607-d74d08d86256",
-                "link_01452397-fe48-4163-a5ba-727161a57bfd",
                 "link_afbc00a4-12e4-479c-a08d-3e386e48d27d",
                 "link_8024b3aa-39ab-427a-9734-bd0095495271",
-                "link_b9571814-6fea-4fd8-841f-0040a98441f5"
+                "link_01452397-fe48-4163-a5ba-727161a57bfd"
             ],
             "outgoingLinks": [
                 "link_7539ffd7-eca6-4326-b527-596fbdb37ca3"

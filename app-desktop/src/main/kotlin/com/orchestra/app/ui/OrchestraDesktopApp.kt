@@ -63,6 +63,7 @@ import java.awt.Dimension
 import java.awt.FileDialog
 import java.awt.FlowLayout
 import java.awt.Font
+import java.awt.FontMetrics
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.KeyboardFocusManager
@@ -137,6 +138,8 @@ import javax.swing.TransferHandler
 import javax.swing.WindowConstants
 import javax.swing.event.TreeModelEvent
 import javax.swing.event.TreeModelListener
+import javax.swing.event.TreeExpansionEvent
+import javax.swing.event.TreeExpansionListener
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.DefaultTableModel
@@ -145,6 +148,7 @@ import javax.swing.SpinnerNumberModel
 import javax.swing.tree.DefaultTreeCellRenderer
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreePath
 import javax.swing.tree.TreeSelectionModel
 import javax.xml.parsers.DocumentBuilderFactory
 import org.xml.sax.InputSource
@@ -186,6 +190,8 @@ class OrchestraDesktopApp(
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
     private val selectedEntitiesTree = JTree()
+    private val treeExpandedIds = mutableMapOf<JTree, MutableSet<String>>()
+    private var restoringTreeExpansion = false
     private val compilerCompiler = CompilerCompiler()
     private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + JSCompiler() + PhpCompiler() + GenericCompiler() + NaiveKotlinCompiler()
     private val compilerTechnologies = availableCompilerTechnologies()
@@ -1023,6 +1029,22 @@ class OrchestraDesktopApp(
         tree.invokesStopCellEditing = true
         tree.cellRenderer = HierarchyTreeCellRenderer()
         tree.selectionModel.selectionMode = TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION
+        treeExpandedIds.getOrPut(tree) { mutableSetOf(repository.getDocument().rootNodeId.value) }
+        tree.addTreeExpansionListener(object : TreeExpansionListener {
+            override fun treeExpanded(event: TreeExpansionEvent) {
+                if (restoringTreeExpansion) return
+                val ref = event.path.lastPathComponent as? TreeNodeRef ?: return
+                treeExpandedIds.getOrPut(tree) { mutableSetOf() } += ref.id.value
+            }
+
+            override fun treeCollapsed(event: TreeExpansionEvent) {
+                if (restoringTreeExpansion) return
+                val ref = event.path.lastPathComponent as? TreeNodeRef ?: return
+                if (ref.id != repository.getDocument().rootNodeId) {
+                    treeExpandedIds.getOrPut(tree) { mutableSetOf() } -= ref.id.value
+                }
+            }
+        })
         if (dragAndDrop) {
             tree.dragEnabled = true
             tree.dropMode = DropMode.ON
@@ -1073,6 +1095,34 @@ class OrchestraDesktopApp(
             })
         }
         tree.model = model
+        restoreTreeExpansion(tree)
+    }
+
+    private fun restoreTreeExpansion(tree: JTree) {
+        val expanded = treeExpandedIds.getOrPut(tree) { mutableSetOf(repository.getDocument().rootNodeId.value) }
+        val root = tree.model.root as? DefaultMutableTreeNode ?: return
+        restoringTreeExpansion = true
+        try {
+            restoreTreeExpansion(tree, TreePath(root.path), expanded)
+        } finally {
+            restoringTreeExpansion = false
+        }
+    }
+
+    private fun restoreTreeExpansion(tree: JTree, path: TreePath, expanded: Set<String>) {
+        val ref = path.lastPathComponent as? TreeNodeRef
+        if (ref == null || ref.id.value in expanded) {
+            tree.expandPath(path)
+        }
+        val node = path.lastPathComponent as? DefaultMutableTreeNode ?: return
+        repeat(node.childCount) { index ->
+            val child = node.getChildAt(index) as? DefaultMutableTreeNode ?: return@repeat
+            val childPath = path.pathByAddingChild(child)
+            val childRef = child as? TreeNodeRef
+            if (childRef?.id?.value in expanded) {
+                restoreTreeExpansion(tree, childPath, expanded)
+            }
+        }
     }
 
     private fun refreshSelectedEntitiesTree() {
@@ -1635,18 +1685,75 @@ class GraphCanvas(
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         g2.font = designerFont
         drawCachedStaticScene(g2)
-        val overlay = g2.create() as Graphics2D
-        overlay.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-        overlay.font = designerFont
-        overlay.scale(zoom, zoom)
-        overlay.translate(panX, panY)
-        selectionRect?.let {
-            overlay.color = Color(0x3366cc55, true)
-            overlay.fill(it)
-            overlay.color = Color(0x3366cc)
-            overlay.draw(it)
+        drawScreenOverlay(g2)
+    }
+
+    private fun drawScreenOverlay(g2: Graphics2D) {
+        val previousStroke = g2.stroke
+        val previousFont = g2.font
+        selectionRect?.let { rect ->
+            val screenRect = modelRectToScreen(rect)
+            g2.color = Color(0x3366cc55, true)
+            g2.fill(screenRect)
+            g2.color = Color(0x3366cc)
+            g2.stroke = if (selectionDragLeftToRight) {
+                BasicStroke(1f)
+            } else {
+                BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f, floatArrayOf(6f, 4f), 0f)
+            }
+            g2.draw(screenRect)
         }
-        overlay.dispose()
+        drawViewportHierarchyPath(g2)
+        g2.stroke = previousStroke
+        g2.font = previousFont
+    }
+
+    private fun modelRectToScreen(rect: Rectangle): Rectangle {
+        val left = ((rect.x + panX) * zoom).roundToInt()
+        val top = ((rect.y + panY) * zoom).roundToInt()
+        val right = ((rect.x + rect.width + panX) * zoom).roundToInt()
+        val bottom = ((rect.y + rect.height + panY) * zoom).roundToInt()
+        return Rectangle(
+            min(left, right),
+            min(top, bottom),
+            abs(right - left).coerceAtLeast(1),
+            abs(bottom - top).coerceAtLeast(1),
+        )
+    }
+
+    private fun drawViewportHierarchyPath(g2: Graphics2D) {
+        val viewport = viewportModelRect(padding = 0)
+        val fillingNode = visibleNodes()
+            .filter { it.layout.rect().contains(viewport) }
+            .maxWithOrNull(compareBy<Node> { depthOf(it) }.thenBy { it.layout.width * it.layout.height })
+            ?: return
+        g2.font = designerFont.deriveFont(Font.BOLD, 13f)
+        val metrics = g2.fontMetrics
+        val text = fitScreenText(hierarchyPath(fillingNode), metrics, width - 16)
+        g2.color = Color(0xccffffff.toInt(), true)
+        g2.drawString(text, 9, 19)
+        g2.color = Color(0x202020)
+        g2.drawString(text, 8, 18)
+    }
+
+    private fun hierarchyPath(node: Node): String {
+        val document = repository.getDocument()
+        val parts = mutableListOf<String>()
+        var current: Node? = node
+        while (current != null) {
+            parts += current.name.ifBlank { current.id.value }
+            current = current.parentId?.let(document.nodes::get)
+        }
+        return parts.asReversed().joinToString(separator = "/", prefix = "/")
+    }
+
+    private fun fitScreenText(text: String, metrics: FontMetrics, maxWidth: Int): String {
+        if (metrics.stringWidth(text) <= maxWidth) return text
+        var result = text
+        while (result.length > 1 && metrics.stringWidth("...$result") > maxWidth) {
+            result = result.drop(1)
+        }
+        return "...$result"
     }
 
     private fun drawCachedStaticScene(g2: Graphics2D) {
@@ -1865,8 +1972,12 @@ class GraphCanvas(
         val format = best.format
         val sheetWidth = best.width
         val sheetHeight = best.height
-        val sheetX = contentBounds.x - margin - drawingPad
-        val sheetY = contentBounds.y - margin - drawingPad
+        val availableWidth = (sheetWidth - margin * 2 - partsWidth - gap).coerceAtLeast(1)
+        val availableHeight = (sheetHeight - margin * 2 - titleHeight - gap).coerceAtLeast(1)
+        val contentCenterX = contentBounds.x + contentBounds.width / 2.0
+        val contentCenterY = contentBounds.y + contentBounds.height / 2.0
+        val sheetX = (contentCenterX - margin - availableWidth / 2.0).roundToInt()
+        val sheetY = (contentCenterY - margin - availableHeight / 2.0).roundToInt()
         val sheet = Rectangle(sheetX, sheetY, sheetWidth, sheetHeight)
         val drawing = Rectangle(
             sheet.x + margin,
