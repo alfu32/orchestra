@@ -145,6 +145,7 @@ import javax.swing.SpinnerNumberModel
 import javax.swing.tree.DefaultTreeCellRenderer
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreeSelectionModel
 import javax.xml.parsers.DocumentBuilderFactory
 import org.xml.sax.InputSource
 import kotlin.math.atan2
@@ -1021,6 +1022,7 @@ class OrchestraDesktopApp(
         tree.isEditable = editable
         tree.invokesStopCellEditing = true
         tree.cellRenderer = HierarchyTreeCellRenderer()
+        tree.selectionModel.selectionMode = TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION
         if (dragAndDrop) {
             tree.dragEnabled = true
             tree.dropMode = DropMode.ON
@@ -1035,8 +1037,14 @@ class OrchestraDesktopApp(
                 return@addTreeSelectionListener
             }
             if (updatesSelection) {
+                val selectedIds = tree.selectionPaths
+                    ?.mapNotNull { it.lastPathComponent as? TreeNodeRef }
+                    ?.filter { it.category != TreeItemCategory.Feature }
+                    ?.map { it.id }
+                    ?.distinct()
+                    .orEmpty()
                 selection.clear()
-                selection += ref.id
+                selection += selectedIds.ifEmpty { listOf(ref.id) }
                 onSelectionChanged()
             }
         }
@@ -1104,7 +1112,20 @@ class OrchestraDesktopApp(
             val tree = c as? JTree ?: return null
             val ref = tree.lastSelectedPathComponent as? TreeNodeRef ?: return null
             if (ref.category == TreeItemCategory.Feature || ref.id == repository.getDocument().rootNodeId) return null
-            return StringSelection(ref.id.value)
+            val treeSelectedIds = tree.selectionPaths
+                ?.mapNotNull { it.lastPathComponent as? TreeNodeRef }
+                ?.filter { it.category != TreeItemCategory.Feature }
+                ?.map { it.id }
+                ?.distinct()
+                .orEmpty()
+            val candidateIds = when {
+                ref.id in selection -> selection.toList()
+                treeSelectedIds.isNotEmpty() -> treeSelectedIds
+                else -> listOf(ref.id)
+            }
+            val moveIds = treeMoveRoots(candidateIds)
+            if (moveIds.isEmpty()) return null
+            return StringSelection(moveIds.joinToString("\n") { it.value })
         }
 
         override fun canImport(support: TransferSupport): Boolean =
@@ -1118,18 +1139,52 @@ class OrchestraDesktopApp(
             val targetNode = repository.getNode(targetRef.id) ?: return false
             if (targetNode.isLink) return false
             val sourceValue = support.transferable.getTransferData(DataFlavor.stringFlavor) as? String ?: return false
-            val sourceId = NodeId(sourceValue)
-            if (sourceId == targetRef.id || sourceId == repository.getDocument().rootNodeId) return false
+            val sourceIds = sourceValue
+                .lineSequence()
+                .map(String::trim)
+                .filter(String::isNotBlank)
+                .map(::NodeId)
+                .toList()
+            val moveIds = treeMoveRoots(sourceIds)
+                .filter { it != targetRef.id && !isTreeAncestor(it, targetRef.id) }
+                .filter { repository.getNode(it)?.parentId != targetRef.id }
+            if (moveIds.isEmpty()) return false
             return runCatching {
-                repository.moveNode(sourceId, targetRef.id)
+                moveIds.forEach { repository.moveNode(it, targetRef.id) }
                 selection.clear()
-                selection += sourceId
-                status.text = "Moved $sourceValue under ${targetNode.name}"
+                selection += moveIds
+                status.text = "Moved ${moveIds.size} ${if (moveIds.size == 1) "entity" else "entities"} under ${targetNode.name}"
                 refreshAll()
-                tree.selectionPath = drop.path
                 true
             }.getOrDefault(false)
         }
+    }
+
+    private fun treeMoveRoots(ids: Collection<NodeId>): List<NodeId> {
+        val document = repository.getDocument()
+        val root = document.rootNodeId
+        val selected = ids
+            .distinct()
+            .filter { it != root && it in document.nodes }
+            .toSet()
+        return selected.filter { id ->
+            var current = document.nodes[id]?.parentId
+            while (current != null) {
+                if (current in selected) return@filter false
+                current = document.nodes[current]?.parentId
+            }
+            true
+        }
+    }
+
+    private fun isTreeAncestor(candidateAncestor: NodeId, nodeId: NodeId): Boolean {
+        val document = repository.getDocument()
+        var current = document.nodes[nodeId]?.parentId
+        while (current != null) {
+            if (current == candidateAncestor) return true
+            current = document.nodes[current]?.parentId
+        }
+        return false
     }
 
     private fun modeButton(label: String, mode: CanvasMode, iconId: String? = null) = JToggleButton(label).apply {
