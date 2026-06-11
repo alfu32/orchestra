@@ -1389,6 +1389,14 @@ class GraphCanvas(
     ) {
         val area: Int get() = width * height
     }
+    private data class CompositeTextMetrics(
+        val titleSize: Float,
+        val infoSize: Float,
+        val titleBaselineOffset: Int,
+        val stereotypeBaselineOffset: Int,
+        val technologyBaselineOffset: Int,
+        val topPadding: Int,
+    )
 
     private companion object {
         const val AUTO_SHEET_FORMAT = "Auto"
@@ -1413,6 +1421,14 @@ class GraphCanvas(
         const val ZOOM_BUCKET_STEP = 1.25
         const val COMPOSITE_TOP_PADDING = 80
         const val COMPOSITE_HEADER_EXTRA_HEIGHT = 36
+        const val COMPOSITE_BOTTOM_PADDING = 48
+        const val COMPOSITE_TEXT_REFERENCE_WIDTH = 1500.0
+        const val COMPOSITE_TEXT_REFERENCE_HEIGHT = 1000.0
+        const val COMPOSITE_TITLE_TARGET_SCREEN_PX = 16.0
+        const val COMPOSITE_INFO_TEXT_RATIO = 0.875
+        const val COMPOSITE_TEXT_CHILD_BOOST_DIVISOR = 64.0
+        const val COMPOSITE_TEXT_MIN_MODEL_SIZE = 6.0
+        const val COMPOSITE_TEXT_MAX_MODEL_SIZE = 32.0
         const val SHEET_UNITS_PER_MM = 4.0
         const val SHEET_MARGIN_MM = 10.0
         const val DRAWING_PAD_MM = 12.0
@@ -1594,7 +1610,7 @@ class GraphCanvas(
             .forEach { parent ->
                 val boxes = parent.children.mapNotNull(document.nodes::get).filter { !it.isLink }.map { it.layout.rect() }
                 val terminalWidth = max(requiredNodeWidth(parent), parent.layout.closedWidth)
-                val terminalHeight = max(requiredPortHeight(parent), parent.layout.closedHeight)
+                val terminalHeight = max(requiredPortHeight(parent, PORT_TOP_SPACING), parent.layout.closedHeight)
                 parent.layout.closedWidth = max(parent.layout.closedWidth, terminalWidth)
                 parent.layout.closedHeight = max(parent.layout.closedHeight, terminalHeight)
                 if (boxes.isNotEmpty()) {
@@ -1602,20 +1618,30 @@ class GraphCanvas(
                     val childTop = boxes.minOf { it.y }
                     val childRight = boxes.maxOf { it.x + it.width }
                     val childBottom = boxes.maxOf { it.y + it.height }
+                    val childSpanWidth = childRight - childLeft
+                    val childSpanHeight = childBottom - childTop
+                    val envelopeWidth = max(childSpanWidth + 64, parent.layout.closedWidth.roundToInt())
+                    val firstPassHeight = childSpanHeight + COMPOSITE_TOP_PADDING + COMPOSITE_BOTTOM_PADDING
+                    val labelWidth = requiredOpenCompositeLabelWidth(parent, envelopeWidth.toDouble(), firstPassHeight.toDouble())
+                    val openWidth = maxOf(
+                        envelopeWidth,
+                        parent.layout.closedWidth.roundToInt(),
+                        labelWidth,
+                    ).toDouble()
+                    val topPadding = compositeTextMetrics(parent, openWidth, firstPassHeight.toDouble()).topPadding
                     val openX = childLeft - 32
-                    val openY = childTop - COMPOSITE_TOP_PADDING - COMPOSITE_HEADER_EXTRA_HEIGHT
-                    val openWidth = max(childRight - childLeft + 64, parent.layout.closedWidth.roundToInt()).toDouble()
+                    val openY = childTop - topPadding
                     val openHeight = max(
-                        childBottom - childTop + 96 + (COMPOSITE_TOP_PADDING - 48),
-                        max(requiredPortHeight(parent), parent.layout.closedHeight).roundToInt(),
+                        childSpanHeight + topPadding + COMPOSITE_BOTTOM_PADDING,
+                        max(requiredPortHeight(parent, topPadding), parent.layout.closedHeight).roundToInt(),
                     ).toDouble()
                     parent.layout.openWidth = openWidth
-                    parent.layout.openHeight = openHeight + COMPOSITE_HEADER_EXTRA_HEIGHT
+                    parent.layout.openHeight = openHeight
                     parent.layout.x = openX.toDouble()
                     parent.layout.y = openY.toDouble()
                 } else {
                     parent.layout.openWidth = parent.layout.closedWidth
-                    parent.layout.openHeight = parent.layout.closedHeight + COMPOSITE_HEADER_EXTRA_HEIGHT
+                    parent.layout.openHeight = parent.layout.closedHeight + compositeTextMetrics(parent).topPadding - COMPOSITE_TOP_PADDING
                 }
                 parent.layout.width = if (parent.layout.isExpanded) parent.layout.openWidth else parent.layout.closedWidth
                 parent.layout.height = if (parent.layout.isExpanded) parent.layout.openHeight else parent.layout.closedHeight
@@ -1625,7 +1651,7 @@ class GraphCanvas(
 
     private fun ensureLayoutCanHoldPortsAndLabels(node: Node) {
         val terminalWidth = max(node.layout.closedWidth, requiredNodeWidth(node))
-        val terminalHeight = max(node.layout.closedHeight, requiredPortHeight(node) + if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0)
+        val terminalHeight = max(node.layout.closedHeight, requiredPortHeight(node, PORT_TOP_SPACING))
         node.layout.closedWidth = max(node.layout.closedWidth, terminalWidth)
         node.layout.closedHeight = max(node.layout.closedHeight, terminalHeight)
         if (!node.isComposite) {
@@ -1638,10 +1664,10 @@ class GraphCanvas(
         node.layout.height = if (node.layout.isExpanded || !node.isComposite) node.layout.openHeight else node.layout.closedHeight
     }
 
-    private fun requiredPortHeight(node: Node): Double {
+    private fun requiredPortHeight(node: Node, topSpacing: Int = portTopSpacing(node)): Double {
         val portCount = max(linksOnSide(node, -1).size, linksOnSide(node, 1).size)
         if (portCount == 0) return 0.0
-        return (PORT_TOP_SPACING + portCount * PORT_SPACING + PORT_BOTTOM_SPACING).toDouble()
+        return (topSpacing + portCount * PORT_SPACING + PORT_BOTTOM_SPACING).toDouble()
     }
 
     private fun requiredNodeWidth(node: Node): Double {
@@ -1653,6 +1679,69 @@ class GraphCanvas(
         val contentWidth = labels.maxOfOrNull { monospaceTextWidth(it, 8, 28) } ?: 0
         val portWidth = node.ports.maxOfOrNull { monospaceTextWidth(it.name, 8, 68) } ?: 0
         return maxOf(200, contentWidth, portWidth).toDouble()
+    }
+
+    private fun requiredOpenCompositeLabelWidth(
+        node: Node,
+        width: Double = node.layout.width,
+        height: Double = node.layout.height,
+    ): Int {
+        if (!node.isComposite) return requiredNodeWidth(node).roundToInt()
+        val metrics = compositeTextMetrics(node, width, height)
+        return maxOf(
+            monospaceTextWidth(node.name, metrics.titleSize, 28),
+            monospaceTextWidth(nodeStereotype(node).name, metrics.infoSize, 28),
+            technologyLabel(node)?.let { monospaceTextWidth(it, metrics.infoSize, 28) } ?: 0,
+            200,
+        )
+    }
+
+    private fun portTopSpacing(node: Node): Int =
+        if (node.isComposite && node.layout.isExpanded) compositeTextMetrics(node).topPadding else PORT_TOP_SPACING
+
+    private fun compositeTextMetrics(
+        node: Node,
+        width: Double = node.layout.width,
+        height: Double = node.layout.height,
+    ): CompositeTextMetrics {
+        val normalizedChebyshev = max(
+            width / COMPOSITE_TEXT_REFERENCE_WIDTH,
+            height / COMPOSITE_TEXT_REFERENCE_HEIGHT,
+        ).coerceAtLeast(0.0)
+        val descendantBoost = 1.0 + ln(totalDescendantCount(node) + 1.0) / COMPOSITE_TEXT_CHILD_BOOST_DIVISOR
+        val titleSize = (COMPOSITE_TITLE_TARGET_SCREEN_PX * normalizedChebyshev * descendantBoost)
+            .coerceIn(COMPOSITE_TEXT_MIN_MODEL_SIZE, COMPOSITE_TEXT_MAX_MODEL_SIZE)
+            .toFloat()
+        val infoSize = (titleSize * COMPOSITE_INFO_TEXT_RATIO).toFloat()
+        val titleRow = (titleSize * 1.35f).roundToInt().coerceAtLeast(14)
+        val infoRow = (infoSize * 1.35f).roundToInt().coerceAtLeast(12)
+        val titleBaseline = COMPOSITE_HEADER_EXTRA_HEIGHT + titleSize.roundToInt()
+        val stereotypeBaseline = titleBaseline + infoRow
+        val technologyBaseline = stereotypeBaseline + infoRow
+        val topPadding = max(
+            COMPOSITE_TOP_PADDING,
+            COMPOSITE_HEADER_EXTRA_HEIGHT + titleRow + infoRow + infoRow + infoRow,
+        )
+        return CompositeTextMetrics(
+            titleSize = titleSize,
+            infoSize = infoSize,
+            titleBaselineOffset = titleBaseline,
+            stereotypeBaselineOffset = stereotypeBaseline,
+            technologyBaselineOffset = technologyBaseline,
+            topPadding = topPadding,
+        )
+    }
+
+    private fun totalDescendantCount(node: Node): Int {
+        val document = repository.getDocument()
+        val seen = mutableSetOf<NodeId>()
+        fun countChildren(current: Node): Int =
+            current.children.sumOf { childId ->
+                val child = document.nodes[childId] ?: return@sumOf 0
+                if (!seen.add(child.id)) return@sumOf 0
+                1 + countChildren(child)
+            }
+        return countChildren(node)
     }
 
     private fun linksOnSide(node: Node, side: Int): List<Node> {
@@ -2290,10 +2379,19 @@ class GraphCanvas(
             dashArray = strokeDash,
         )
         val compact = node.children.isEmpty() || !node.layout.isExpanded
-        val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
-        svgText(svg, node.name, r.x + 12, r.y + 22 + headerOffset, if (compact) 13 else 12, "#222222")
-        svgText(svg, stereotype.name, r.x + 12, r.y + 42 + headerOffset, 12, "#555555")
-        technologyLabel(node)?.let { svgText(svg, it, r.x + 12, r.y + 58 + headerOffset, 11, "#666666") }
+        if (node.isComposite && node.layout.isExpanded) {
+            val metrics = compositeTextMetrics(node)
+            svgText(svg, node.name, r.x + 12, r.y + metrics.titleBaselineOffset, metrics.titleSize.roundToInt(), "#222222")
+            svgText(svg, stereotype.name, r.x + 12, r.y + metrics.stereotypeBaselineOffset, metrics.infoSize.roundToInt(), "#555555")
+            technologyLabel(node)?.let {
+                svgText(svg, it, r.x + 12, r.y + metrics.technologyBaselineOffset, metrics.infoSize.roundToInt(), "#666666")
+            }
+        } else {
+            val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
+            svgText(svg, node.name, r.x + 12, r.y + 22 + headerOffset, if (compact) 13 else 12, "#222222")
+            svgText(svg, stereotype.name, r.x + 12, r.y + 42 + headerOffset, 12, "#555555")
+            technologyLabel(node)?.let { svgText(svg, it, r.x + 12, r.y + 58 + headerOffset, 11, "#666666") }
+        }
         svgCompositeToggle(svg, node)
     }
 
@@ -2665,15 +2763,28 @@ class GraphCanvas(
         g2.drawRect(r.x, r.y, r.width, r.height)
         g2.color = Color(0x222222)
         val compact = node.children.isEmpty() || !node.layout.isExpanded
-        g2.font = g2.font.deriveFont(if (compact) 13f else 12f)
-        val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
-        g2.drawString(node.name, r.x + 12, r.y + 22 + headerOffset)
-        g2.color = Color(0x555555)
-        g2.drawString(stereotype.name, r.x + 12, r.y + 42 + headerOffset)
-        technologyLabel(node)?.let {
-            g2.color = Color(0x666666)
-            g2.font = g2.font.deriveFont(11f)
-            g2.drawString(it, r.x + 12, r.y + 58 + headerOffset)
+        if (node.isComposite && node.layout.isExpanded) {
+            val metrics = compositeTextMetrics(node)
+            g2.font = designerFont.deriveFont(metrics.titleSize)
+            g2.drawString(node.name, r.x + 12, r.y + metrics.titleBaselineOffset)
+            g2.color = Color(0x555555)
+            g2.font = designerFont.deriveFont(metrics.infoSize)
+            g2.drawString(stereotype.name, r.x + 12, r.y + metrics.stereotypeBaselineOffset)
+            technologyLabel(node)?.let {
+                g2.color = Color(0x666666)
+                g2.drawString(it, r.x + 12, r.y + metrics.technologyBaselineOffset)
+            }
+        } else {
+            g2.font = g2.font.deriveFont(if (compact) 13f else 12f)
+            val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
+            g2.drawString(node.name, r.x + 12, r.y + 22 + headerOffset)
+            g2.color = Color(0x555555)
+            g2.drawString(stereotype.name, r.x + 12, r.y + 42 + headerOffset)
+            technologyLabel(node)?.let {
+                g2.color = Color(0x666666)
+                g2.font = g2.font.deriveFont(11f)
+                g2.drawString(it, r.x + 12, r.y + 58 + headerOffset)
+            }
         }
         drawCompositeToggle(g2, node)
         g2.stroke = previousStroke
@@ -3266,7 +3377,7 @@ class GraphCanvas(
             side > 0 -> r.x + r.width
             else -> r.x
         }
-        val y = r.y + PORT_TOP_SPACING + index * PORT_SPACING
+        val y = r.y + portTopSpacing(node) + index * PORT_SPACING
         return PortAnchor(Point(x, y), side)
     }
 
@@ -3779,6 +3890,9 @@ class GraphCanvas(
 
     private fun monospaceTextWidth(text: String, charWidth: Int = 8, padding: Int = 24): Int =
         text.length * charWidth + padding
+
+    private fun monospaceTextWidth(text: String, fontSize: Float, padding: Int = 24): Int =
+        (text.length * fontSize * 0.62f).roundToInt() + padding
 
     private fun linkColor(stereotype: LinkStereotype, selected: Boolean): Color = when {
         selected -> Color(0x1565c0)
