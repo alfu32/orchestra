@@ -1445,7 +1445,7 @@ class GraphCanvas(
         const val COMPOSITE_INFO_TEXT_RATIO = 0.875
         const val COMPOSITE_TEXT_CHILD_BOOST_DIVISOR = 64.0
         const val COMPOSITE_TEXT_MIN_MODEL_SIZE = 6.0
-        const val COMPOSITE_TEXT_MAX_MODEL_SIZE = 32.0
+        const val COMPOSITE_TEXT_MAX_MODEL_SIZE = 256.0
         const val SHEET_UNITS_PER_MM = 4.0
         const val SHEET_MARGIN_MM = 10.0
         const val DRAWING_PAD_MM = 12.0
@@ -1725,8 +1725,13 @@ class GraphCanvas(
             width / OrchestraDesignerSettings.compositeReferenceViewportWidth,
             height / OrchestraDesignerSettings.compositeReferenceViewportHeight,
         ).coerceAtLeast(0.0)
+        val compressedChebyshev = if (normalizedChebyshev <= 1.0) {
+            normalizedChebyshev
+        } else {
+            1.0 + ln(normalizedChebyshev)
+        }
         val descendantBoost = 1.0 + ln(totalDescendantCount(node) + 1.0) / COMPOSITE_TEXT_CHILD_BOOST_DIVISOR
-        val titleSize = (OrchestraDesignerSettings.compositeTitleTargetScreenPx * normalizedChebyshev * descendantBoost)
+        val titleSize = (OrchestraDesignerSettings.compositeTitleTargetScreenPx * compressedChebyshev * descendantBoost)
             .coerceIn(COMPOSITE_TEXT_MIN_MODEL_SIZE, COMPOSITE_TEXT_MAX_MODEL_SIZE)
             .toFloat()
         val infoSize = (titleSize * COMPOSITE_INFO_TEXT_RATIO).toFloat()
