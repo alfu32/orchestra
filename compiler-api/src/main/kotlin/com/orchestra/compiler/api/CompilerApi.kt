@@ -15,7 +15,6 @@ import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveLayoutStrategyId
 import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.model.getElementById
-import java.nio.file.Files
 import java.nio.file.Path
 
 enum class GeneratedElementKind {
@@ -36,7 +35,7 @@ data class CompilerTechnology(
     val technologyId: String,
 )
 
-interface CompilerPlugin {
+interface CompilerPlugin : FsStorage {
     val id: String
     val displayName: String
     val supportedLanguageIds: Set<String> get() = emptySet()
@@ -74,6 +73,19 @@ interface CompilerPlugin {
     }
 
     fun compile(document: InflowDocument, options: CompilerOptions = CompilerOptions()): CompilationResult
+
+    override fun store(document: InflowDocument, node: Node): List<VirtualFile> =
+        compile(
+            document,
+            CompilerOptions(
+                projectName = document.name,
+                scopeNodeIds = setOf(node.id),
+                includeScopeAncestors = false,
+            ),
+        ).generatedProject?.toVirtualFiles().orEmpty()
+
+    override fun restore(document: InflowDocument, chunk: List<VirtualFile>): InflowDocument =
+        document
 }
 
 data class CompilerOptions(
@@ -95,11 +107,7 @@ data class GeneratedProject(
     val files: List<GeneratedFile>,
 ) {
     fun writeTo(directory: Path) {
-        files.forEach { file ->
-            val target = directory.resolve(file.path)
-            target.parent?.let(Files::createDirectories)
-            Files.writeString(target, file.content)
-        }
+        toVirtualFiles().writeTo(directory)
     }
 }
 
