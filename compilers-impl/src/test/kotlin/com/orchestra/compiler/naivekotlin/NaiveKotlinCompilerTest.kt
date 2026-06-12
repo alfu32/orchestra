@@ -1,8 +1,11 @@
 package com.orchestra.compiler.naivekotlin
 
+import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.GeneratedElementKind
+import com.orchestra.compiler.generated.nodejs.JSCompiler
 import com.orchestra.compiler.generic.CompilerCompiler
 import com.orchestra.compiler.generic.GenericCompiler
+import com.orchestra.compiler.php.PhpCompiler
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.TechnologyMetadata
@@ -31,6 +34,55 @@ class NaiveKotlinCompilerTest {
         val project = assertNotNull(result.generatedProject)
         assertTrue(project.files.any { it.path == "src/main/kotlin/generated/Runtime.kt" })
         assertTrue(project.files.any { it.content.contains("runLink(context") })
+    }
+
+    @Test
+    fun `structured compilers expose generated output as virtual files`() {
+        val jsRepository = InMemoryDocumentRepository(newDocument("Storage Sample"))
+        val jsRoot = jsRepository.getDocument().rootNodeId
+        jsRepository.updateNodeTechnology(jsRoot, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
+        jsRepository.updateNodeText(
+            jsRoot,
+            jsRepository.requireNode(jsRoot).text.copy(declaration = "context.value = 1;"),
+        )
+
+        val jsFiles = JSCompiler().store(
+            jsRepository.getDocument(),
+            jsRepository.requireNode(jsRoot),
+            CompilerOptions(projectName = "Stored JS"),
+        )
+
+        assertTrue(jsFiles.any { it.path == "Stored_JS/package.json" })
+        assertTrue(jsFiles.any { it.path == "Stored_JS/Storage_Sample.js" && it.content.contains("function Storage_Sample") })
+
+        val phpRepository = InMemoryDocumentRepository(newDocument("PHP Sample"))
+        val phpRoot = phpRepository.getDocument().rootNodeId
+        phpRepository.updateNodeTechnology(phpRoot, TechnologyMetadata(languageId = "php", technologyId = "php"))
+        phpRepository.updateNodeText(
+            phpRoot,
+            phpRepository.requireNode(phpRoot).text.copy(declaration = "\$context['value'] = 1;"),
+        )
+
+        val phpFiles = PhpCompiler().store(phpRepository.getDocument(), phpRepository.requireNode(phpRoot))
+
+        assertTrue(phpFiles.any { it.path == "PHP_Sample/composer.json" })
+        assertTrue(phpFiles.any { it.path == "PHP_Sample/PHP_Sample.php" && it.content.contains("function PHP_Sample") })
+    }
+
+    @Test
+    fun `compiler compiler exposes generated compiler as virtual files`() {
+        val repository = InMemoryDocumentRepository(newDocument("Compiler Design"))
+        val root = repository.getDocument().rootNodeId
+        val compiler = repository.createNode(root, "@Compiler", NodeKind.Processor)
+        repository.updateNodeTechnology(compiler.id, TechnologyMetadata(languageId = "kotlin", technologyId = "generated-kotlin"))
+        compiler.metadata["className"] = "FlowGeneratedCompiler"
+        val generatorTemplate = repository.createNode(compiler.id, "@Generator", NodeKind.Processor)
+        repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(declaration = "generated ${'$'}{node.name}"))
+
+        val files = CompilerCompiler().store(repository.getDocument(), compiler)
+
+        assertTrue(files.any { it.path == "src/main/kotlin/generated/compiler/FlowGeneratedCompiler.kt" })
+        assertTrue(files.any { it.content.contains("class FlowGeneratedCompiler : GenericCompiler()") })
     }
 
     @Test

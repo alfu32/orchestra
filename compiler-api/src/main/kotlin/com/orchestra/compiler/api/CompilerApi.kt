@@ -74,15 +74,18 @@ interface CompilerPlugin : FsStorage {
 
     fun compile(document: InflowDocument, options: CompilerOptions = CompilerOptions()): CompilationResult
 
-    override fun store(document: InflowDocument, node: Node): List<VirtualFile> =
+    fun store(document: InflowDocument, node: Node, options: CompilerOptions): List<VirtualFile> =
         compile(
             document,
-            CompilerOptions(
-                projectName = document.name,
+            options.copy(
+                projectName = options.projectName ?: document.name,
                 scopeNodeIds = setOf(node.id),
                 includeScopeAncestors = false,
             ),
         ).generatedProject?.toVirtualFiles().orEmpty()
+
+    override fun store(document: InflowDocument, node: Node): List<VirtualFile> =
+        store(document, node, CompilerOptions(projectName = document.name))
 
     override fun restore(document: InflowDocument, chunk: List<VirtualFile>): InflowDocument =
         document
