@@ -16,6 +16,7 @@ import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.getElementById
 import com.orchestra.core.validation.DocumentValidator
+import java.io.File
 import java.nio.file.Path
 
 class PhpCompiler : StructuredCompiler() {
@@ -55,6 +56,7 @@ class PhpCompiler : StructuredCompiler() {
         )
 
     override fun staticFileFor(context: NodeCompilerContext): GeneratedFile? {
+
         val node = context.node
         if (node.stereotype(context.document) != NodeStereotype.StaticFile && node.name !in magicFileNames) return null
         val path = node.metadata["path"]?.takeIf { it.isNotBlank() }
@@ -95,7 +97,7 @@ class PhpCompiler : StructuredCompiler() {
         val linkReference = context.node.name
         val sourceReference = "${sourceNode?.name ?: link.sourceNodeId.value}.${link.sourcePortName}"
         val targetReference = "${targetNode?.name ?: link.targetNodeId.value}.${link.targetPortName}"
-        return "transport(\$context, '${linkReference.escapePhp()}', '${sourceReference.escapePhp()}', '${targetReference.escapePhp()}');"
+        return "transport(#context, '${linkReference.escapePhp()}', '${sourceReference.escapePhp()}', '${targetReference.escapePhp()}');".replace("#","$")
     }
 
     override fun importForChild(context: NodeCompilerContext, child: CompiledNodeArtifact): String {
@@ -113,12 +115,12 @@ class PhpCompiler : StructuredCompiler() {
         return """
 <?php
 
-function $functionName(array &${'$'}context = []): void
+function $functionName(array &#context = []): void
 {
 ${initialization.indentPhp()}
 ${body.indentPhp()}
 }
-""".trimStart()
+""".replace("#","$").trimStart()
     }
 
     private fun compositeDeclaration(context: NodeCompilerContext): String {
@@ -143,31 +145,31 @@ $inlineChildren
 
 $links
 
-function $functionName(array &${'$'}context = []): void
+function $functionName(array &#context = []): void
 {
 ${ownInstantiation.indentPhp()}
 ${ownDeclaration.indentPhp()}
 ${childCalls.indentPhp()}
 ${linkCalls.indentPhp()}
 }
-""".trimStart()
+""".replace("#","$").trimStart()
     }
 
     private fun runtimeSupport(): String =
         """
-function transport(array &${'$'}context, string ${'$'}linkReference, string ${'$'}source, string ${'$'}target): void
+function transport(array &#context, string #linkReference, string #source, string #target): void
 {
-    ${'$'}context['outputs'] ??= [];
-    ${'$'}context['inputs'] ??= [];
-    ${'$'}context['links'] ??= [];
-    ${'$'}context['links'][${'$'}linkReference] = ['source' => ${'$'}source, 'target' => ${'$'}target];
-    ${'$'}queue = ${'$'}context['outputs'][${'$'}source] ?? [];
-    ${'$'}context['inputs'][${'$'}target] ??= [];
-    while (count(${'$'}queue) > 0) {
-        ${'$'}context['inputs'][${'$'}target][] = array_shift(${'$'}queue);
+    #context['outputs'] ??= [];
+    #context['inputs'] ??= [];
+    #context['links'] ??= [];
+    #context['links'][#linkReference] = ['source' => #source, 'target' => #target];
+    #queue = #context['outputs'][#source] ?? [];
+    #context['inputs'][#target] ??= [];
+    while (count(#queue) > 0) {
+        #context['inputs'][#target][] = array_shift(#queue);
     }
 }
-""".trimStart()
+""".replace("#","$").trimStart()
 }
 
 private fun relativePath(from: String, to: String): String {

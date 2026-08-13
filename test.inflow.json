@@ -42,14 +42,25 @@
                 "x": -135.0,
                 "y": -88.0,
                 "width": 1825.0,
-                "height": 806.0
+                "height": 806.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "javascript",
@@ -78,17 +89,28 @@
                 "link_18"
             ],
             "layout": {
-                "x": -103.0,
-                "y": 408.0,
-                "width": 180.0,
-                "height": 108.0
+                "x": -371.0,
+                "y": 549.0,
+                "width": 260.0,
+                "height": 168.0,
+                "closedWidth": 260.0,
+                "closedHeight": 168.0,
+                "openWidth": 260.0,
+                "openHeight": 168.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -129,17 +151,28 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 871.0,
-                "y": 179.0,
-                "width": 787.0,
-                "height": 314.0
+                "x": 1271.0,
+                "y": 112.0,
+                "width": 1106.0,
+                "height": 334.0,
+                "closedWidth": 260.0,
+                "closedHeight": 100.0,
+                "openWidth": 1106.0,
+                "openHeight": 334.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "fdsdfsdf",
+                "sourceLanguageId": "",
                 "specification": "jgjgjgjgj",
+                "specificationLanguageId": "markdown",
                 "tests": "nnnnnnn",
-                "aiInstructions": "jggggggggggggg"
+                "testsLanguageId": "json",
+                "aiInstructions": "jggggggggggggg",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "javascript",
@@ -182,17 +215,28 @@
                 "link_30"
             ],
             "layout": {
-                "x": 1382.0,
-                "y": 259.0,
-                "width": 244.0,
-                "height": 186.0
+                "x": 2085.0,
+                "y": 214.0,
+                "width": 260.0,
+                "height": 138.0,
+                "closedWidth": 260.0,
+                "closedHeight": 138.0,
+                "openWidth": 260.0,
+                "openHeight": 138.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "var packagesIndex={}",
+                "initializationLanguageId": "",
                 "source": "var ip=info_package.pop();\nif(ip.id){\n  if(ip.id in packagesIndex){\n  }else{\n    var fip = ip\n    fip.fixed=true\n    fixed_info_package.push(fip)\n  }\n}",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -234,17 +278,28 @@
                 "link_31"
             ],
             "layout": {
-                "x": 903.0,
+                "x": 1303.0,
                 "y": 298.0,
-                "width": 180.0,
-                "height": 108.0
+                "width": 260.0,
+                "height": 100.0,
+                "closedWidth": 260.0,
+                "closedHeight": 100.0,
+                "openWidth": 260.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -291,15 +346,26 @@
             "layout": {
                 "x": 122.0,
                 "y": 258.0,
-                "width": 180.0,
-                "height": 108.0
+                "width": 260.0,
+                "height": 138.0,
+                "closedWidth": 260.0,
+                "closedHeight": 138.0,
+                "openWidth": 260.0,
+                "openHeight": 138.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -345,15 +411,26 @@
             "layout": {
                 "x": 586.0,
                 "y": 318.0,
-                "width": 180.0,
-                "height": 108.0
+                "width": 260.0,
+                "height": 138.0,
+                "closedWidth": 260.0,
+                "closedHeight": 138.0,
+                "openWidth": 260.0,
+                "openHeight": 138.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "var lib_logging=`lib_logging -> send_results`\nvar lib_soap_sm=`lib_soap_sm -> send_results`\nvar packet=processing_result.pop()\n\n\nsend_results_error.push(packet)\n\n",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "[\n    {\n        \"case\": \"valid\",\n        \"input.processing_result\": \"{\\\"id\\\":\\\"123\\\"}\",\n        \"expected.send_results_error\": \"{}\"\n    },\n    {\n        \"case\": \"invalid\",\n        \"input.processing_result\": \"{}\",\n        \"expected.send_results_error\": \"{\\\"error\\\":\\\"invalid id\\\"}\"\n    }\n]",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -393,17 +470,28 @@
                 "link_8"
             ],
             "layout": {
-                "x": 863.0,
-                "y": -8.0,
-                "width": 180.0,
-                "height": 90.0
+                "x": 848.0,
+                "y": -133.0,
+                "width": 260.0,
+                "height": 100.0,
+                "closedWidth": 260.0,
+                "closedHeight": 100.0,
+                "openWidth": 260.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -437,17 +525,28 @@
                 "link_13"
             ],
             "layout": {
-                "x": 406.0,
-                "y": 0.0,
-                "width": 180.0,
-                "height": 90.0
+                "x": 391.0,
+                "y": -125.0,
+                "width": 260.0,
+                "height": 100.0,
+                "closedWidth": 260.0,
+                "closedHeight": 100.0,
+                "openWidth": 260.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -482,17 +581,28 @@
                 "link_12"
             ],
             "layout": {
-                "x": -31.0,
-                "y": -5.0,
-                "width": 180.0,
-                "height": 90.0
+                "x": -46.0,
+                "y": -130.0,
+                "width": 260.0,
+                "height": 108.0,
+                "closedWidth": 260.0,
+                "closedHeight": 108.0,
+                "openWidth": 260.0,
+                "openHeight": 108.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -526,14 +636,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -549,6 +670,7 @@
                 "targetNodeId": "node_1",
                 "targetPortName": "in",
                 "transportKind": "usage",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -566,14 +688,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -589,6 +722,7 @@
                 "targetNodeId": "node_3",
                 "targetPortName": "in",
                 "transportKind": "usage",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -606,14 +740,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -629,6 +774,7 @@
                 "targetNodeId": "node_1",
                 "targetPortName": "in",
                 "transportKind": "usage",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -646,14 +792,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -669,6 +826,7 @@
                 "targetNodeId": "node_3",
                 "targetPortName": "in",
                 "transportKind": "usage",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -686,14 +844,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -709,6 +878,7 @@
                 "targetNodeId": "node_4",
                 "targetPortName": "in",
                 "transportKind": "usage",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -726,14 +896,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -749,6 +930,7 @@
                 "targetNodeId": "node_4",
                 "targetPortName": "in",
                 "transportKind": "usage",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -766,14 +948,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -789,6 +982,7 @@
                 "targetNodeId": "node_3",
                 "targetPortName": "in",
                 "transportKind": "packet",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -811,15 +1005,26 @@
             "layout": {
                 "x": 350.0,
                 "y": 532.0,
-                "width": 180.0,
-                "height": 138.0
+                "width": 260.0,
+                "height": 108.0,
+                "closedWidth": 260.0,
+                "closedHeight": 108.0,
+                "openWidth": 260.0,
+                "openHeight": 108.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "var ff=config_error\nvar gg=info_package_error\nvar hh=send_results_error\n\nfailed_info_package.push(result)",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "javascript",
@@ -860,14 +1065,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -883,6 +1099,7 @@
                 "targetNodeId": "node_17",
                 "targetPortName": "in",
                 "transportKind": "error",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -900,14 +1117,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -923,6 +1151,7 @@
                 "targetNodeId": "node_17",
                 "targetPortName": "in",
                 "transportKind": "error",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -940,14 +1169,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -963,6 +1203,7 @@
                 "targetNodeId": "node_17",
                 "targetPortName": "in",
                 "transportKind": "error",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -981,17 +1222,28 @@
                 "link_32"
             ],
             "layout": {
-                "x": 642.0,
-                "y": 565.0,
-                "width": 180.0,
-                "height": 90.0
+                "x": 943.0,
+                "y": 706.0,
+                "width": 260.0,
+                "height": 100.0,
+                "closedWidth": 260.0,
+                "closedHeight": 100.0,
+                "openWidth": 260.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "[\n    {\n        \"case\": \"valid\",\n        \"input.failed_info_package\": \"{\\\"id\\\":\\\"123\\\"}\",\n        \"expected.fixed_info_package\": \"{\\\"id\\\":\\\"123\\\",\\\"processed\\\":true}\"\n    }\n]",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -1032,14 +1284,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -1055,6 +1318,7 @@
                 "targetNodeId": "node_22",
                 "targetPortName": "in",
                 "transportKind": "packet",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -1072,14 +1336,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -1095,6 +1370,7 @@
                 "targetNodeId": "node_27",
                 "targetPortName": "in",
                 "transportKind": "packet",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -1112,14 +1388,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -1135,6 +1422,7 @@
                 "targetNodeId": "node_28",
                 "targetPortName": "in",
                 "transportKind": "packet",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -1152,14 +1440,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -1175,6 +1474,7 @@
                 "targetNodeId": "node_4",
                 "targetPortName": "in",
                 "transportKind": "packet",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -1192,14 +1492,25 @@
                 "x": 0.0,
                 "y": 0.0,
                 "width": 200.0,
-                "height": 100.0
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "",
@@ -1215,6 +1526,7 @@
                 "targetNodeId": "node_27",
                 "targetPortName": "in",
                 "transportKind": "packet",
+                "typeName": "",
                 "payloadDefinition": ""
             },
             "metadata": {},
@@ -1229,17 +1541,28 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 1241.0,
-                "y": -2.0,
-                "width": 180.0,
-                "height": 90.0
+                "x": 1264.0,
+                "y": -139.0,
+                "width": 212.0,
+                "height": 100.0,
+                "closedWidth": 212.0,
+                "closedHeight": 100.0,
+                "openWidth": 212.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "json",
@@ -1262,17 +1585,28 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 1466.0,
-                "y": -1.0,
-                "width": 180.0,
-                "height": 90.0
+                "x": 1626.0,
+                "y": -134.0,
+                "width": 228.0,
+                "height": 100.0,
+                "closedWidth": 228.0,
+                "closedHeight": 100.0,
+                "openWidth": 228.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
+                "initializationLanguageId": "",
                 "source": "",
+                "sourceLanguageId": "",
                 "specification": "",
+                "specificationLanguageId": "markdown",
                 "tests": "",
-                "aiInstructions": ""
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
                 "languageId": "json",

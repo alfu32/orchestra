@@ -364,6 +364,16 @@ class OrchestraDesktopApp(
             add(commandItem("edit.cut"))
             add(commandItem("edit.copy"))
             add(commandItem("edit.paste"))
+            addSeparator()
+            add(JMenu("Align and Distribute").apply {
+                add(commandItem("edit.align.top"))
+                add(commandItem("edit.align.bottom"))
+                add(commandItem("edit.align.left"))
+                add(commandItem("edit.align.right"))
+                addSeparator()
+                add(commandItem("edit.distribute.vertical"))
+                add(commandItem("edit.distribute.horizontal"))
+            })
         })
         add(JMenu("Graph").apply {
             add(commandItem("graph.mode.select", "select"))
@@ -412,6 +422,12 @@ class OrchestraDesktopApp(
         registerCommand(AppCommand("edit.cut", "Edit: Cut", KeyStroke.getKeyStroke(KeyEvent.VK_X, shortcut)) { cut() })
         registerCommand(AppCommand("edit.copy", "Edit: Copy", KeyStroke.getKeyStroke(KeyEvent.VK_C, shortcut)) { copy() })
         registerCommand(AppCommand("edit.paste", "Edit: Paste", KeyStroke.getKeyStroke(KeyEvent.VK_V, shortcut)) { paste() })
+        registerCommand(AppCommand("edit.align.top", "Edit: Align Top") { alignAndDistribute(AlignmentOperation.AlignTop) })
+        registerCommand(AppCommand("edit.align.bottom", "Edit: Align Bottom") { alignAndDistribute(AlignmentOperation.AlignBottom) })
+        registerCommand(AppCommand("edit.align.left", "Edit: Align Left") { alignAndDistribute(AlignmentOperation.AlignLeft) })
+        registerCommand(AppCommand("edit.align.right", "Edit: Align Right") { alignAndDistribute(AlignmentOperation.AlignRight) })
+        registerCommand(AppCommand("edit.distribute.vertical", "Edit: Distribute Evenly Vertically") { alignAndDistribute(AlignmentOperation.DistributeVertical) })
+        registerCommand(AppCommand("edit.distribute.horizontal", "Edit: Distribute Evenly Horizontally") { alignAndDistribute(AlignmentOperation.DistributeHorizontal) })
         registerCommand(AppCommand("graph.mode.select", "Graph: Select Mode", KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0)) { canvas.setMode(CanvasMode.Select) })
         registerCommand(AppCommand("graph.mode.node", "Graph: Node Mode") { canvas.setMode(CanvasMode.CreateNode) })
         registerCommand(AppCommand("graph.mode.link", "Graph: Link Mode") { canvas.setMode(CanvasMode.CreateLink) })
@@ -981,6 +997,21 @@ class OrchestraDesktopApp(
         refreshAll()
     }
 
+    private fun alignAndDistribute(operation: AlignmentOperation) {
+        val selectedBoxes = selection.count { id -> repository.getNode(id)?.isLink == false }
+        val requiredSelectionSize = if (operation.isDistribution) 3 else 2
+        if (selectedBoxes < requiredSelectionSize) {
+            status.text = if (operation.isDistribution) {
+                "Select at least three boxes to distribute."
+            } else {
+                "Select at least two boxes to align."
+            }
+            return
+        }
+        canvas.alignAndDistribute(operation)
+        status.text = operation.statusText
+    }
+
     private fun onSelectionChanged(activeSection: NodeTextSection? = null) {
         inspector.bind(selection.firstOrNull())
         editorTabs.bind(selection.toList(), activeSection)
@@ -1331,6 +1362,18 @@ enum class CanvasMode {
     CreateLink,
 }
 
+enum class AlignmentOperation(
+    val statusText: String,
+    val isDistribution: Boolean = false,
+) {
+    AlignTop("Aligned selected boxes to top"),
+    AlignBottom("Aligned selected boxes to bottom"),
+    AlignLeft("Aligned selected boxes to left"),
+    AlignRight("Aligned selected boxes to right"),
+    DistributeVertical("Distributed selected boxes vertically", isDistribution = true),
+    DistributeHorizontal("Distributed selected boxes horizontally", isDistribution = true),
+}
+
 class GraphCanvas(
     private val repository: DocumentRepository,
     private val selection: LinkedHashSet<NodeId>,
@@ -1612,6 +1655,42 @@ class GraphCanvas(
         }
         selection.clear()
         selection += pasted
+        refreshAll()
+    }
+
+    fun alignAndDistribute(operation: AlignmentOperation) {
+        val nodes = selectedMoveRoots()
+        val requiredSelectionSize = if (operation.isDistribution) 3 else 2
+        if (nodes.size < requiredSelectionSize) {
+            return
+        }
+        val targets = when (operation) {
+            AlignmentOperation.AlignTop -> {
+                val y = nodes.minOf { it.layout.y }
+                nodes.associateWith { it.layout.x to y }
+            }
+            AlignmentOperation.AlignBottom -> {
+                val bottom = nodes.maxOf { it.layout.y + it.layout.height }
+                nodes.associateWith { it.layout.x to bottom - it.layout.height }
+            }
+            AlignmentOperation.AlignLeft -> {
+                val x = nodes.minOf { it.layout.x }
+                nodes.associateWith { x to it.layout.y }
+            }
+            AlignmentOperation.AlignRight -> {
+                val right = nodes.maxOf { it.layout.x + it.layout.width }
+                nodes.associateWith { right - it.layout.width to it.layout.y }
+            }
+            AlignmentOperation.DistributeVertical -> distributeTargets(nodes, vertical = true)
+            AlignmentOperation.DistributeHorizontal -> distributeTargets(nodes, vertical = false)
+        }
+        targets.forEach { (node, target) ->
+            val dx = target.first - node.layout.x
+            val dy = target.second - node.layout.y
+            moveNodeAndDescendants(node, dx, dy)
+        }
+        invalidateRoutesFor(nodes.map { it.id })
+        repository.markDirty()
         refreshAll()
     }
 
@@ -5263,6 +5342,27 @@ private class SimpleDocumentListener(private val onChange: () -> Unit) : Documen
     override fun insertUpdate(e: DocumentEvent) = onChange()
     override fun removeUpdate(e: DocumentEvent) = onChange()
     override fun changedUpdate(e: DocumentEvent) = onChange()
+}
+
+private fun distributeTargets(nodes: List<Node>, vertical: Boolean): Map<Node, Pair<Double, Double>> {
+    val sorted = if (vertical) {
+        nodes.sortedWith(compareBy<Node> { it.layout.y }.thenBy { it.layout.x }.thenBy { it.id.value })
+    } else {
+        nodes.sortedWith(compareBy<Node> { it.layout.x }.thenBy { it.layout.y }.thenBy { it.id.value })
+    }
+    val first = sorted.first()
+    val last = sorted.last()
+    val start = if (vertical) first.layout.y else first.layout.x
+    val end = if (vertical) last.layout.y else last.layout.x
+    val step = (end - start) / (sorted.size - 1)
+    return sorted.mapIndexed { index, node ->
+        val position = start + step * index
+        node to if (vertical) {
+            node.layout.x to position
+        } else {
+            position to node.layout.y
+        }
+    }.toMap()
 }
 
 private fun NodeLayout.rect(): Rectangle = Rectangle(x.toInt(), y.toInt(), width.toInt(), height.toInt())
