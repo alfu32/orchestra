@@ -39,7 +39,7 @@ class JSCompilerTest {
     }
 
     @Test
-    fun `multi file layout keeps each module export self contained`() {
+    fun `multi file layout also adds its function to module exports`() {
         val repository = InMemoryDocumentRepository(newDocument("Direct JS"))
         val root = repository.getDocument().rootNodeId
         repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
@@ -49,6 +49,7 @@ class JSCompilerTest {
 
         assertTrue(result.success)
         val project = assertNotNull(result.generatedProject)
-        assertTrue(project.files.any { it.content.contains("module.exports = { read_data };") })
+        assertTrue(project.files.any { it.content.contains("module.exports.read_data = read_data;") })
+        assertFalse(project.files.any { it.content.contains("module.exports = {") })
     }
 }
