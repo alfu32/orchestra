@@ -144,7 +144,16 @@ data class NodeCompilerContext(
     val childArtifacts: List<CompiledNodeArtifact>,
     val linkArtifacts: List<CompiledNodeArtifact>,
 ) {
-    val isSingleFileLayout: Boolean get() = layoutStrategy.id == SingleFileLayoutStrategy.id
+    val effectiveLayoutStrategy: LayoutStrategy
+        get() {
+            val resolvedStrategyId = document.effectiveLayoutStrategyId(node.id)
+            return if (resolvedStrategyId == VOID_LAYOUT_STRATEGY_ID) {
+                layoutStrategy
+            } else {
+                layoutStrategyById(resolvedStrategyId)
+            }
+        }
+    val isSingleFileLayout: Boolean get() = effectiveLayoutStrategy.id == SingleFileLayoutStrategy.id
     val childDeclarations: String get() = childArtifacts.joinToString("\n\n") { it.declarationText }.trim()
     val childInstantiations: String get() = childArtifacts.joinToString("\n") { it.instantiationText }.trim()
     val linkDeclarations: String get() = linkArtifacts.joinToString("\n\n") { it.declarationText }.trim()
@@ -388,7 +397,7 @@ abstract class StructuredCompiler : CompilerPlugin {
         val declaration = declarationFor(context).trimEnd()
         val instantiation = instantiationFor(context).trimEnd()
         val primary = primaryFileFor(context, declaration)
-        val inheritedSingleFile = context.layoutStrategy.id == SingleFileLayoutStrategy.id
+        val inheritedSingleFile = context.isSingleFileLayout
         val childFiles = (context.childArtifacts + context.linkArtifacts).flatMap { artifact ->
             if (inheritedSingleFile && artifact.layoutStrategy.id == SingleFileLayoutStrategy.id) {
                 emptyList()

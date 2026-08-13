@@ -49,7 +49,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
-            "fileLayoutStrategyId": "none",
+            "fileLayoutStrategyId": "single-file",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -64,7 +64,7 @@
             },
             "technology": {
                 "languageId": "javascript",
-                "technologyId": "",
+                "technologyId": "nodejs",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -89,13 +89,13 @@
                 "link_18"
             ],
             "layout": {
-                "x": -371.0,
-                "y": 549.0,
-                "width": 260.0,
+                "x": -548.0,
+                "y": 469.0,
+                "width": 276.0,
                 "height": 168.0,
-                "closedWidth": 260.0,
+                "closedWidth": 276.0,
                 "closedHeight": 168.0,
-                "openWidth": 260.0,
+                "openWidth": 276.0,
                 "openHeight": 168.0,
                 "isExpanded": true
             },
@@ -153,11 +153,11 @@
             "layout": {
                 "x": 1271.0,
                 "y": 112.0,
-                "width": 1106.0,
+                "width": 1122.0,
                 "height": 334.0,
-                "closedWidth": 260.0,
+                "closedWidth": 276.0,
                 "closedHeight": 100.0,
-                "openWidth": 1106.0,
+                "openWidth": 1122.0,
                 "openHeight": 334.0,
                 "isExpanded": true
             },
@@ -217,11 +217,11 @@
             "layout": {
                 "x": 2085.0,
                 "y": 214.0,
-                "width": 260.0,
+                "width": 276.0,
                 "height": 138.0,
-                "closedWidth": 260.0,
+                "closedWidth": 276.0,
                 "closedHeight": 138.0,
-                "openWidth": 260.0,
+                "openWidth": 276.0,
                 "openHeight": 138.0,
                 "isExpanded": true
             },
@@ -280,11 +280,11 @@
             "layout": {
                 "x": 1303.0,
                 "y": 298.0,
-                "width": 260.0,
+                "width": 276.0,
                 "height": 100.0,
-                "closedWidth": 260.0,
+                "closedWidth": 276.0,
                 "closedHeight": 100.0,
-                "openWidth": 260.0,
+                "openWidth": 276.0,
                 "openHeight": 100.0,
                 "isExpanded": true
             },
@@ -344,13 +344,13 @@
                 "link_29"
             ],
             "layout": {
-                "x": 122.0,
-                "y": 258.0,
-                "width": 260.0,
+                "x": -22.0,
+                "y": 178.0,
+                "width": 276.0,
                 "height": 138.0,
-                "closedWidth": 260.0,
+                "closedWidth": 276.0,
                 "closedHeight": 138.0,
-                "openWidth": 260.0,
+                "openWidth": 276.0,
                 "openHeight": 138.0,
                 "isExpanded": true
             },
@@ -409,13 +409,13 @@
                 "link_21"
             ],
             "layout": {
-                "x": 586.0,
-                "y": 318.0,
-                "width": 260.0,
+                "x": 740.0,
+                "y": 348.0,
+                "width": 276.0,
                 "height": 138.0,
-                "closedWidth": 260.0,
+                "closedWidth": 276.0,
                 "closedHeight": 138.0,
-                "openWidth": 260.0,
+                "openWidth": 276.0,
                 "openHeight": 138.0,
                 "isExpanded": true
             },
@@ -470,13 +470,13 @@
                 "link_8"
             ],
             "layout": {
-                "x": 848.0,
-                "y": -133.0,
-                "width": 260.0,
+                "x": 790.0,
+                "y": -142.0,
+                "width": 276.0,
                 "height": 100.0,
-                "closedWidth": 260.0,
+                "closedWidth": 276.0,
                 "closedHeight": 100.0,
-                "openWidth": 260.0,
+                "openWidth": 276.0,
                 "openHeight": 100.0,
                 "isExpanded": true
             },
@@ -525,13 +525,13 @@
                 "link_13"
             ],
             "layout": {
-                "x": 391.0,
-                "y": -125.0,
-                "width": 260.0,
+                "x": 117.5,
+                "y": -142.0,
+                "width": 276.0,
                 "height": 100.0,
-                "closedWidth": 260.0,
+                "closedWidth": 276.0,
                 "closedHeight": 100.0,
-                "openWidth": 260.0,
+                "openWidth": 276.0,
                 "openHeight": 100.0,
                 "isExpanded": true
             },
@@ -581,14 +581,14 @@
                 "link_12"
             ],
             "layout": {
-                "x": -46.0,
-                "y": -130.0,
-                "width": 260.0,
-                "height": 108.0,
-                "closedWidth": 260.0,
-                "closedHeight": 108.0,
-                "openWidth": 260.0,
-                "openHeight": 108.0,
+                "x": -555.0,
+                "y": -142.0,
+                "width": 276.0,
+                "height": 138.0,
+                "closedWidth": 276.0,
+                "closedHeight": 138.0,
+                "openWidth": 276.0,
+                "openHeight": 138.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -1005,11 +1005,11 @@
             "layout": {
                 "x": 350.0,
                 "y": 532.0,
-                "width": 260.0,
+                "width": 276.0,
                 "height": 108.0,
-                "closedWidth": 260.0,
+                "closedWidth": 276.0,
                 "closedHeight": 108.0,
-                "openWidth": 260.0,
+                "openWidth": 276.0,
                 "openHeight": 108.0,
                 "isExpanded": true
             },
@@ -1224,11 +1224,11 @@
             "layout": {
                 "x": 943.0,
                 "y": 706.0,
-                "width": 260.0,
+                "width": 276.0,
                 "height": 100.0,
-                "closedWidth": 260.0,
+                "closedWidth": 276.0,
                 "closedHeight": 100.0,
-                "openWidth": 260.0,
+                "openWidth": 276.0,
                 "openHeight": 100.0,
                 "isExpanded": true
             },
@@ -1541,13 +1541,13 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 1264.0,
-                "y": -139.0,
-                "width": 212.0,
+                "x": 1432.0,
+                "y": -142.0,
+                "width": 228.0,
                 "height": 100.0,
-                "closedWidth": 212.0,
+                "closedWidth": 228.0,
                 "closedHeight": 100.0,
-                "openWidth": 212.0,
+                "openWidth": 228.0,
                 "openHeight": 100.0,
                 "isExpanded": true
             },
@@ -1585,8 +1585,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 1626.0,
-                "y": -134.0,
+                "x": 1741.0,
+                "y": -142.0,
                 "width": 228.0,
                 "height": 100.0,
                 "closedWidth": 228.0,

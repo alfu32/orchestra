@@ -80,7 +80,7 @@ class TechnologyMetadataResolutionTest {
     }
 
     @Test
-    fun `effective layout strategy skips explicit none values and inherits from parent`() {
+    fun `effective layout strategy skips explicit none and blank values and inherits from parent`() {
         val root = Node(
             id = NodeId("root"),
             name = "root",
@@ -94,14 +94,23 @@ class TechnologyMetadataResolutionTest {
             parentId = root.id,
             fileLayoutStrategyId = VOID_LAYOUT_STRATEGY_ID,
         )
+        val grandchild = Node(
+            id = NodeId("grandchild"),
+            name = "grandchild",
+            kind = NodeKind.Processor,
+            parentId = child.id,
+            fileLayoutStrategyId = "",
+        )
         root.children += child.id
+        child.children += grandchild.id
         val document = InflowDocument(
             id = "doc",
             name = "doc",
             rootNodeId = root.id,
-            nodes = mutableMapOf(root.id to root, child.id to child),
+            nodes = mutableMapOf(root.id to root, child.id to child, grandchild.id to grandchild),
         )
 
         assertEquals("single-file", document.effectiveLayoutStrategyId(child.id))
+        assertEquals("single-file", document.effectiveLayoutStrategyId(grandchild.id))
     }
 }

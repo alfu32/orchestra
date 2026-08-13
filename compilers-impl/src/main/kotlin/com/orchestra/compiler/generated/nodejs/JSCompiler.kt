@@ -124,7 +124,7 @@ ${initialization.indentJs()}
 ${body.indentJs()}
 }
 
-module.exports = { $functionName };
+${exportFunction(context, functionName)}
 """.trimStart()
     }
 
@@ -152,10 +152,17 @@ ${childCalls.indentJs()}
 ${linkCalls.indentJs()}
 }
 
-module.exports = { $functionName };
+${exportFunction(context, functionName)}
 """.trimStart(),
         ).filter { it.isNotBlank() }.joinToString("\n\n")
     }
+
+    private fun exportFunction(context: NodeCompilerContext, functionName: String): String =
+        if (context.isSingleFileLayout) {
+            "module.exports.$functionName = $functionName;"
+        } else {
+            "module.exports = { $functionName };"
+        }
 
     private fun runtimeSupport(): String =
         """

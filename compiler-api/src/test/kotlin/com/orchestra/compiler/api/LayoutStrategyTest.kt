@@ -6,6 +6,7 @@ import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class LayoutStrategyTest {
     @Test
@@ -55,5 +56,57 @@ class LayoutStrategyTest {
         assertEquals(1, project.files.size)
         assertEquals("chosen_node.kt", project.files.single().path)
         assertEquals("class Foo", project.files.single().content)
+    }
+
+    @Test
+    fun `node compiler context resolves single file layout from parent when current node is unspecified`() {
+        val root = Node(
+            id = NodeId("root"),
+            name = "root",
+            kind = NodeKind.Group,
+            fileLayoutStrategyId = SingleFileLayoutStrategy.id,
+        )
+        val child = Node(
+            id = NodeId("child"),
+            name = "child",
+            kind = NodeKind.Processor,
+            parentId = root.id,
+            fileLayoutStrategyId = "",
+        )
+        root.children += child.id
+        val document = InflowDocument(
+            id = "doc",
+            name = "demo",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root, child.id to child),
+        )
+        val context = NodeCompilerContext(
+            compiler = EmptyCompiler,
+            document = document,
+            node = child,
+            options = CompilerOptions(),
+            projectName = "demo",
+            layoutStrategy = ClassifiedFilesystemLayoutStrategy,
+            extension = "txt",
+            childArtifacts = emptyList(),
+            linkArtifacts = emptyList(),
+        )
+
+        assertTrue(context.isSingleFileLayout)
+        assertEquals(SingleFileLayoutStrategy.id, context.effectiveLayoutStrategy.id)
+    }
+
+    private object EmptyCompiler : CompilerPlugin {
+        override val id: String = "empty"
+        override val displayName: String = "Empty"
+
+        override fun supports(document: InflowDocument): Boolean =
+            true
+
+        override fun validate(document: InflowDocument): List<com.orchestra.core.diagnostics.Diagnostic> =
+            emptyList()
+
+        override fun compile(document: InflowDocument, options: CompilerOptions): CompilationResult =
+            CompilationResult(GeneratedProject("empty", emptyList()), emptyList(), success = true)
     }
 }
