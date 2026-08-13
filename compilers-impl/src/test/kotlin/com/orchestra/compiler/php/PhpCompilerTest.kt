@@ -1,6 +1,7 @@
 package com.orchestra.compiler.php
 
 import com.orchestra.compiler.api.CompilerOptions
+import com.orchestra.compiler.api.SingleFileLayoutStrategy
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.PortDirection
@@ -11,6 +12,27 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class PhpCompilerTest {
+    @Test
+    fun `single file layout inlines child declarations without require statements`() {
+        val repository = InMemoryDocumentRepository(newDocument("Single PHP"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "php", technologyId = "php"))
+        repository.requireNode(root).fileLayoutStrategyId = SingleFileLayoutStrategy.id
+        repository.createNode(root, "read_data", NodeKind.Processor)
+        repository.createNode(root, "write_data", NodeKind.Processor)
+
+        val result = PhpCompiler().compile(repository.getDocument(), CompilerOptions(projectName = "Single PHP"))
+
+        assertTrue(result.success)
+        val source = requireNotNull(result.generatedProject).files
+            .filter { it.path.endsWith(".php") }
+            .joinToString("\n") { it.content }
+        assertTrue(source.contains("function read_data"))
+        assertTrue(source.contains("function write_data"))
+        assertTrue(source.contains("function Single_PHP"))
+        assertTrue(!source.contains("require_once"))
+    }
+
     @Test
     fun `link instantiation uses link reference and qualified endpoint references`() {
         val repository = InMemoryDocumentRepository(newDocument("Transport Project"))

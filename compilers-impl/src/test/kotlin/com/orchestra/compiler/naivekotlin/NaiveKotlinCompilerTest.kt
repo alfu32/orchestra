@@ -2,6 +2,7 @@ package com.orchestra.compiler.naivekotlin
 
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.GeneratedElementKind
+import com.orchestra.compiler.api.SingleFileLayoutStrategy
 import com.orchestra.compiler.generated.nodejs.JSCompiler
 import com.orchestra.compiler.generic.CompilerCompiler
 import com.orchestra.compiler.generic.GenericCompiler
@@ -18,6 +19,28 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class NaiveKotlinCompilerTest {
+    @Test
+    fun `single file kotlin layout emits runtime nodes and entry point together`() {
+        val repository = InMemoryDocumentRepository(newDocument("Single Kotlin"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "kotlin", technologyId = "kotlin-jvm"))
+        repository.requireNode(root).fileLayoutStrategyId = SingleFileLayoutStrategy.id
+        repository.createNode(root, "producer", NodeKind.Processor)
+        repository.createNode(root, "consumer", NodeKind.Processor)
+
+        val result = NaiveKotlinCompiler().compile(repository.getDocument(), CompilerOptions(projectName = "Single Kotlin"))
+
+        assertTrue(result.success)
+        val project = assertNotNull(result.generatedProject)
+        val sourceFiles = project.files.filter { it.path.endsWith(".kt") && !it.path.endsWith(".gradle.kts") }
+        assertEquals(1, sourceFiles.size)
+        val source = sourceFiles.single().content
+        assertTrue(source.contains("class RuntimeContext"))
+        assertTrue(source.contains("fun run_producer_"))
+        assertTrue(source.contains("fun run_consumer_"))
+        assertTrue(source.contains("fun main()"))
+    }
+
     @Test
     fun `generates kotlin project files`() {
         val repository = InMemoryDocumentRepository(newDocument("Generated Sample"))

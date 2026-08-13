@@ -758,7 +758,10 @@ class OrchestraDesktopApp(
             DirectFileSystemHomorphismLayoutStrategy,
             SingleFileLayoutStrategy,
             SourceSetLayoutStrategy,
-        )
+        ).let { available ->
+            val supportedIds = compilerPlugins.flatMapTo(linkedSetOf()) { it.supportedLayoutStrategyIds }
+            if (supportedIds.isEmpty()) available else available.filter { it.id in supportedIds }
+        }
 
     private fun openFile() {
         val path = chooseDocumentPath("Open .orch", FileDialog.LOAD) ?: return

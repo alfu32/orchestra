@@ -1,14 +1,17 @@
 package com.orchestra.compiler.generated.nodejs
 
 import com.orchestra.compiler.api.CompiledNodeArtifact
+import com.orchestra.compiler.api.ClassifiedFilesystemLayoutStrategy
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerTechnology
 import com.orchestra.compiler.api.DirectFileSystemHomorphismLayoutStrategy
 import com.orchestra.compiler.api.GeneratedElementKind
 import com.orchestra.compiler.api.GeneratedFile
-import com.orchestra.compiler.api.LayoutStrategy
+import com.orchestra.compiler.api.LayoutCompilerVariant
+import com.orchestra.compiler.api.LayoutCompositeCompiler
 import com.orchestra.compiler.api.NodeCompilerContext
-import com.orchestra.compiler.api.StructuredCompiler
+import com.orchestra.compiler.api.SingleFileLayoutStrategy
+import com.orchestra.compiler.api.SourceSetLayoutStrategy
 import com.orchestra.core.classification.NodeStereotype
 import com.orchestra.core.classification.stereotype
 import com.orchestra.core.diagnostics.Diagnostic
@@ -18,22 +21,31 @@ import com.orchestra.core.model.getElementById
 import com.orchestra.core.validation.DocumentValidator
 import java.nio.file.Path
 
-class JSCompiler : StructuredCompiler() {
+class JSCompiler : LayoutCompositeCompiler() {
     override val id: String = "nodejs-compiler"
     override val displayName: String = "Node.js CommonJS Compiler"
     override val supportedLanguageIds: Set<String> = setOf("javascript")
     override val supportedTechnologyIds: Set<String> = setOf("nodejs")
     override val providedTechnologies: List<CompilerTechnology> = listOf(CompilerTechnology("javascript", "nodejs"))
     override val magicFileNames: Set<String> = setOf("package.json", "config.json")
+    override val defaultLayoutStrategyId: String = DirectFileSystemHomorphismLayoutStrategy.id
+    override val layoutVariants: List<LayoutCompilerVariant> = listOf(
+        JSSingleFileCompiler(),
+        JSDirectFileSystemCompiler(),
+        JSClassifiedFileSystemCompiler(),
+        JSSourceSetCompiler(),
+    )
 
     override fun supports(document: InflowDocument): Boolean = true
 
     override fun validate(document: InflowDocument): List<Diagnostic> =
         DocumentValidator.validate(document)
 
-    override fun layoutStrategy(options: CompilerOptions): LayoutStrategy =
-        DirectFileSystemHomorphismLayoutStrategy
+}
 
+private abstract class JSLayoutCompilerVariant(
+    final override val layoutStrategy: com.orchestra.compiler.api.LayoutStrategy,
+) : LayoutCompilerVariant {
     override fun projectFiles(document: InflowDocument, options: CompilerOptions, projectName: String): List<GeneratedFile> =
         listOf(
             GeneratedFile(
@@ -52,12 +64,12 @@ class JSCompiler : StructuredCompiler() {
             ),
         )
 
-    override fun fileExtension(context: NodeCompilerContext): String =
+    final override fun fileExtension(context: NodeCompilerContext): String =
         "js"
 
-    override fun staticFileFor(context: NodeCompilerContext): GeneratedFile? {
+    final override fun staticFileFor(context: NodeCompilerContext): GeneratedFile? {
         val node = context.node
-        if (node.stereotype(context.document) != NodeStereotype.StaticFile && node.name !in magicFileNames) return null
+        if (node.stereotype(context.document) != NodeStereotype.StaticFile && node.name !in JS_MAGIC_FILE_NAMES) return null
         val path = node.metadata["path"]?.takeIf { it.isNotBlank() }
             ?: node.metadata["file"]?.takeIf { it.isNotBlank() }
             ?: "${safeSegment(context.projectName)}/${node.name}"
@@ -70,19 +82,19 @@ class JSCompiler : StructuredCompiler() {
         )
     }
 
-    override fun getProcessorDeclaration(context: NodeCompilerContext): String =
-        if (context.node.children.isNotEmpty()) compositeDeclaration(context) else processorDeclaration(context)
+    final override fun declarationFor(context: NodeCompilerContext): String =
+        when (context.node.kind) {
+            NodeKind.Link -> linkDeclaration(context)
+            NodeKind.Note -> commentBlock(context.node.text.declaration.ifBlank { context.node.text.specification })
+            NodeKind.Group -> compositeDeclaration(context)
+            NodeKind.Node, NodeKind.Processor ->
+                if (context.node.children.isNotEmpty()) compositeDeclaration(context) else processorDeclaration(context)
+        }
 
-    override fun getNodeDeclaration(context: NodeCompilerContext): String =
-        if (context.node.children.isNotEmpty()) compositeDeclaration(context) else processorDeclaration(context)
+    final override fun instantiationFor(context: NodeCompilerContext): String =
+        if (context.node.kind == NodeKind.Link) linkInstantiation(context) else context.node.text.instantiation
 
-    override fun getGroupDeclaration(context: NodeCompilerContext): String =
-        compositeDeclaration(context)
-
-    override fun getNoteDeclaration(context: NodeCompilerContext): String =
-        commentBlock(context.node.text.declaration.ifBlank { context.node.text.specification })
-
-    override fun getLinkDeclaration(context: NodeCompilerContext): String {
+    private fun linkDeclaration(context: NodeCompilerContext): String {
         val link = context.node.link
         val typeName = link?.typeName?.takeIf { it.isNotBlank() } ?: context.node.name
         val definition = link?.payloadDefinition?.ifBlank { context.node.text.declaration } ?: context.node.text.declaration
@@ -94,7 +106,7 @@ class JSCompiler : StructuredCompiler() {
         ).joinToString("\n")
     }
 
-    override fun getLinkInstantiation(context: NodeCompilerContext): String {
+    private fun linkInstantiation(context: NodeCompilerContext): String {
         val link = context.node.link ?: return ""
         val sourceNode = context.document.getElementById(link.sourceNodeId)
         val targetNode = context.document.getElementById(link.targetNodeId)
@@ -104,7 +116,7 @@ class JSCompiler : StructuredCompiler() {
         return "transport(context, \"${linkReference.escapeJs()}\", \"${sourceReference.escapeJs()}\", \"${targetReference.escapeJs()}\");"
     }
 
-    override fun importForChild(context: NodeCompilerContext, child: CompiledNodeArtifact): String {
+    final override fun importForChild(context: NodeCompilerContext, child: CompiledNodeArtifact): String {
         val childFile = child.primaryFile ?: return ""
         val currentFile = context.primaryPath()
         val relative = relativeRequire(currentFile, childFile.path)
@@ -128,23 +140,17 @@ ${exportFunction(functionName)}
 """.trimStart()
     }
 
-    private fun compositeDeclaration(context: NodeCompilerContext): String {
+    protected abstract fun compositeDeclaration(context: NodeCompilerContext): String
+
+    protected fun compositeFunction(context: NodeCompilerContext): String {
         val functionName = safeFunctionName(context.node.name)
-        val imports = if (context.isSingleFileLayout) "" else childImportsFor(context)
-        val inlineChildren = if (context.isSingleFileLayout) context.childDeclarations else ""
-        val links = context.linkDeclarations
         val childCalls = context.childArtifacts
             .filter { it.node.kind != NodeKind.Note }
             .joinToString("\n") { "${safeFunctionName(it.node.name)}(context);" }
         val linkCalls = context.linkArtifacts.joinToString("\n") { it.instantiationText }
         val ownDeclaration = context.node.text.declaration.trimEnd()
         val ownInstantiation = context.node.text.instantiation.trimEnd()
-        return listOf(
-            imports,
-            runtimeSupport(),
-            inlineChildren,
-            links,
-            """
+        return """
 function $functionName(context = {}) {
 ${ownInstantiation.indentJs()}
 ${ownDeclaration.indentJs()}
@@ -153,14 +159,16 @@ ${linkCalls.indentJs()}
 }
 
 ${exportFunction(functionName)}
-""".trimStart(),
-        ).filter { it.isNotBlank() }.joinToString("\n\n")
+""".trimStart()
     }
 
-    private fun exportFunction(functionName: String): String =
+    protected fun childImports(context: NodeCompilerContext): String =
+        context.childArtifacts.joinToString("\n") { importForChild(context, it) }.trim()
+
+    protected fun exportFunction(functionName: String): String =
         "module.exports.$functionName = $functionName;"
 
-    private fun runtimeSupport(): String =
+    protected fun runtimeSupport(): String =
         """
 function transport(context, linkReference, source, target) {
   context.outputs = context.outputs || {};
@@ -173,6 +181,37 @@ function transport(context, linkReference, source, target) {
 }
 """.trimStart()
 }
+
+private class JSSingleFileCompiler : JSLayoutCompilerVariant(SingleFileLayoutStrategy) {
+    override fun compositeDeclaration(context: NodeCompilerContext): String =
+        listOf(
+            context.externalChildArtifacts.joinToString("\n") { importForChild(context, it) },
+            runtimeSupport(),
+            context.inlineChildDeclarations,
+            context.linkDeclarations,
+            compositeFunction(context),
+        ).filter { it.isNotBlank() }.joinToString("\n\n")
+}
+
+private abstract class JSFilePerNodeCompiler(
+    strategy: com.orchestra.compiler.api.LayoutStrategy,
+) : JSLayoutCompilerVariant(strategy) {
+    override fun compositeDeclaration(context: NodeCompilerContext): String =
+        listOf(
+            childImports(context),
+            runtimeSupport(),
+            context.linkDeclarations,
+            compositeFunction(context),
+        ).filter { it.isNotBlank() }.joinToString("\n\n")
+}
+
+private class JSDirectFileSystemCompiler : JSFilePerNodeCompiler(DirectFileSystemHomorphismLayoutStrategy)
+
+private class JSClassifiedFileSystemCompiler : JSFilePerNodeCompiler(ClassifiedFilesystemLayoutStrategy)
+
+private class JSSourceSetCompiler : JSFilePerNodeCompiler(SourceSetLayoutStrategy)
+
+private val JS_MAGIC_FILE_NAMES = setOf("package.json", "config.json")
 
 private fun rootName(document: InflowDocument): String =
     document.getElementById(document.rootNodeId)?.name ?: document.name.ifBlank { "main" }

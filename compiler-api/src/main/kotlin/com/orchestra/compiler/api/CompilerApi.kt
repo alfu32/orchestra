@@ -45,6 +45,7 @@ interface CompilerPlugin : FsStorage {
             supportedTechnologyIds.map { technologyId -> CompilerTechnology(languageId, technologyId) }
         }
     val magicFileNames: Set<String> get() = emptySet()
+    val supportedLayoutStrategyIds: Set<String> get() = emptySet()
 
     fun supports(document: InflowDocument): Boolean
     fun validate(document: InflowDocument): List<Diagnostic>
@@ -155,12 +156,112 @@ data class NodeCompilerContext(
         }
     val isSingleFileLayout: Boolean get() = effectiveLayoutStrategy.id == SingleFileLayoutStrategy.id
     val childDeclarations: String get() = childArtifacts.joinToString("\n\n") { it.declarationText }.trim()
+    val inlineChildArtifacts: List<CompiledNodeArtifact>
+        get() = childArtifacts.filter { it.layoutStrategy.id == SingleFileLayoutStrategy.id }
+    val externalChildArtifacts: List<CompiledNodeArtifact>
+        get() = childArtifacts.filterNot { it.layoutStrategy.id == SingleFileLayoutStrategy.id }
+    val inlineChildDeclarations: String
+        get() = inlineChildArtifacts.joinToString("\n\n") { it.declarationText }.trim()
     val childInstantiations: String get() = childArtifacts.joinToString("\n") { it.instantiationText }.trim()
     val linkDeclarations: String get() = linkArtifacts.joinToString("\n\n") { it.declarationText }.trim()
     val linkInstantiations: String get() = linkArtifacts.joinToString("\n") { it.instantiationText }.trim()
 
     fun primaryPath(): String =
         layoutStrategy.primaryPathFor(document, node, projectName, extension, options)
+}
+
+interface LayoutCompilerVariant {
+    val layoutStrategy: LayoutStrategy
+
+    fun projectFiles(
+        document: InflowDocument,
+        options: CompilerOptions,
+        projectName: String,
+    ): List<GeneratedFile> = emptyList()
+
+    fun fileExtension(context: NodeCompilerContext): String
+
+    fun shouldSkipNode(context: NodeCompilerContext): Boolean = false
+
+    fun staticFileFor(context: NodeCompilerContext): GeneratedFile? = null
+
+    fun declarationFor(context: NodeCompilerContext): String
+
+    fun instantiationFor(context: NodeCompilerContext): String =
+        context.node.text.instantiation
+
+    fun importForChild(context: NodeCompilerContext, child: CompiledNodeArtifact): String =
+        ""
+
+    fun primaryFileFor(context: NodeCompilerContext, declaration: String): GeneratedFile? {
+        if (declaration.isBlank() || context.node.isLink) return null
+        return GeneratedFile(
+            path = context.primaryPath(),
+            content = declaration.trimEnd(),
+            originNodeId = context.node.id,
+            reason = if (context.node.children.isNotEmpty()) "Composite node declaration" else "Terminal node declaration",
+            elementKind = if (context.node.children.isNotEmpty()) GeneratedElementKind.CompositeEntity else GeneratedElementKind.TerminalEntity,
+        )
+    }
+}
+
+/**
+ * Public compiler facade that delegates node generation to one implementation per layout strategy.
+ * Only the facade is registered with the runtime; variants remain internal implementation details.
+ */
+abstract class LayoutCompositeCompiler : StructuredCompiler() {
+    protected abstract val layoutVariants: List<LayoutCompilerVariant>
+    protected abstract val defaultLayoutStrategyId: String
+
+    private fun variantsById(): Map<String, LayoutCompilerVariant> =
+        layoutVariants.associateBy { it.layoutStrategy.id }
+
+    final override val supportedLayoutStrategyIds: Set<String>
+        get() = layoutVariants.mapTo(linkedSetOf()) { it.layoutStrategy.id }
+
+    protected fun layoutVariantFor(strategyId: String): LayoutCompilerVariant =
+        variantsById()[strategyId]
+            ?: variantsById()[defaultLayoutStrategyId]
+            ?: error("Compiler '$id' has no layout variant for '$strategyId' and no default variant '$defaultLayoutStrategyId'.")
+
+    protected fun layoutVariantFor(context: NodeCompilerContext): LayoutCompilerVariant =
+        layoutVariantFor(context.effectiveLayoutStrategy.id)
+
+    final override fun layoutStrategy(options: CompilerOptions): LayoutStrategy =
+        layoutVariantFor(defaultLayoutStrategyId).layoutStrategy
+
+    final override fun projectFiles(
+        document: InflowDocument,
+        options: CompilerOptions,
+        projectName: String,
+    ): List<GeneratedFile> {
+        val scopeNodeId = options.scopeNodeIds.singleOrNull() ?: document.rootNodeId
+        val strategyId = document.effectiveLayoutStrategyId(scopeNodeId)
+            .takeUnless { it == VOID_LAYOUT_STRATEGY_ID }
+            ?: defaultLayoutStrategyId
+        return layoutVariantFor(strategyId).projectFiles(document, options, projectName)
+    }
+
+    final override fun fileExtension(context: NodeCompilerContext): String =
+        layoutVariantFor(context).fileExtension(context)
+
+    final override fun shouldSkipNode(context: NodeCompilerContext): Boolean =
+        layoutVariantFor(context).shouldSkipNode(context)
+
+    final override fun staticFileFor(context: NodeCompilerContext): GeneratedFile? =
+        layoutVariantFor(context).staticFileFor(context)
+
+    final override fun declarationFor(context: NodeCompilerContext): String =
+        layoutVariantFor(context).declarationFor(context)
+
+    final override fun instantiationFor(context: NodeCompilerContext): String =
+        layoutVariantFor(context).instantiationFor(context)
+
+    final override fun importForChild(context: NodeCompilerContext, child: CompiledNodeArtifact): String =
+        layoutVariantFor(context).importForChild(context, child)
+
+    final override fun primaryFileFor(context: NodeCompilerContext, declaration: String): GeneratedFile? =
+        layoutVariantFor(context).primaryFileFor(context, declaration)
 }
 
 abstract class StructuredCompiler : CompilerPlugin {
