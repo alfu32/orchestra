@@ -1,0 +1,510 @@
+{
+    "id": "document_1786661603444",
+    "name": "Untitled Orchestra",
+    "rootNodeId": "root",
+    "nodes": [
+        {
+            "id": "root",
+            "name": "omlet",
+            "kind": "Processor",
+            "parentId": null,
+            "children": [
+                "node_389b42a7-ef12-4132-a544-7d302d0c3242",
+                "node_53d45b42-9b8d-46f3-a2ea-0f1afa5eb2a8",
+                "node_4fc429de-5431-4f89-8f3e-a4828b6ecf36",
+                "node_4d3da632-2fd4-4d22-9d7c-444bc2e26b2d",
+                "link_d81fe5f2-0e2f-4982-8039-cb5e6978a2aa",
+                "link_3271879e-3805-4806-91b2-4d15161fe0fb",
+                "link_1ca37cc7-38ed-4eab-a8ad-2c93016f406e",
+                "node_2b7befab-3fca-430a-a027-d45c4c997fbe"
+            ],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "single-file",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "javascript",
+                "technologyId": "nodejs",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_389b42a7-ef12-4132-a544-7d302d0c3242",
+            "name": "buy_eggs",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_d81fe5f2-0e2f-4982-8039-cb5e6978a2aa"
+            ],
+            "layout": {
+                "x": 1527.0,
+                "y": 358.0,
+                "width": 276.0,
+                "height": 108.0,
+                "closedWidth": 276.0,
+                "closedHeight": 108.0,
+                "openWidth": 276.0,
+                "openHeight": 108.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_53d45b42-9b8d-46f3-a2ea-0f1afa5eb2a8",
+            "name": "break_eggs",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_d81fe5f2-0e2f-4982-8039-cb5e6978a2aa"
+            ],
+            "outgoingLinks": [
+                "link_3271879e-3805-4806-91b2-4d15161fe0fb"
+            ],
+            "layout": {
+                "x": 2034.6666666666667,
+                "y": 358.0,
+                "width": 276.0,
+                "height": 108.0,
+                "closedWidth": 276.0,
+                "closedHeight": 108.0,
+                "openWidth": 276.0,
+                "openHeight": 108.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_4fc429de-5431-4f89-8f3e-a4828b6ecf36",
+            "name": "mix_eggs",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_3271879e-3805-4806-91b2-4d15161fe0fb"
+            ],
+            "outgoingLinks": [
+                "link_1ca37cc7-38ed-4eab-a8ad-2c93016f406e"
+            ],
+            "layout": {
+                "x": 2542.3333333333335,
+                "y": 358.0,
+                "width": 276.0,
+                "height": 108.0,
+                "closedWidth": 276.0,
+                "closedHeight": 108.0,
+                "openWidth": 276.0,
+                "openHeight": 108.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_4d3da632-2fd4-4d22-9d7c-444bc2e26b2d",
+            "name": "fry_mix",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_1ca37cc7-38ed-4eab-a8ad-2c93016f406e"
+            ],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 3050.0,
+                "y": 358.0,
+                "width": 276.0,
+                "height": 90.0,
+                "closedWidth": 276.0,
+                "closedHeight": 90.0,
+                "openWidth": 276.0,
+                "openHeight": 90.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_d81fe5f2-0e2f-4982-8039-cb5e6978a2aa",
+            "name": "egg",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_389b42a7-ef12-4132-a544-7d302d0c3242",
+                "sourcePortName": "out",
+                "targetNodeId": "node_53d45b42-9b8d-46f3-a2ea-0f1afa5eb2a8",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_3271879e-3805-4806-91b2-4d15161fe0fb",
+            "name": "broken_egg",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_53d45b42-9b8d-46f3-a2ea-0f1afa5eb2a8",
+                "sourcePortName": "out",
+                "targetNodeId": "node_4fc429de-5431-4f89-8f3e-a4828b6ecf36",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_1ca37cc7-38ed-4eab-a8ad-2c93016f406e",
+            "name": "eggmix",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_4fc429de-5431-4f89-8f3e-a4828b6ecf36",
+                "sourcePortName": "out",
+                "targetNodeId": "node_4d3da632-2fd4-4d22-9d7c-444bc2e26b2d",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": ""
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_2b7befab-3fca-430a-a027-d45c4c997fbe",
+            "name": "omlet_config",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 1584.0,
+                "y": 23.0,
+                "width": 228.0,
+                "height": 108.0,
+                "closedWidth": 228.0,
+                "closedHeight": 108.0,
+                "openWidth": 228.0,
+                "openHeight": 108.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "direct-file-system-homomorphism",
+            "text": {
+                "initialization": "{\n  \"eggs_per_omlet\":3\n}",
+                "initializationLanguageId": "json",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "json",
+                "technologyId": "nodejs",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "metadata": {},
+            "pluginData": {}
+        }
+    ],
+    "metadata": {}
+}

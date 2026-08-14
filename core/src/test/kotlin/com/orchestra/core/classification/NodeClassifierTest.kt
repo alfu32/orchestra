@@ -48,6 +48,13 @@ class NodeClassifierTest {
     }
 
     @Test
+    fun `classifies descriptive compiler template role names`() {
+        val node = Node(NodeId("n1"), "@CompositeSingleFile", NodeKind.Processor)
+
+        assertEquals(NodeStereotype.CompilerTemplate, NodeClassifier.classify(node))
+    }
+
+    @Test
     fun `classifies static file template name`() {
         val node = Node(NodeId("n1"), "@StaticFile", NodeKind.Processor)
 

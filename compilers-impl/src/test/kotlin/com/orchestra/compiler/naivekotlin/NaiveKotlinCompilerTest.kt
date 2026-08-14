@@ -165,6 +165,9 @@ class NaiveKotlinCompilerTest {
         repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(declaration = "generated ${'$'}{node.name}"))
         val staticFilesTemplate = repository.createNode(compiler.id, "@StaticFile", NodeKind.Processor)
         repository.updateNodeText(staticFilesTemplate.id, staticFilesTemplate.text.copy(declaration = "settings.gradle.kts\nbuild.gradle.kts"))
+        val projectFileTemplate = repository.createNode(compiler.id, "@ProjectFile", NodeKind.Processor)
+        projectFileTemplate.metadata["path"] = "{{ projectName }}/settings.gradle.kts"
+        repository.updateNodeText(projectFileTemplate.id, projectFileTemplate.text.copy(declaration = "rootProject.name = '{{ projectName }}'"))
 
         val result = CompilerCompiler().compile(repository.getDocument())
 
@@ -175,6 +178,8 @@ class NaiveKotlinCompilerTest {
         assertTrue(file.content.contains("override fun templateOverrideFor(key: String): String?"))
         assertTrue(file.content.contains("generated ${'$'}{'$'}{node.name}"))
         assertTrue(file.content.contains("listOf(\"settings.gradle.kts\", \"build.gradle.kts\")"))
+        assertTrue(file.content.contains("TemplateGeneratedFile"))
+        assertTrue(file.content.contains("{{ projectName }}/settings.gradle.kts"))
     }
 
     @Test

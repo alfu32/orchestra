@@ -151,8 +151,7 @@ private fun String.containsToken(token: String): Boolean {
 
 fun String.isCompilerTemplateName(): Boolean {
     val normalized = trim().lowercase()
-    return normalized == "@compiler" ||
-        NodeStereotype.entries.any { normalized == "@${it.name}".lowercase() }
+    return normalized.startsWith("@") && normalized.length > 1
 }
 
 private fun String.isStaticFileTemplateName(): Boolean =

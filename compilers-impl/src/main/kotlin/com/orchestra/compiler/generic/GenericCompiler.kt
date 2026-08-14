@@ -9,9 +9,6 @@ import com.orchestra.compiler.api.CompilerTechnology
 import com.orchestra.compiler.api.GeneratedElementKind
 import com.orchestra.compiler.api.GeneratedFile
 import com.orchestra.compiler.api.NodeCompilerContext
-import com.orchestra.compiler.api.StructuredCompiler
-import com.orchestra.core.classification.LinkClassifier
-import com.orchestra.core.classification.LinkStereotype
 import com.orchestra.core.classification.NodeStereotype
 import com.orchestra.core.classification.stereotype
 import com.orchestra.core.diagnostics.Diagnostic
@@ -19,22 +16,17 @@ import com.orchestra.core.diagnostics.DiagnosticSeverity
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeKind
-import com.orchestra.core.model.NodeText
 import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.core.model.effectiveLanguageId
-import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.model.getElementById
-import com.orchestra.core.model.getElementsByIds
 import com.orchestra.core.validation.DocumentValidator
 
-open class GenericCompiler : StructuredCompiler() {
+open class GenericCompiler : TemplateSetCompiler() {
     override val id: String = "generic-flow-design"
     override val displayName: String = "Generic Flow-Design Compiler"
     override val supportedLanguageIds: Set<String> = setOf(ANY_LANGUAGE_ID)
     override val supportedTechnologyIds: Set<String> = setOf("generic")
     override val providedTechnologies: List<CompilerTechnology> = listOf(CompilerTechnology(ANY_LANGUAGE_ID, "generic"))
-
-    private var activeOverrides: TemplateOverrides = TemplateOverrides(emptyMap())
 
     override fun supports(document: InflowDocument): Boolean =
         document.nodes.values.any { node ->
@@ -44,14 +36,6 @@ open class GenericCompiler : StructuredCompiler() {
     override fun validate(document: InflowDocument): List<Diagnostic> =
         DocumentValidator.validate(document)
 
-    override fun beforeCompile(document: InflowDocument, options: CompilerOptions) {
-        activeOverrides = TemplateOverrides.from(document)
-    }
-
-    override fun afterCompile(document: InflowDocument, options: CompilerOptions) {
-        activeOverrides = TemplateOverrides(emptyMap())
-    }
-
     override fun getStaticFiles(document: InflowDocument, options: CompilerOptions): List<String> =
         document.nodes.values
             .filter { it.stereotype(document) == NodeStereotype.StaticFile }
@@ -59,6 +43,28 @@ open class GenericCompiler : StructuredCompiler() {
 
     protected open fun templateOverrideFor(key: String): String? =
         null
+
+    protected open fun projectFileOverrides(): List<TemplateGeneratedFile> =
+        emptyList()
+
+    override fun templatesFor(document: InflowDocument, options: CompilerOptions): CompilerTemplateSet {
+        val graphOverrides = TemplateOverrides.from(document)
+        val graphTemplates = graphOverrides.templates
+        val generatedTemplates = CompilerTemplateRoles.all
+            .associateWith { role -> templateOverrideFor(role).orEmpty() }
+            .filterValues { it.isNotBlank() }
+        val legacyGeneratedTemplates = legacyTemplateRoles
+            .mapNotNull { (legacyKey, role) -> templateOverrideFor(legacyKey)?.let { role to it } }
+            .toMap()
+        val extension = document.getElementById(document.rootNodeId)?.technology?.fileExtension.orEmpty()
+        return CompilerTemplateSet(
+            templates = graphTemplates + legacyGeneratedTemplates + generatedTemplates,
+            projectFiles = projectFileOverrides() + graphOverrides.projectFiles,
+            staticFileNames = getStaticFiles(document, options).toSet(),
+            fileExtension = extension,
+            defaultLayoutStrategy = ClassifiedFilesystemLayoutStrategy,
+        )
+    }
 
     override fun shouldSkipNode(context: NodeCompilerContext): Boolean =
         context.node.isTemplateDefinition(context.document)
@@ -75,170 +81,6 @@ open class GenericCompiler : StructuredCompiler() {
         )
     }
 
-    override fun declarationFor(context: NodeCompilerContext): String {
-        if (context.node.isTemplateDefinition(context.document)) return ""
-        val template = templateTextFor(context) ?: return ""
-        return renderTemplate(context.document, context.node, template, context.options)
-    }
-
-    override fun instantiationFor(context: NodeCompilerContext): String =
-        context.node.text.instantiation
-
-    override fun primaryFileFor(context: NodeCompilerContext, declaration: String): GeneratedFile? {
-        if (declaration.isBlank()) return null
-        val kind = when {
-            context.node.isLink -> GeneratedElementKind.Link
-            context.node.children.isNotEmpty() -> GeneratedElementKind.CompositeEntity
-            else -> GeneratedElementKind.TerminalEntity
-        }
-        return GeneratedFile(
-            path = context.primaryPath(),
-            content = declaration.trimEnd(),
-            originNodeId = context.node.id,
-            reason = "Generated from flow compiler template",
-            elementKind = kind,
-        )
-    }
-
-    private fun templateTextFor(context: NodeCompilerContext): String? {
-        val keys = templateKeysFor(context.document, context.node)
-        keys.forEach { key ->
-            templateOverrideFor(key)?.let { return it }
-        }
-        return activeOverrides.templateTextFor(context.document, context.node)
-    }
-
-    private fun renderTemplate(document: InflowDocument, node: Node, template: String, options: CompilerOptions): String {
-        val values = templateValues(document, node, options)
-        return template.replacePlaceholders(values)
-    }
-
-    private fun templateValues(document: InflowDocument, node: Node, options: CompilerOptions): Map<String, String> {
-        val link = node.link
-        val source = link?.sourceNodeId?.let(document::getElementById)
-        val target = link?.targetNodeId?.let(document::getElementById)
-        val stereotype = stereotypeForTemplateContext(document, node)
-        val technology = effectiveTechnology(document, node)
-        val incomingDescriptors = linkDescriptors(document, node.incomingLinks)
-        val outgoingDescriptors = linkDescriptors(document, node.outgoingLinks)
-        val dependencyInjectionDescriptors = incomingDescriptors
-            .filter { descriptor -> descriptor.stereotype == LinkStereotype.DependencyInjection }
-        val values = linkedMapOf<String, String>(
-            "id" to node.id.value,
-            "name" to node.name,
-            "options.projectName" to (options.projectName ?: document.name),
-            "node.id" to node.id.value,
-            "node.name" to node.name,
-            "node.kind.name" to node.kind.name,
-            "node.kind.ordinal" to node.kind.ordinal.toString(),
-            "node.kind" to node.kind.name,
-            "node.parentId" to node.parentId?.value.orEmpty(),
-            "node.stereotype" to stereotype.name,
-            "node.children.size" to node.children.size.toString(),
-            "node.incomingLinks" to node.incomingLinks.joinToString(",") { it.value },
-            "node.isComposite" to node.children.isNotEmpty().toString(),
-            "node.isLink" to node.isLink.toString(),
-            "node.isTerminal" to node.children.isEmpty().toString(),
-            "node.layout" to node.layout.toString(),
-            "node.link.sourceNodeId" to link?.sourceNodeId?.value.orEmpty(),
-            "node.link.targetNodeId" to link?.targetNodeId?.value.orEmpty(),
-            "node.link.sourcePortName" to link?.sourcePortName.orEmpty(),
-            "node.link.targetPortName" to link?.targetPortName.orEmpty(),
-            "node.metadata.size" to node.metadata.size.toString(),
-            "node.metadata" to node.metadata.entries.joinToString(",") { "${it.key}=${it.value}" },
-            "node.outgoingLinks" to node.outgoingLinks.joinToString(",") { it.value },
-            "node.pluginData" to node.pluginData.entries.joinToString(",") { "${it.key}=${it.value}" },
-            "node.ports" to node.ports.joinToString(",") { it.name },
-            "node.text.instantiationLanguageId" to node.text.instantiationLanguageId,
-            "node.text.instantiation" to node.text.instantiation,
-            "node.text.declarationLanguageId" to node.text.declarationLanguageId,
-            "node.text.declaration" to node.text.declaration,
-            "node.text.specificationLanguageId" to node.text.specificationLanguageId,
-            "node.text.specification" to node.text.specification,
-            "node.text.aiInstructionsLanguageId" to node.text.aiInstructionsLanguageId,
-            "node.text.aiInstructions" to node.text.aiInstructions,
-            "node.text.testsLanguageId" to node.text.testsLanguageId,
-            "node.text.tests" to node.text.tests,
-            "stereotype" to stereotype.name,
-            "language" to technology.languageId,
-            "technology" to technology.technologyId,
-            "technology.languageId" to technology.languageId,
-            "technology.technologyId" to technology.technologyId,
-            "technology.compilerId" to technology.compilerId,
-            "technology.fileExtension" to technology.fileExtension,
-            "declaration" to node.text.declaration,
-            "instantiation" to node.text.instantiation,
-            "specification" to node.text.specification,
-            "tests" to node.text.tests,
-            "usageInstructions" to node.text.aiInstructions,
-            "text.declaration" to node.text.declaration,
-            "text.instantiation" to node.text.instantiation,
-            "text.specification" to node.text.specification,
-            "text.tests" to node.text.tests,
-            "text.usageInstructions" to node.text.aiInstructions,
-            "children" to document.getElementsByIds(node.children).values.joinToString(",") { it.name },
-            "incomingLinks" to document.getElementsByIds(node.incomingLinks).values.joinToString(",") { it.name },
-            "outgoingLinks" to document.getElementsByIds(node.outgoingLinks).values.joinToString(",") { it.name },
-            "incomingLinkVariables" to incomingDescriptors.joinToString(",") { it.variableName },
-            "outgoingLinkVariables" to outgoingDescriptors.joinToString(",") { it.variableName },
-            "incomingLinkTypes" to incomingDescriptors.joinToString(",") { it.typeName },
-            "outgoingLinkTypes" to outgoingDescriptors.joinToString(",") { it.typeName },
-            "incomingArguments" to incomingDescriptors.joinToString(", ") { it.argumentText() },
-            "outgoingArguments" to outgoingDescriptors.joinToString(", ") { it.argumentText() },
-            "incomingTypeDefinitions" to incomingDescriptors.joinToString("\n\n") { it.typeDefinition },
-            "outgoingTypeDefinitions" to outgoingDescriptors.joinToString("\n\n") { it.typeDefinition },
-            "dependencyInjectionLinks" to dependencyInjectionDescriptors.joinToString(",") { it.variableName },
-            "dependencyInjectionArguments" to dependencyInjectionDescriptors.joinToString(", ") { it.argumentText() },
-            "ports" to node.ports.joinToString(",") { it.name },
-        )
-        node.metadata.forEach { (key, value) ->
-            values["metadata.$key"] = value
-        }
-        if (link != null) {
-            values += mapOf(
-                "link.sourceNodeId" to link.sourceNodeId.value,
-                "link.targetNodeId" to link.targetNodeId.value,
-                "link.sourcePortName" to link.sourcePortName,
-                "link.targetPortName" to link.targetPortName,
-                "link.transportKind" to link.transportKind,
-                "link.variableName" to node.name,
-                "link.typeName" to link.typeName,
-                "link.typeDefinition" to link.payloadDefinition,
-                "link.payloadDefinition" to link.payloadDefinition,
-                "sourceNode.name" to source?.name.orEmpty(),
-                "targetNode.name" to target?.name.orEmpty(),
-            )
-        }
-        return values
-    }
-
-    private data class TemplateLinkDescriptor(
-        val variableName: String,
-        val typeName: String,
-        val typeDefinition: String,
-        val stereotype: LinkStereotype,
-    ) {
-        fun argumentText(): String =
-            if (typeName.isBlank()) variableName else "$variableName:$typeName"
-    }
-
-    private fun linkDescriptors(document: InflowDocument, linkIds: List<com.orchestra.core.model.NodeId>): List<TemplateLinkDescriptor> =
-        linkIds.mapNotNull { id ->
-            val node = document.nodes[id] ?: return@mapNotNull null
-            val link = node.link ?: return@mapNotNull null
-            TemplateLinkDescriptor(
-                variableName = node.name,
-                typeName = link.typeName,
-                typeDefinition = link.payloadDefinition,
-                stereotype = LinkClassifier.classify(document, node),
-            )
-        }
-
-    private fun effectiveTechnology(document: InflowDocument, node: Node): TechnologyMetadata =
-        node.technology.copy(
-            languageId = document.effectiveLanguageId(node.id),
-            technologyId = document.effectiveTechnologyId(node.id),
-        )
 }
 
 class CompilerCompiler : CompilerPlugin {
@@ -272,7 +114,6 @@ class CompilerCompiler : CompilerPlugin {
         val technology = effectiveCompilerTechnology(document, root)
         val overrides = root.children.mapNotNull(document::getElementById)
             .filter { it.stereotype(document) in setOf(NodeStereotype.CompilerTemplate, NodeStereotype.StaticFile) }
-            .associateBy { overrideKey(it) }
         val source = compilerClassSource(packageName, className, root, technology, overrides)
         val file = GeneratedFile(
             path = "src/main/kotlin/${packageName.replace('.', '/')}/$className.kt",
@@ -293,13 +134,15 @@ class CompilerCompiler : CompilerPlugin {
         className: String,
         root: Node,
         technology: TechnologyMetadata,
-        overrides: Map<String, Node>,
+        overrideNodes: List<Node>,
     ): String {
-        val staticFiles = overrides[NodeStereotype.StaticFile.name]
+        val projectFileNodes = overrideNodes.filter { it.isProjectFileTemplate() }
+        val overrides = overrideNodes.filterNot { it.isProjectFileTemplate() }.associateBy(::overrideKey)
+        val staticFiles = overrides[STATIC_FILES_OVERRIDE_KEY]
             ?.let(::staticFileListLiteral)
             ?: "emptyList()"
         val templateCases = overrides
-            .filterKeys { it != NodeStereotype.StaticFile.name }
+            .filterKeys { it != STATIC_FILES_OVERRIDE_KEY }
             .entries
             .joinToString("\n") { (key, node) ->
                 "            \"${key.escapeKotlinString()}\" -> ${templateText(node).kotlinTripleQuoted()}.trimIndent()"
@@ -310,6 +153,12 @@ class CompilerCompiler : CompilerPlugin {
         } else {
             "$templateCases\n            else -> null"
         }
+        val projectFiles = projectFileNodes.joinToString(",\n") { node ->
+            val pathTemplate = staticFilePath(node).orEmpty()
+            "        TemplateGeneratedFile(${pathTemplate.kotlinTripleQuoted()}.trimIndent(), ${templateText(node).kotlinTripleQuoted()}.trimIndent())"
+        }.let { entries ->
+            if (entries.isBlank()) "emptyList()" else "listOf(\n$entries\n    )"
+        }
         return """
 package $packageName
 
@@ -317,6 +166,7 @@ import com.orchestra.compiler.api.ANY_LANGUAGE_ID
 import com.orchestra.compiler.api.CompilerOptions
 import com.orchestra.compiler.api.CompilerTechnology
 import com.orchestra.compiler.generic.GenericCompiler
+import com.orchestra.compiler.generic.TemplateGeneratedFile
 import com.orchestra.core.model.InflowDocument
 
 class $className : GenericCompiler() {
@@ -331,6 +181,9 @@ class $className : GenericCompiler() {
 
     override fun getStaticFiles(document: InflowDocument, options: CompilerOptions): List<String> =
         $staticFiles
+
+    override fun projectFileOverrides(): List<TemplateGeneratedFile> =
+        $projectFiles
 
     override fun templateOverrideFor(key: String): String? =
         when (key) {
@@ -364,37 +217,29 @@ $templateWhen
         )
 }
 
-private class TemplateOverrides(private val byName: Map<String, String>) {
-    fun templateTextFor(document: InflowDocument, node: Node): String? {
-        templateKeysFor(document, node).forEach { key ->
-            byName[key]?.let { return it }
-        }
-        return null
-    }
-
+private class TemplateOverrides(
+    val templates: Map<String, String>,
+    val projectFiles: List<TemplateGeneratedFile>,
+) {
     companion object {
-        fun from(document: InflowDocument): TemplateOverrides =
-            TemplateOverrides(
-                document.nodes.values
-                    .filter { it.isTemplateDefinition(document) && staticFilePathForOverride(it) == null }
+        fun from(document: InflowDocument): TemplateOverrides {
+            val compilerTemplates = document.nodes.values
+                .filter { it.stereotype(document) == NodeStereotype.CompilerTemplate }
+            return TemplateOverrides(
+                templates = compilerTemplates
+                    .filterNot(Node::isProjectFileTemplate)
                     .associate { overrideKey(it) to templateText(it) },
+                projectFiles = compilerTemplates
+                    .filter(Node::isProjectFileTemplate)
+                    .mapNotNull { node ->
+                        staticFilePath(node)?.let { path ->
+                            TemplateGeneratedFile(path, templateText(node), "Project file template '${node.name}'")
+                        }
+                    },
             )
+        }
     }
 }
-
-private fun templateKeysFor(document: InflowDocument, node: Node): List<String> {
-    val stereotype = stereotypeForTemplateContext(document, node).name
-    return listOf(stereotype, node.kind.name, fallbackKey(node.kind)).distinct()
-}
-
-private fun fallbackKey(kind: NodeKind): String =
-    when (kind) {
-        NodeKind.Node -> NodeKind.Node.name
-        NodeKind.Processor -> NodeKind.Processor.name
-        NodeKind.Link -> NodeKind.Link.name
-        NodeKind.Group -> NodeKind.Group.name
-        NodeKind.Note -> NodeKind.Note.name
-    }
 
 private fun Node.isTemplateDefinition(document: InflowDocument): Boolean =
     stereotype(document) in setOf(NodeStereotype.CompilerTemplate, NodeStereotype.StaticFile)
@@ -403,30 +248,24 @@ private fun overrideKey(node: Node): String =
     node.name.trim().removePrefix("@").ifBlank { NodeKind.Node.name }.normalizeCompilerOverrideKey()
 
 private fun String.normalizeCompilerOverrideKey(): String =
-    when (lowercase()) {
-        "node" -> NodeKind.Node.name
-        "link" -> NodeKind.Link.name
-        "inputport" -> NodeStereotype.InputPort.name
-        "outputport" -> NodeStereotype.OutputPort.name
-        "transport" -> NodeStereotype.Transport.name
-        "errorpipe" -> NodeStereotype.ErrorPipe.name
-        "group" -> NodeKind.Group.name
-        "compositeworker" -> NodeStereotype.CompositeWorker.name
-        "compositeerrorhandler" -> NodeStereotype.CompositeErrorHandler.name
-        "testsuite" -> NodeStereotype.TestSuite.name
-        "note", "compilertemplate" -> NodeKind.Note.name
-        "staticfile" -> NodeStereotype.StaticFile.name
-        "processor", "processingunit" -> NodeKind.Processor.name
-        "generator" -> NodeStereotype.Generator.name
-        "transformer" -> NodeStereotype.Transformer.name
-        "sink" -> NodeStereotype.Sink.name
-        "script" -> NodeStereotype.Script.name
-        "errorhandler" -> NodeStereotype.ErrorHandler.name
-        "servicelibrary" -> NodeStereotype.ServiceLibrary.name
-        "dependencyinjection" -> NodeStereotype.DependencyInjection.name
-        "test" -> NodeStereotype.Test.name
-        else -> this
+    normalizedOverrideName().let { normalized ->
+        CompilerTemplateRoles.explicitOverrideNames[normalized]
+            ?: when (normalized) {
+                "staticfile" -> STATIC_FILES_OVERRIDE_KEY
+                "processor", "processingunit" -> CompilerTemplateRoles.ProcessorDeclaration
+                "node" -> CompilerTemplateRoles.NodeDeclaration
+                "link" -> CompilerTemplateRoles.LinkDeclaration
+                "group" -> CompilerTemplateRoles.GroupDeclaration
+                "note", "compilertemplate" -> CompilerTemplateRoles.NoteDeclaration
+                else -> NodeStereotype.entries
+                    .firstOrNull { it.name.normalizedOverrideName() == normalized }
+                    ?.let(CompilerTemplateRoles::stereotypeDeclaration)
+                    ?: lowercase()
+            }
     }
+
+private fun String.normalizedOverrideName(): String =
+    lowercase().replace(Regex("[^a-z0-9]+"), "")
 
 private fun templateText(node: Node): String {
     val parts = listOf(node.text.instantiation, node.text.declaration).filter { it.isNotBlank() }
@@ -437,8 +276,8 @@ private fun staticFilePath(node: Node): String? =
     node.metadata["path"]?.takeIf { it.isNotBlank() }
         ?: node.metadata["file"]?.takeIf { it.isNotBlank() }
 
-private fun staticFilePathForOverride(node: Node): String? =
-    staticFilePath(node)
+private fun Node.isProjectFileTemplate(): Boolean =
+    name.trim().equals("@ProjectFile", ignoreCase = true)
 
 private fun staticFileList(node: Node): List<String> =
     templateText(node)
@@ -446,25 +285,17 @@ private fun staticFileList(node: Node): List<String> =
         .map { it.trim() }
         .filter { it.isNotBlank() && !it.startsWith("#") }
 
-private fun stereotypeForTemplateContext(document: InflowDocument, node: Node): NodeStereotype =
-    if (!node.isLink) {
-        node.stereotype(document)
-    } else {
-        when (LinkClassifier.classify(document, node)) {
-            LinkStereotype.Transport -> NodeStereotype.Transport
-            LinkStereotype.ErrorPipe -> NodeStereotype.ErrorPipe
-            LinkStereotype.UsageImport,
-            LinkStereotype.DependencyInjection -> NodeStereotype.DependencyInjection
-        }
-    }
+private const val STATIC_FILES_OVERRIDE_KEY = "static-files"
 
-private fun String.replacePlaceholders(values: Map<String, String>): String {
-    var rendered = this
-    values.forEach { (key, value) ->
-        rendered = rendered.replace("\${$key}", value)
-        rendered = rendered.replace("{{$key}}", value)
+private val legacyTemplateRoles: Map<String, String> = buildMap {
+    put(NodeKind.Node.name, CompilerTemplateRoles.NodeDeclaration)
+    put(NodeKind.Processor.name, CompilerTemplateRoles.ProcessorDeclaration)
+    put(NodeKind.Link.name, CompilerTemplateRoles.LinkDeclaration)
+    put(NodeKind.Group.name, CompilerTemplateRoles.GroupDeclaration)
+    put(NodeKind.Note.name, CompilerTemplateRoles.NoteDeclaration)
+    NodeStereotype.entries.forEach { stereotype ->
+        put(stereotype.name, CompilerTemplateRoles.stereotypeDeclaration(stereotype))
     }
-    return rendered
 }
 
 private fun safeCompilerId(value: String): String =

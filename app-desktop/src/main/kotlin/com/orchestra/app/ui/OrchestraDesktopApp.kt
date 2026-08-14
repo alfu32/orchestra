@@ -16,6 +16,7 @@ import com.orchestra.compiler.api.SingleFileLayoutStrategy
 import com.orchestra.compiler.api.SourceSetLayoutStrategy
 import com.orchestra.compiler.generated.nodejs.JSCompiler
 import com.orchestra.compiler.generic.CompilerCompiler
+import com.orchestra.compiler.generic.CompilerTemplateRoles
 import com.orchestra.compiler.generic.GenericCompiler
 import com.orchestra.compiler.naivekotlin.NaiveKotlinCompiler
 import com.orchestra.compiler.php.PhpCompiler
@@ -4048,10 +4049,11 @@ private class InspectorPanel(
     private var binding = false
     private var compilerTechnologyProposal = "generated"
     private val nameField = JTextField()
-    private val compilerTemplateNames = NodeStereotype.entries
-        .map { "@${it.name}" }
-        .distinct()
-        .sorted()
+    private val compilerTemplateNames = (
+        CompilerTemplateRoles.suggestedOverrideNodeNames +
+            NodeStereotype.entries.map { "@${it.name}" } +
+            listOf("@Compiler", "@ProjectFile", "@StaticFile")
+        ).distinct().sorted()
     private val nameCompletionModel = DefaultListModel<String>()
     private val nameCompletionList = JList(nameCompletionModel).apply {
         visibleRowCount = 10
