@@ -532,15 +532,28 @@ data class LinkData(
     var targetNodeId: NodeId,
     var targetPortName: String,
     var transportKind: String = "packet",
+    var typeName: String = "",
     var payloadDefinition: String = ""
 )
 ```
 
 Each link connects exactly one output to one input.
 
-`payloadDefinition` is the user-controlled schema/contract for the transported
-data. The compiler decides whether it is a C struct, Kotlin class, JSON schema,
-CSV header, or another technology-specific declaration.
+`payloadDefinition` is the user-controlled schema or source declaration for the
+transported data. It is the only required type input. A technology-specific
+compiler may derive `typeName`, a suggested link variable name, and an optional
+instantiation expression from it. Derived values remain overridable because a
+type definition does not necessarily contain a nominal type and several links
+may transport the same type under different semantic names.
+
+The link node name identifies the wire or variable instance. `typeName`
+identifies the transported payload type. For example, links named
+`requestedOrder` and `validatedOrder` may both reference the inferred type
+`WorkOrder`.
+
+The compiler decides whether `payloadDefinition` is a C struct, Kotlin class,
+JSON schema, CSV header, or another technology-specific declaration. Orchestra
+does not interpret that text independently of the selected compiler.
 
 ---
 
