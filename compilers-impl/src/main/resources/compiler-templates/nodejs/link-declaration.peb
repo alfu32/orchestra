@@ -1,0 +1,5 @@
+/**
+ * Link {{ link.name }}:{% if link.typeName is not empty %}{{ link.typeName }}{% else %}{{ link.name }}{% endif %}
+{% for line in link.typeDefinition | split("\n") %} * {{ line }}
+{% endfor %} */
+

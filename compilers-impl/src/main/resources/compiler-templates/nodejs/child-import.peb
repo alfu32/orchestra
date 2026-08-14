@@ -1,0 +1,2 @@
+const { {{ child.symbol }} } = require("{{ child.relativeModulePath }}");
+

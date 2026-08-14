@@ -71,6 +71,31 @@ class TemplateSetCompilerTest {
     }
 
     @Test
+    fun `generic compiler assembles composites from graphical layout roles`() {
+        val repository = InMemoryDocumentRepository(newDocument("Graph Assembly"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "plain", technologyId = "generic", fileExtension = "txt"))
+        repository.requireNode(root).fileLayoutStrategyId = SingleFileLayoutStrategy.id
+        fun override(name: String, template: String) {
+            val node = repository.createNode(root, name, NodeKind.Processor)
+            repository.updateNodeText(node.id, node.text.copy(declaration = template))
+        }
+        override("@ProcessorDeclaration", "processor {{ node.name }}")
+        override("@ProcessorInstantiation", "invoke {{ node.name }}")
+        override("@CompositeDeclaration", "composite {{ node.name }} [{{ childInstantiations }}]")
+        override("@CompositeSingleFile", "{{ inlineChildDeclarations }}\n{{ ownDeclaration }}")
+        repository.createNode(root, "worker", NodeKind.Processor)
+
+        val result = GenericCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success)
+        val source = assertNotNull(result.generatedProject).files.single { it.originNodeId == root }.content
+        assertTrue(source.contains("processor worker"))
+        assertTrue(source.contains("composite Graph Assembly [invoke worker]"))
+        assertTrue(!source.contains("@ProcessorDeclaration"))
+    }
+
+    @Test
     fun `generic compiler renders project file templates from the graph`() {
         val repository = InMemoryDocumentRepository(newDocument("Graph Templates"))
         val root = repository.getDocument().rootNodeId

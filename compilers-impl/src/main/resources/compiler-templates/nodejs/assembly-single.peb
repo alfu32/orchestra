@@ -1,0 +1,10 @@
+{% if childImports is not empty %}{{ childImports }}
+
+{% endif %}{{ runtimeSupport }}
+{% if inlineChildDeclarations is not empty %}
+{{ inlineChildDeclarations }}
+{% endif %}{% if linkDeclarations is not empty %}
+{{ linkDeclarations }}
+{% endif %}
+{{ ownDeclaration }}
+

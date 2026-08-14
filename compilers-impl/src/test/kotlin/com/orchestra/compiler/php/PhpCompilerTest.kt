@@ -31,6 +31,7 @@ class PhpCompilerTest {
         assertTrue(source.contains("function write_data"))
         assertTrue(source.contains("function Single_PHP"))
         assertTrue(!source.contains("require_once"))
+        assertTrue(source.windowed("<?php".length).count { it == "<?php" } == 1)
     }
 
     @Test

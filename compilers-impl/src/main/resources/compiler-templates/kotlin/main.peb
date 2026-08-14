@@ -1,0 +1,7 @@
+package generated
+
+fun main() {
+    val context = RuntimeContext()
+{% for node in scopeRoots %}    generated.nodes.{{ node.initializerSymbol }}(context)
+{% endfor %}{% for node in scopeRoots %}    generated.nodes.{{ node.runSymbol }}(context)
+{% endfor %}}

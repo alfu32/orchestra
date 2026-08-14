@@ -1,0 +1,28 @@
+{% if isCompilationRoot %}package generated
+
+class RuntimeContext {
+    val inputs: MutableMap<String, MutableList<Any?>> = mutableMapOf()
+    val outputs: MutableMap<String, MutableList<Any?>> = mutableMapOf()
+    val imports: MutableMap<String, Any?> = mutableMapOf()
+}
+
+fun runLink(context: RuntimeContext, source: String, target: String) {
+    val sourceQueue = context.outputs.getOrPut(source) { mutableListOf() }
+    val targetQueue = context.inputs.getOrPut(target) { mutableListOf() }
+
+    while (sourceQueue.isNotEmpty()) {
+        targetQueue.add(sourceQueue.removeAt(0))
+    }
+}
+
+{% endif %}{% if inlineChildDeclarations is not empty %}{{ inlineChildDeclarations }}
+
+{% endif %}{{ ownDeclaration }}
+{% if isCompilationRoot %}
+fun main() {
+    val context = RuntimeContext()
+    {{ initializerSymbol }}(context)
+    {{ runSymbol }}(context)
+}
+{% endif %}
+

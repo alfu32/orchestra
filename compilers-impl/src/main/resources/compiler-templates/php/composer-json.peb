@@ -1,0 +1,5 @@
+{
+  "name": "orchestra/{{ safePackageName }}",
+  "type": "project",
+  "require": {}
+}

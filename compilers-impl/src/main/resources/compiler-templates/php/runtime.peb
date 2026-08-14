@@ -1,0 +1,13 @@
+function transport(array &$context, string $linkReference, string $source, string $target): void
+{
+    $context['outputs'] ??= [];
+    $context['inputs'] ??= [];
+    $context['links'] ??= [];
+    $context['links'][$linkReference] = ['source' => $source, 'target' => $target];
+    $queue = $context['outputs'][$source] ?? [];
+    $context['inputs'][$target] ??= [];
+    while (count($queue) > 0) {
+        $context['inputs'][$target][] = array_shift($queue);
+    }
+}
+

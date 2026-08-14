@@ -29,6 +29,7 @@ import com.orchestra.core.validation.DocumentValidator
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
 import java.io.StringWriter
+import java.nio.file.Path
 
 object CompilerTemplateRoles {
     const val NodeDeclaration = "node.declaration"
@@ -51,6 +52,8 @@ object CompilerTemplateRoles {
     const val ChildImport = "child.import"
     const val RuntimeSupport = "runtime.support"
     const val PrimaryFilePath = "primary-file.path"
+    const val StaticFilePath = "static-file.path"
+    const val ProjectName = "project.name"
 
     fun stereotypeDeclaration(stereotype: NodeStereotype): String =
         "${stereotype.name.toTemplateToken()}.declaration"
@@ -88,6 +91,8 @@ object CompilerTemplateRoles {
         "@ChildImport" to ChildImport,
         "@RuntimeSupport" to RuntimeSupport,
         "@PrimaryFilePath" to PrimaryFilePath,
+        "@StaticFilePath" to StaticFilePath,
+        "@ProjectName" to ProjectName,
     )
 
     val explicitOverrideNames: Map<String, String> = buildMap {
@@ -122,6 +127,8 @@ data class TemplateGeneratedFile(
     val pathTemplate: String,
     val contentTemplate: String,
     val reason: String = "Generated from compiler project-file template",
+    val layoutStrategyIds: Set<String> = emptySet(),
+    val elementKind: GeneratedElementKind = GeneratedElementKind.ProjectLayout,
 )
 
 data class CompilerTemplateSet(
@@ -130,6 +137,8 @@ data class CompilerTemplateSet(
     val staticFileNames: Set<String> = emptySet(),
     val fileExtension: String = "",
     val defaultLayoutStrategy: LayoutStrategy = ClassifiedFilesystemLayoutStrategy,
+    val emitLinkFiles: Boolean = true,
+    val skipCompilerTemplates: Boolean = false,
 ) {
     fun template(vararg roles: String): String? =
         roles.firstNotNullOfOrNull { role -> templates[role] }
@@ -141,6 +150,8 @@ data class CompilerTemplateSet(
             staticFileNames = staticFileNames + overrides.staticFileNames,
             fileExtension = overrides.fileExtension.ifBlank { fileExtension },
             defaultLayoutStrategy = overrides.defaultLayoutStrategy,
+            emitLinkFiles = overrides.emitLinkFiles,
+            skipCompilerTemplates = overrides.skipCompilerTemplates,
         )
 }
 
@@ -209,19 +220,66 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
         projectName: String,
     ): List<GeneratedFile> {
         val context = projectTemplateContext(document, options, projectName)
-        return requireTemplateSet().projectFiles.map { file ->
-            GeneratedFile(
-                path = renderer.render(file.pathTemplate, context).trim(),
-                content = renderer.render(file.contentTemplate, context).trimEnd(),
-                originNodeId = null,
-                reason = file.reason,
-                elementKind = GeneratedElementKind.ProjectLayout,
-            )
-        }.filter { it.path.isNotBlank() }
+        val layoutId = projectLayoutStrategy(document, options).id
+        return requireTemplateSet().projectFiles
+            .filter { it.layoutStrategyIds.isEmpty() || layoutId in it.layoutStrategyIds }
+            .map { file ->
+                GeneratedFile(
+                    path = renderer.render(file.pathTemplate, context).trim(),
+                    content = renderer.render(file.contentTemplate, context).trimEnd(),
+                    originNodeId = null,
+                    reason = file.reason,
+                    elementKind = file.elementKind,
+                )
+            }
+            .filter { it.path.isNotBlank() }
+    }
+
+    final override fun normalizedProjectName(document: InflowDocument, options: CompilerOptions): String {
+        val rawName = options.projectName?.takeIf { it.isNotBlank() } ?: document.name.ifBlank { "project" }
+        val template = requireTemplateSet().template(CompilerTemplateRoles.ProjectName) ?: return rawName
+        return renderer.render(
+            template,
+            mapOf(
+                "projectName" to rawName,
+                "safeProjectName" to safePathSegment(rawName),
+                "safePackageName" to safePackageName(rawName),
+                "safeIdentifier" to safeIdentifier(rawName),
+            ),
+        ).trim().ifBlank { rawName }
     }
 
     override fun fileExtension(context: NodeCompilerContext): String =
         requireTemplateSet().fileExtension.ifBlank { super.fileExtension(context) }
+
+    override fun shouldSkipNode(context: NodeCompilerContext): Boolean =
+        requireTemplateSet().skipCompilerTemplates &&
+            context.node.stereotype(context.document) == NodeStereotype.CompilerTemplate
+
+    override fun staticFileFor(context: NodeCompilerContext): GeneratedFile? {
+        val templateSet = requireTemplateSet()
+        val node = context.node
+        if (node.stereotype(context.document) != NodeStereotype.StaticFile && node.name !in templateSet.staticFileNames) {
+            return null
+        }
+        val explicitPath = node.metadata["path"]?.takeIf { it.isNotBlank() }
+            ?: node.metadata["file"]?.takeIf { it.isNotBlank() }
+        val pathTemplate = templateSet.template(CompilerTemplateRoles.StaticFilePath)
+        val path = pathTemplate?.let {
+            render(it, context, mapOf("explicitPath" to explicitPath.orEmpty()))
+        }?.trim().orEmpty().ifBlank { explicitPath ?: node.name.removePrefix("@").ifBlank { "static.txt" } }
+        return GeneratedFile(
+            path = path,
+            content = node.text.declaration.ifBlank { node.text.specification },
+            originNodeId = node.id,
+            reason = "Literal static file",
+            elementKind = if (node.stereotype(context.document) == NodeStereotype.StaticFile) {
+                GeneratedElementKind.StaticFile
+            } else {
+                GeneratedElementKind.MagicFile
+            },
+        )
+    }
 
     override fun declarationFor(context: NodeCompilerContext): String {
         val ownTemplate = templateFor(context, declaration = true)
@@ -256,11 +314,11 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
 
     override fun importForChild(context: NodeCompilerContext, child: CompiledNodeArtifact): String {
         val template = requireTemplateSet().template(CompilerTemplateRoles.ChildImport) ?: return ""
-        return render(template, context, mapOf("child" to artifactView(child)))
+        return render(template, context, mapOf("child" to artifactView(context, child)))
     }
 
     override fun primaryFileFor(context: NodeCompilerContext, declaration: String): GeneratedFile? {
-        if (declaration.isBlank()) return null
+        if (declaration.isBlank() || (context.node.isLink && !requireTemplateSet().emitLinkFiles)) return null
         val file = GeneratedFile(
             path = context.primaryPath(),
             content = declaration.trimEnd(),
@@ -272,7 +330,10 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
                 else -> GeneratedElementKind.TerminalEntity
             },
         )
-        val pathTemplate = requireTemplateSet().template(CompilerTemplateRoles.PrimaryFilePath) ?: return file
+        val pathTemplate = requireTemplateSet().template(
+            "${CompilerTemplateRoles.PrimaryFilePath}.${context.effectiveLayoutStrategy.id}",
+            CompilerTemplateRoles.PrimaryFilePath,
+        ) ?: return file
         val path = render(pathTemplate, context, mapOf("defaultPath" to file.path)).trim()
         return if (path.isBlank()) file else file.copy(path = path)
     }
@@ -302,9 +363,13 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
         } else {
             null
         }
+        val layoutToken = context.effectiveLayoutStrategy.id
         return requireTemplateSet().template(
+            "${stereotype.name.toTemplateToken()}.$suffix.$layoutToken",
             "${stereotype.name.toTemplateToken()}.$suffix",
+            compositeRole?.let { "$it.$layoutToken" }.orEmpty(),
             compositeRole.orEmpty(),
+            "$kindRole.$layoutToken",
             kindRole,
             if (declaration) CompilerTemplateRoles.NodeDeclaration else CompilerTemplateRoles.NodeInstantiation,
         )
@@ -323,6 +388,9 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
         val outgoing = linkDescriptors(document, node.outgoingLinks)
         val dependencies = incoming.filter { it["stereotype"] == LinkStereotype.DependencyInjection.name }
         val nodeView = nodeView(document, node)
+        val symbol = safeIdentifier(node.name, preserveCase = true)
+        val kotlinSymbol = indexedNodeSymbol(document, node)
+        val isCompilationRoot = node.id == document.rootNodeId || node.id in context.options.scopeNodeIds
         return linkedMapOf(
             "id" to node.id.value,
             "name" to node.name,
@@ -336,8 +404,10 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             "layout" to layoutView(node),
             "children" to node.children.mapNotNull(document::getElementById).map { nodeView(document, it) },
             "parent" to node.parentId?.let(document::getElementById)?.let { nodeView(document, it) },
-            "childArtifacts" to context.childArtifacts.map(::artifactView),
-            "linkArtifacts" to context.linkArtifacts.map(::artifactView),
+            "childArtifacts" to context.childArtifacts.map { artifactView(context, it) },
+            "linkArtifacts" to context.linkArtifacts.map { artifactView(context, it) },
+            "inlineChildArtifacts" to context.inlineChildArtifacts.map { artifactView(context, it) },
+            "externalChildArtifacts" to context.externalChildArtifacts.map { artifactView(context, it) },
             "incomingLinks" to incoming,
             "outgoingLinks" to outgoing,
             "dependencyInjectionLinks" to dependencies,
@@ -362,11 +432,25 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             "dependencyInjectionArguments" to dependencies.joinToString(", ") { it["argument"].toString() },
             "childDeclarations" to context.childDeclarations,
             "inlineChildDeclarations" to context.inlineChildDeclarations,
+            "inlineChildDeclarationsWithoutPhpTag" to context.inlineChildDeclarations.replace("<?php", "").trim(),
             "childInstantiations" to context.childInstantiations,
             "linkDeclarations" to context.linkDeclarations,
             "linkInstantiations" to context.linkInstantiations,
             "primaryPath" to context.primaryPath(),
             "layoutStrategy" to mapOf("id" to context.effectiveLayoutStrategy.id, "displayName" to context.effectiveLayoutStrategy.displayName),
+            "symbol" to symbol,
+            "safeName" to symbol,
+            "runSymbol" to "run_$kotlinSymbol",
+            "initializerSymbol" to "init_$kotlinSymbol",
+            "classFileSymbol" to kotlinSymbol.removePrefix("_").replaceFirstChar { it.uppercase() },
+            "isCompilationRoot" to isCompilationRoot,
+            "declarationIndent2" to node.text.declaration.indentNonBlank("  "),
+            "declarationIndent4" to node.text.declaration.indentNonBlank("    "),
+            "instantiationIndent2" to node.text.instantiation.indentNonBlank("  "),
+            "instantiationIndent4" to node.text.instantiation.indentNonBlank("    "),
+            "safeProjectName" to safePathSegment(context.projectName),
+            "safePackageName" to safePackageName(context.projectName),
+            "projectIdentifier" to safeIdentifier(context.projectName),
         ) + linkContext(document, node)
     }
 
@@ -376,17 +460,42 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
         projectName: String,
     ): Map<String, Any?> {
         val root = document.getElementById(document.rootNodeId)
+        val layoutStrategy = projectLayoutStrategy(document, options)
+        val scopeRoots = executableScopeRoots(document, compileScopeIds(document, options.scopeNodeIds))
+        val singleFileSourceName = options.scopeNodeIds.singleOrNull()
+            ?.let(document::getElementById)
+            ?.name
+            ?.takeIf { it.isNotBlank() }
+            ?: projectName
+        val singleFileBaseName = safeIdentifier(singleFileSourceName)
         return mapOf(
-        "document" to mapOf(
-            "id" to document.id,
-            "name" to document.name,
-            "rootNodeId" to document.rootNodeId.value,
-            "nodes" to document.nodes.values.map { nodeView(document, it) },
-        ),
-        "root" to root?.let { nodeView(document, it) },
-        "options" to mapOf("projectName" to projectName),
-        "projectName" to projectName,
-    )
+            "document" to mapOf(
+                "id" to document.id,
+                "name" to document.name,
+                "rootNodeId" to document.rootNodeId.value,
+                "nodes" to document.nodes.values.map { nodeView(document, it) },
+            ),
+            "root" to root?.let { nodeView(document, it) },
+            "options" to mapOf("projectName" to projectName),
+            "projectName" to projectName,
+            "safeProjectName" to safePathSegment(projectName),
+            "safePackageName" to safePackageName(projectName),
+            "projectIdentifier" to safeIdentifier(projectName),
+            "layoutStrategy" to mapOf("id" to layoutStrategy.id, "displayName" to layoutStrategy.displayName),
+            "scopeRoots" to scopeRoots.map { nodeView(document, it) },
+            "singleFileBaseName" to singleFileBaseName,
+            "singleFileClassName" to singleFileBaseName.replaceFirstChar { it.uppercase() } + "Kt",
+            "mainClassName" to if (layoutStrategy.id == SingleFileLayoutStrategy.id) {
+                "generated.${singleFileBaseName.replaceFirstChar { it.uppercase() }}Kt"
+            } else {
+                "generated.MainKt"
+            },
+        )
+    }
+
+    private fun projectLayoutStrategy(document: InflowDocument, options: CompilerOptions): LayoutStrategy {
+        val scopeNodeId = options.scopeNodeIds.singleOrNull() ?: document.rootNodeId
+        return layoutStrategy(document, scopeNodeId, options)
     }
 
     private fun requireTemplateSet(): CompilerTemplateSet =
@@ -402,6 +511,7 @@ open class StringTemplateCompiler(
     override val providedTechnologies: List<CompilerTechnology> =
         supportedLanguageIds.flatMap { language -> supportedTechnologyIds.map { CompilerTechnology(language, it) } },
 ) : TemplateSetCompiler() {
+    override val magicFileNames: Set<String> = templateSet.staticFileNames
     override val templateDefaultLayoutStrategy: LayoutStrategy = templateSet.defaultLayoutStrategy
 
     override fun supports(document: InflowDocument): Boolean = true
@@ -416,6 +526,10 @@ open class StringTemplateCompiler(
 private fun nodeView(document: InflowDocument, node: Node): Map<String, Any?> = linkedMapOf(
     "id" to node.id.value,
     "name" to node.name,
+    "symbol" to safeIdentifier(node.name, preserveCase = true),
+    "runSymbol" to "run_${indexedNodeSymbol(document, node)}",
+    "initializerSymbol" to "init_${indexedNodeSymbol(document, node)}",
+    "classFileSymbol" to indexedNodeSymbol(document, node).removePrefix("_").replaceFirstChar { it.uppercase() },
     "kind" to mapOf("name" to node.kind.name, "ordinal" to node.kind.ordinal),
     "parentId" to node.parentId?.value,
     "stereotype" to stereotypeForTemplateContext(document, node).name,
@@ -450,6 +564,8 @@ private fun nodeView(document: InflowDocument, node: Node): Map<String, Any?> = 
             "payloadDefinition" to link.payloadDefinition,
         )
     },
+    "metadataComment" to "name=${node.name}\nkind=${node.kind.name}\nstereotype=${stereotypeForTemplateContext(document, node)}",
+    "declarationBlockComment" to node.text.declaration.ifBlank { node.text.specification }.toBlockComment(),
 )
 
 private fun textView(node: Node): Map<String, Any?> = mapOf(
@@ -480,12 +596,18 @@ private fun layoutView(node: Node): Map<String, Any?> = mapOf(
     "height" to node.layout.height,
 )
 
-private fun artifactView(artifact: CompiledNodeArtifact): Map<String, Any?> = mapOf(
-    "node" to mapOf("id" to artifact.node.id.value, "name" to artifact.node.name, "kind" to artifact.node.kind.name),
+private fun artifactView(context: NodeCompilerContext, artifact: CompiledNodeArtifact): Map<String, Any?> = mapOf(
+    "node" to nodeView(context.document, artifact.node),
     "declaration" to artifact.declarationText,
     "instantiation" to artifact.instantiationText,
     "path" to artifact.primaryFile?.path.orEmpty(),
     "layoutStrategyId" to artifact.layoutStrategy.id,
+    "symbol" to safeIdentifier(artifact.node.name, preserveCase = true),
+    "runSymbol" to "run_${indexedNodeSymbol(context.document, artifact.node)}",
+    "initializerSymbol" to "init_${indexedNodeSymbol(context.document, artifact.node)}",
+    "relativePath" to artifact.primaryFile?.let { relativePath(context.primaryPath(), it.path) }.orEmpty(),
+    "relativeModulePath" to artifact.primaryFile?.let { relativeModulePath(context.primaryPath(), it.path, context.extension) }.orEmpty(),
+    "isInline" to (artifact.layoutStrategy.id == SingleFileLayoutStrategy.id),
 )
 
 private fun linkDescriptors(document: InflowDocument, ids: Iterable<com.orchestra.core.model.NodeId>): List<Map<String, Any?>> =
@@ -511,6 +633,12 @@ private fun linkDescriptors(document: InflowDocument, ids: Iterable<com.orchestr
 
 private fun linkContext(document: InflowDocument, node: Node): Map<String, Any?> {
     val link = node.link ?: return emptyMap()
+    val sourceNode = document.getElementById(link.sourceNodeId)
+    val targetNode = document.getElementById(link.targetNodeId)
+    val sourceName = sourceNode?.name ?: link.sourceNodeId.value
+    val targetName = targetNode?.name ?: link.targetNodeId.value
+    val sourceReference = "${sanitizeReference(sourceName)}.${sanitizeReference(link.sourcePortName)}"
+    val targetReference = "${sanitizeReference(targetName)}.${sanitizeReference(link.targetPortName)}"
     return mapOf(
         "link" to mapOf(
             "id" to node.id.value,
@@ -523,11 +651,81 @@ private fun linkContext(document: InflowDocument, node: Node): Map<String, Any?>
             "sourcePortName" to link.sourcePortName,
             "targetPortName" to link.targetPortName,
             "transportKind" to link.transportKind,
+            "sourceReference" to sourceReference,
+            "targetReference" to targetReference,
+            "escapedNameDoubleQuoted" to node.name.escapeDoubleQuoted(),
+            "escapedNameSingleQuoted" to node.name.escapeSingleQuoted(),
+            "escapedSourceReferenceDoubleQuoted" to sourceReference.escapeDoubleQuoted(),
+            "escapedTargetReferenceDoubleQuoted" to targetReference.escapeDoubleQuoted(),
+            "escapedSourceReferenceSingleQuoted" to sourceReference.escapeSingleQuoted(),
+            "escapedTargetReferenceSingleQuoted" to targetReference.escapeSingleQuoted(),
         ),
-        "sourceNode" to document.getElementById(link.sourceNodeId)?.let { nodeView(document, it) },
-        "targetNode" to document.getElementById(link.targetNodeId)?.let { nodeView(document, it) },
+        "sourceNode" to sourceNode?.let { nodeView(document, it) },
+        "targetNode" to targetNode?.let { nodeView(document, it) },
     )
 }
+
+private fun compileScopeIds(document: InflowDocument, requested: Set<com.orchestra.core.model.NodeId>): Set<com.orchestra.core.model.NodeId> {
+    if (requested.isEmpty()) return document.nodes.keys
+    val result = linkedSetOf<com.orchestra.core.model.NodeId>()
+    fun include(id: com.orchestra.core.model.NodeId) {
+        val node = document.getElementById(id) ?: return
+        if (result.add(id) && !node.isLink) node.children.forEach(::include)
+    }
+    requested.forEach(::include)
+    return result
+}
+
+private fun executableScopeRoots(
+    document: InflowDocument,
+    scopeIds: Set<com.orchestra.core.model.NodeId>,
+): List<Node> {
+    if (document.rootNodeId in scopeIds) return listOfNotNull(document.getElementById(document.rootNodeId))
+    return scopeIds.mapNotNull(document::getElementById)
+        .filterNot { it.isLink }
+        .filter { it.parentId !in scopeIds }
+        .ifEmpty { listOfNotNull(document.getElementById(document.rootNodeId)) }
+}
+
+private fun indexedNodeSymbol(document: InflowDocument, node: Node): String {
+    val nodes = document.nodes.values.filterNot { it.isLink }.sortedBy { it.id.value }
+    val index = nodes.indexOfFirst { it.id == node.id }.takeIf { it >= 0 }?.plus(1) ?: 1
+    return "${safeIdentifier(node.name)}_$index"
+}
+
+private fun relativePath(from: String, to: String): String {
+    val fromParent = Path.of(from).parent ?: Path.of("")
+    return fromParent.relativize(Path.of(to)).toString().replace('\\', '/')
+}
+
+private fun relativeModulePath(from: String, to: String, extension: String): String {
+    val relative = relativePath(from, to).removeSuffix(".${extension.trimStart('.')}")
+    return if (relative.startsWith('.')) relative else "./$relative"
+}
+
+private fun safeIdentifier(value: String, preserveCase: Boolean = false): String {
+    val sanitized = value.trim().replace(Regex("[^A-Za-z0-9_]+"), "_").trim('_')
+    val fallback = sanitized.ifBlank { "node" }.let { if (preserveCase) it else it.lowercase() }
+    return if (fallback.first().isDigit()) "_$fallback" else fallback
+}
+
+private fun safePathSegment(value: String): String =
+    value.trim().replace(Regex("[^A-Za-z0-9_.-]+"), "_").trim('_').ifBlank { "project" }
+
+private fun safePackageName(value: String): String =
+    value.lowercase().replace(Regex("[^a-z0-9_.-]+"), "-").trim('-').ifBlank { "project" }
+
+private fun sanitizeReference(value: String): String = value.trim().replace("\"", "\\\"")
+
+private fun String.escapeDoubleQuoted(): String = replace("\\", "\\\\").replace("\"", "\\\"")
+
+private fun String.escapeSingleQuoted(): String = replace("\\", "\\\\").replace("'", "\\'")
+
+private fun String.indentNonBlank(prefix: String): String =
+    trimEnd().lines().filter { it.isNotBlank() }.joinToString("\n") { "$prefix$it" }
+
+private fun String.toBlockComment(): String =
+    lines().joinToString(prefix = "/**\n", postfix = "\n */") { " * $it" }
 
 private fun effectiveTechnology(document: InflowDocument, node: Node): TechnologyMetadata =
     node.technology.copy(

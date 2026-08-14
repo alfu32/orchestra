@@ -7,6 +7,8 @@ import com.orchestra.compiler.api.SingleFileLayoutStrategy
 import com.orchestra.compiler.api.SourceSetLayoutStrategy
 import com.orchestra.compiler.generated.nodejs.JSCompiler
 import com.orchestra.core.model.NodeKind
+import com.orchestra.core.model.NodePort
+import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.storage.InMemoryDocumentRepository
 import com.orchestra.storage.newDocument
@@ -89,5 +91,26 @@ class JSCompilerTest {
         assertTrue(rootSource.contains("require(\"./Mixed_JS/external_child\")"))
         assertFalse(rootSource.contains("function external_child"))
         assertTrue(project.files.any { it.originNodeId == externalChild.id && it.content.contains("function external_child") })
+    }
+
+    @Test
+    fun `resource templates preserve link identity and qualified endpoints`() {
+        val repository = InMemoryDocumentRepository(newDocument("Template JS"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
+        val source = repository.createNode(root, "reader", NodeKind.Processor)
+        val target = repository.createNode(root, "writer", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "records", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "records", PortDirection.Input))
+        repository.createLink(root, "record_pipe", source.id, "records", target.id, "records")
+
+        val result = JSCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success)
+        assertTrue(
+            assertNotNull(result.generatedProject).files.any {
+                it.content.contains("transport(context, \"record_pipe\", \"reader.records\", \"writer.records\");")
+            },
+        )
     }
 }

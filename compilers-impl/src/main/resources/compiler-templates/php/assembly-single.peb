@@ -1,0 +1,12 @@
+<?php
+
+{% if childImports is not empty %}{{ childImports }}
+
+{% endif %}{{ runtimeSupport }}
+{% if inlineChildDeclarationsWithoutPhpTag is not empty %}
+{{ inlineChildDeclarationsWithoutPhpTag }}
+{% endif %}{% if linkDeclarations is not empty %}
+{{ linkDeclarations }}
+{% endif %}
+{{ ownDeclaration }}
+

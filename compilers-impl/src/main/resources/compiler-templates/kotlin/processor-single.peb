@@ -1,0 +1,14 @@
+fun {{ initializerSymbol }}(context: RuntimeContext) {
+{% if node.isComposite %}{% for child in childArtifacts %}    {% if child.isInline == false %}generated.nodes.{% endif %}{{ child.initializerSymbol }}(context)
+{% else %}    // Composite node '{{ name }}' has no executable children to initialize.
+{% endfor %}{% elseif instantiation is not empty %}{{ instantiationIndent4 }}
+{% else %}    // Node '{{ name }}' has no instantiation text yet.
+{% endif %}}
+
+fun {{ runSymbol }}(context: RuntimeContext) {
+{% if node.isComposite %}{% for child in childArtifacts %}    {% if child.isInline == false %}generated.nodes.{% endif %}{{ child.runSymbol }}(context)
+{% endfor %}{% for linkArtifact in linkArtifacts %}{% if linkArtifact.instantiation is not empty %}    {{ linkArtifact.instantiation }}
+{% endif %}{% endfor %}{% elseif declaration is not empty %}{{ declarationIndent4 }}
+{% else %}    // Node '{{ name }}' has no declaration text yet.
+{% endif %}}
+
