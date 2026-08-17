@@ -8,7 +8,7 @@ open|0|5
 build|0|6
 disk|0|7
 document|0|8
-undefined09|0,9
+ide_tab_declaration|0|9
 undo|1|0
 redo|1|1
 align_top|1|2
@@ -17,5 +17,15 @@ align_left|1|4
 align_right|1|5
 distribute_vertically|1|6
 distribute_horizontally|1|7
-undefined18|1|8
-undefined19|1|9
+ide_tab_instantiation|1|8
+ide_tab_specification|1|9
+ide_tab_usage|2|0
+ide_tab_tests|2|1
+undefd_22|2|2
+undefd_23|2|3
+undefd_24|2|4
+undefd_25|2|5
+undefd_26|2|6
+undefd_27|2|7
+undefd_28|2|8
+undefd_29|2|9

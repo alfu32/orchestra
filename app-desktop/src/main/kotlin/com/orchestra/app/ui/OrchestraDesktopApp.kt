@@ -4547,17 +4547,8 @@ private class NodeTextEditor(
     private val selectableLanguages = (listOf(VOID_LANGUAGE_ID) + languageIds).distinct()
     private val textTabs = listOf(
         TextTabSpec(
-            label = "Instantiation",
-            section = NodeTextSection.Instantiation,
-            allowInheritance = true,
-            defaultLanguageId = VOID_LANGUAGE_ID,
-            textGetter = { it.instantiation },
-            textSetter = { text, value -> text.copy(instantiation = value) },
-            languageGetter = { it.instantiationLanguageId },
-            languageSetter = { text, value -> text.copy(instantiationLanguageId = value) },
-        ),
-        TextTabSpec(
             label = "Declaration",
+            iconId = "ide_tab_declaration",
             section = NodeTextSection.Declaration,
             allowInheritance = true,
             defaultLanguageId = VOID_LANGUAGE_ID,
@@ -4568,6 +4559,7 @@ private class NodeTextEditor(
         ),
         TextTabSpec(
             label = "Specification",
+            iconId = "ide_tab_specification",
             section = NodeTextSection.Specification,
             allowInheritance = false,
             defaultLanguageId = "markdown",
@@ -4578,6 +4570,7 @@ private class NodeTextEditor(
         ),
         TextTabSpec(
             label = "Usage Instructions",
+            iconId = "ide_tab_usage",
             section = NodeTextSection.AiInstructions,
             allowInheritance = false,
             defaultLanguageId = "markdown",
@@ -4586,11 +4579,23 @@ private class NodeTextEditor(
             languageGetter = { it.aiInstructionsLanguageId },
             languageSetter = { text, value -> text.copy(aiInstructionsLanguageId = value) },
         ),
+        TextTabSpec(
+            label = "Instantiation",
+            iconId = "ide_tab_instantiation",
+            section = NodeTextSection.Instantiation,
+            allowInheritance = true,
+            defaultLanguageId = VOID_LANGUAGE_ID,
+            textGetter = { it.instantiation },
+            textSetter = { text, value -> text.copy(instantiation = value) },
+            languageGetter = { it.instantiationLanguageId },
+            languageSetter = { text, value -> text.copy(instantiationLanguageId = value) },
+        ),
     )
 
     init {
-        textTabs.forEach(::addTextTab)
+        textTabs.dropLast(1).forEach(::addTextTab)
         addTestsTab()
+        addTextTab(textTabs.last())
     }
 
     fun selectSection(section: NodeTextSection) {
@@ -4690,7 +4695,7 @@ private class NodeTextEditor(
         editorsBySection[spec.section] = editor
         languageSelectorsBySection[spec.section] = languageSelector
         componentsBySection[spec.section] = editorPanel
-        addTab(spec.label, editorPanel)
+        addTab(spec.label, OrchestraIcons.buttonIcon(spec.iconId), editorPanel)
         binding = true
         try {
             syncTextLanguageBinding(spec, node.text)
@@ -4762,7 +4767,7 @@ private class NodeTextEditor(
         editorsBySection[NodeTextSection.Tests] = editor
         languageSelectorsBySection[NodeTextSection.Tests] = languageSelector
         componentsBySection[NodeTextSection.Tests] = panel
-        addTab("Tests", panel)
+        addTab("Tests", OrchestraIcons.buttonIcon("ide_tab_tests"), panel)
         binding = true
         try {
             panel.bindLanguage(effectiveTextLanguage(NodeTextSection.Tests))
@@ -4818,6 +4823,7 @@ private class NodeTextEditor(
 
     private data class TextTabSpec(
         val label: String,
+        val iconId: String,
         val section: NodeTextSection,
         val allowInheritance: Boolean,
         val defaultLanguageId: String,
