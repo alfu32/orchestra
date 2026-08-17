@@ -98,6 +98,8 @@ import java.lang.management.ManagementFactory
 import java.nio.file.Path
 import java.nio.file.Files
 import java.net.URLClassLoader
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.LinkedHashMap
 import java.util.ServiceLoader
 import javax.imageio.ImageIO
@@ -232,8 +234,9 @@ class OrchestraDesktopApp(
         add(status, BorderLayout.CENTER)
         add(statusRight, BorderLayout.EAST)
     }
-    private lateinit var workflows: JTabbedPane
+    private lateinit var projectPanels: JTabbedPane
     private val modeButtons = mutableMapOf<CanvasMode, JToggleButton>()
+    private var sheetButton: JToggleButton? = null
     private val commands = linkedMapOf<String, AppCommand>()
     private val pluginToolbarButtons = mutableListOf<PluginToolbarButton>()
     private val pluginContentTabs = mutableListOf<PluginContentTab>()
@@ -275,17 +278,39 @@ class OrchestraDesktopApp(
             isFloatable = true
             isRollover = true
             val modes = ButtonGroup()
-            listOf(
-                modeButton("Select", CanvasMode.Select, "select"),
-                button("Undo", "undo") { executeCommand("edit.undo") },
-                button("Redo", "redo") { executeCommand("edit.redo") },
-                modeButton("Node", CanvasMode.CreateNode, "node"),
-                modeButton("Link", CanvasMode.CreateLink, "link"),
-            ).forEach {
-                modes.add(it)
-                add(it)
-            }
-            add(button("Sheet", "sheet") { executeCommand("sheet.toggle") })
+            add(
+                modeButton(
+                    "Select",
+                    CanvasMode.Select,
+                    "select",
+                    "Select, move, and edit entities on the canvas.",
+                ).also(modes::add),
+            )
+            add(toolbarIconButton("Undo", "undo", "Undo the most recent document or editor change.") { executeCommand("edit.undo") })
+            add(toolbarIconButton("Redo", "redo", "Redo the most recently undone change.") { executeCommand("edit.redo") })
+            add(
+                modeButton(
+                    "Node",
+                    CanvasMode.CreateNode,
+                    "node",
+                    "Place a processing node at the next canvas click.",
+                ).also(modes::add),
+            )
+            add(
+                modeButton(
+                    "Link",
+                    CanvasMode.CreateLink,
+                    "link",
+                    "Connect a source entity to a target entity.",
+                ).also(modes::add),
+            )
+            add(
+                toolbarToggleButton(
+                    "Sheet",
+                    "sheet",
+                    "Show or hide the technical drawing sheet preview.",
+                ) { executeCommand("sheet.toggle") }.also { sheetButton = it },
+            )
             add(JComboBox(canvas.sheetFormatChoices().toTypedArray()).apply {
                 isEditable = false
                 selectedItem = canvas.selectedSheetFormatChoice()
@@ -337,7 +362,7 @@ class OrchestraDesktopApp(
             resizeWeight = 0.18
         }
 
-        workflows = JTabbedPane().apply {
+        projectPanels = JTabbedPane().apply {
             addTab("Flow Designer", flowDesigner)
             addTab("Entities Edit(IDE)", detailsEditor)
             pluginContentTabs.forEach { tab ->
@@ -346,7 +371,7 @@ class OrchestraDesktopApp(
         }
         return JPanel(BorderLayout()).apply {
             add(toolbar, BorderLayout.NORTH)
-            add(workflows, BorderLayout.CENTER)
+            add(projectPanels, BorderLayout.CENTER)
             add(statusBar, BorderLayout.SOUTH)
         }
     }
@@ -438,7 +463,9 @@ class OrchestraDesktopApp(
         registerCommand(AppCommand("graph.deleteSelection", "Graph: Delete Selection", KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0)) {
             if (graphShortcutEnabled()) deleteSelection()
         })
-        registerCommand(AppCommand("sheet.toggle", "Sheet: Toggle Preview") { canvas.toggleSheet() })
+        registerCommand(AppCommand("sheet.toggle", "Sheet: Toggle Preview") {
+            sheetButton?.isSelected = canvas.toggleSheet()
+        })
         registerCommand(AppCommand("sheet.export", "Sheet: Export...") { canvas.exportSheet(frame) })
         registerCommand(AppCommand("compile.project", "Build: Project or Selection") { compileProject() })
         registerCommand(AppCommand("compile.compiler", "Build: Generate Compiler From @Compiler") { generateCompilerFromDesign() })
@@ -1031,8 +1058,8 @@ class OrchestraDesktopApp(
         selection.clear()
         selection += id
         onSelectionChanged()
-        if (::workflows.isInitialized) {
-            workflows.selectedIndex = 1
+        if (::projectPanels.isInitialized) {
+            projectPanels.selectedIndex = 1
         }
     }
 
@@ -1295,14 +1322,44 @@ class OrchestraDesktopApp(
         return false
     }
 
-    private fun modeButton(label: String, mode: CanvasMode, iconId: String? = null) = JToggleButton(label).apply {
-        modeButtons[mode] = this
-        iconId?.let(OrchestraIcons::buttonIcon)?.let {
-            icon = it
-            horizontalTextPosition = SwingConstants.RIGHT
-            iconTextGap = 6
-        }
-        addActionListener { canvas.setMode(mode) }
+    private fun modeButton(
+        label: String,
+        mode: CanvasMode,
+        iconId: String,
+        description: String,
+    ) = toolbarToggleButton(label, iconId, description) {
+        canvas.setMode(mode)
+    }.also { modeButtons[mode] = it }
+
+    private fun toolbarToggleButton(
+        label: String,
+        iconId: String,
+        description: String,
+        action: JToggleButton.() -> Unit,
+    ) = JToggleButton().apply {
+        configureIconOnlyToolbarButton(label, iconId, description)
+        addActionListener { action() }
+    }
+
+    private fun toolbarIconButton(
+        label: String,
+        iconId: String,
+        description: String,
+        action: () -> Unit,
+    ) = JButton().apply {
+        configureIconOnlyToolbarButton(label, iconId, description)
+        addActionListener { action() }
+    }
+
+    private fun javax.swing.AbstractButton.configureIconOnlyToolbarButton(
+        label: String,
+        iconId: String,
+        description: String,
+    ) {
+        icon = OrchestraIcons.buttonIcon(iconId)
+        toolTipText = "<html><b>$label</b><br>$description</html>"
+        accessibleContext.accessibleName = label
+        accessibleContext.accessibleDescription = description
     }
 
     private fun button(label: String, iconId: String? = null, action: () -> Unit) = JButton(label).apply {
@@ -1585,10 +1642,11 @@ class GraphCanvas(
         onTileProgress(0, 0, false)
     }
 
-    fun toggleSheet() {
+    fun toggleSheet(): Boolean {
         showSheet = !showSheet
         invalidateRenderCache()
         repaint()
+        return showSheet
     }
 
     fun sheetFormatChoices(): List<String> = listOf(AUTO_SHEET_FORMAT) + SHEET_FORMATS.map { it.id }
@@ -2384,11 +2442,14 @@ class GraphCanvas(
             row.index.toString(),
             row.name,
             row.kind,
-            row.modifiedDate,
+            partsListDate(row.modifiedDate),
             row.revision,
             row.responsible,
             "",
         )
+
+    private fun partsListDate(value: String): String =
+        runCatching { Instant.parse(value).truncatedTo(ChronoUnit.SECONDS).toString() }.getOrDefault(value)
 
     private fun drawFoldingMarkers(g2: Graphics2D, sheet: Rectangle, scale: Int) {
         val marker = sheetMm(5.0, scale)
