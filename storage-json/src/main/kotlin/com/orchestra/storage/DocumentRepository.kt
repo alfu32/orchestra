@@ -2,14 +2,17 @@ package com.orchestra.storage
 
 import com.orchestra.core.model.InflowDocument
 import com.orchestra.core.model.LinkData
+import com.orchestra.core.model.ModificationMetadata
 import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.NodeLayout
 import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.NodeText
+import com.orchestra.core.model.Revision
 import com.orchestra.core.model.TechnologyMetadata
 import java.util.UUID
+import java.time.Instant
 
 interface DocumentRepository {
     fun getDocument(): InflowDocument
@@ -25,6 +28,12 @@ interface DocumentRepository {
     fun updateNodeLayout(id: NodeId, layout: NodeLayout)
     fun updateNodeText(id: NodeId, text: NodeText)
     fun updateNodeTechnology(id: NodeId, technology: TechnologyMetadata)
+    fun updateNodeFileLayoutStrategy(id: NodeId, strategyId: String)
+    fun updateNodeMetadata(id: NodeId, metadata: Map<String, String>)
+    fun updateNodeResponsible(id: NodeId, responsible: String?)
+    fun updateLinkData(id: NodeId, linkData: LinkData)
+    fun updateMasterRevision(revision: Revision)
+    fun touchNode(id: NodeId)
 
     fun addPort(nodeId: NodeId, port: NodePort)
     fun removePort(nodeId: NodeId, portId: String)
@@ -48,6 +57,8 @@ interface DocumentRepository {
 class InMemoryDocumentRepository(
     private var document: InflowDocument = newDocument("Untitled"),
     private val idGenerator: IdGenerator = UuidIdGenerator(),
+    private val modifiedDateProvider: () -> String = { Instant.now().toString() },
+    private val modifiedUserProvider: () -> String = { System.getProperty("user.name").orEmpty() },
 ) : DocumentRepository {
     private var dirty = false
 
@@ -71,6 +82,7 @@ class InMemoryDocumentRepository(
             val parent = requireNode(it)
             if (node.id !in parent.children) parent.children += node.id
         }
+        touchNodes(listOfNotNull(node.id, parentId))
         markDirty()
         return node
     }
@@ -78,32 +90,92 @@ class InMemoryDocumentRepository(
     override fun deleteNode(id: NodeId) {
         if (id == document.rootNodeId) error("Cannot delete root node")
         val node = requireNode(id)
-        node.children.toList().forEach(::deleteNode)
+        node.children.toList().filter { it in document.nodes }.forEach(::deleteNode)
         if (node.isLink) unlink(node)
-        node.incomingLinks.toList().forEach(::deleteNode)
-        node.outgoingLinks.toList().forEach(::deleteNode)
-        node.parentId?.let { document.nodes[it]?.children?.removeAll { childId -> childId == id } }
+        node.incomingLinks.toList().filter { it in document.nodes }.forEach(::deleteNode)
+        node.outgoingLinks.toList().filter { it in document.nodes }.forEach(::deleteNode)
+        node.parentId?.let { parentId ->
+            document.nodes[parentId]?.children?.removeAll { childId -> childId == id }
+            touchNodes(listOf(parentId))
+        }
         document.nodes.remove(id)
         markDirty()
     }
 
     override fun renameNode(id: NodeId, name: String) {
-        requireNode(id).name = name
+        val node = requireNode(id)
+        if (node.name == name) return
+        node.name = name
+        touchNodes(listOf(id))
         markDirty()
     }
 
     override fun updateNodeLayout(id: NodeId, layout: NodeLayout) {
-        requireNode(id).layout = layout
+        val node = requireNode(id)
+        if (node.layout == layout) return
+        node.layout = layout
         markDirty()
     }
 
     override fun updateNodeText(id: NodeId, text: NodeText) {
-        requireNode(id).text = text
+        val node = requireNode(id)
+        if (node.text == text) return
+        node.text = text
+        touchNodes(listOf(id))
         markDirty()
     }
 
     override fun updateNodeTechnology(id: NodeId, technology: TechnologyMetadata) {
-        requireNode(id).technology = technology
+        val node = requireNode(id)
+        if (node.technology == technology) return
+        node.technology = technology
+        touchNodes(listOf(id))
+        markDirty()
+    }
+
+    override fun updateNodeFileLayoutStrategy(id: NodeId, strategyId: String) {
+        val node = requireNode(id)
+        if (node.fileLayoutStrategyId == strategyId) return
+        node.fileLayoutStrategyId = strategyId
+        touchNodes(listOf(id))
+        markDirty()
+    }
+
+    override fun updateNodeMetadata(id: NodeId, metadata: Map<String, String>) {
+        val node = requireNode(id)
+        if (node.metadata == metadata) return
+        node.metadata.clear()
+        node.metadata.putAll(metadata)
+        touchNodes(listOf(id))
+        markDirty()
+    }
+
+    override fun updateNodeResponsible(id: NodeId, responsible: String?) {
+        val node = requireNode(id)
+        val normalized = responsible?.trim()?.takeIf(String::isNotBlank)
+        if (node.responsible == normalized) return
+        node.responsible = normalized
+        touchNodes(listOf(id))
+        markDirty()
+    }
+
+    override fun updateLinkData(id: NodeId, linkData: LinkData) {
+        val node = requireNode(id)
+        require(node.isLink) { "Node '$id' is not a link" }
+        if (node.link == linkData) return
+        node.link = linkData
+        touchNodes(listOf(id))
+        markDirty()
+    }
+
+    override fun updateMasterRevision(revision: Revision) {
+        if (document.masterRevision == revision) return
+        document.masterRevision = revision.copy()
+        markDirty()
+    }
+
+    override fun touchNode(id: NodeId) {
+        touchNodes(listOf(id))
         markDirty()
     }
 
@@ -111,11 +183,14 @@ class InMemoryDocumentRepository(
         val node = requireNode(nodeId)
         require(node.ports.none { it.id == port.id }) { "Port id '${port.id}' already exists on node '$nodeId'" }
         node.ports += port
+        touchNodes(listOf(nodeId))
         markDirty()
     }
 
     override fun removePort(nodeId: NodeId, portId: String) {
-        requireNode(nodeId).ports.removeIf { it.id == portId }
+        val removed = requireNode(nodeId).ports.removeIf { it.id == portId }
+        if (!removed) return
+        touchNodes(listOf(nodeId))
         markDirty()
     }
 
@@ -146,6 +221,7 @@ class InMemoryDocumentRepository(
         val target = requireNode(targetNodeId)
         if (node.id !in source.outgoingLinks) source.outgoingLinks += node.id
         if (node.id !in target.incomingLinks) target.incomingLinks += node.id
+        touchNodes(listOfNotNull(node.id, parentId, sourceNodeId, targetNodeId))
         markDirty()
         return node
     }
@@ -155,12 +231,14 @@ class InMemoryDocumentRepository(
         newParentId?.let(::requireNode)
         val node = requireNode(id)
         require(!isDescendant(newParentId, id)) { "Cannot move a node under its descendant" }
-        node.parentId?.let { document.nodes[it]?.children?.removeAll { childId -> childId == id } }
+        val oldParentId = node.parentId
+        oldParentId?.let { document.nodes[it]?.children?.removeAll { childId -> childId == id } }
         node.parentId = newParentId
         newParentId?.let {
             val parent = requireNode(it)
             if (id !in parent.children) parent.children += id
         }
+        touchNodes(listOfNotNull(id, oldParentId, newParentId))
         markDirty()
     }
 
@@ -185,6 +263,18 @@ class InMemoryDocumentRepository(
         val link = linkNode.link ?: return
         document.nodes[link.sourceNodeId]?.outgoingLinks?.removeAll { it == linkNode.id }
         document.nodes[link.targetNodeId]?.incomingLinks?.removeAll { it == linkNode.id }
+        touchNodes(listOf(link.sourceNodeId, link.targetNodeId))
+    }
+
+    private fun touchNodes(ids: Iterable<NodeId>) {
+        val timestamp = modifiedDateProvider()
+        val user = modifiedUserProvider()
+        ids.distinct().forEach { id ->
+            document.nodes[id]?.let { node ->
+                node.revision = document.masterRevision.copy()
+                node.modified = ModificationMetadata(timestamp, user)
+            }
+        }
     }
 
     private fun isDescendant(candidateId: NodeId?, ancestorId: NodeId): Boolean {

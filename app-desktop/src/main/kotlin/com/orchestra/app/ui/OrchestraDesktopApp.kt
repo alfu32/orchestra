@@ -36,12 +36,15 @@ import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.NodeText
 import com.orchestra.core.model.NodeTextSection
 import com.orchestra.core.model.PortDirection
+import com.orchestra.core.model.Revision
 import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.orchestra.core.model.VOID_LANGUAGE_ID
 import com.orchestra.core.model.VOID_TECHNOLOGY_ID
 import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveLayoutStrategyId
+import com.orchestra.core.model.effectiveResponsible
+import com.orchestra.core.model.effectiveRevision
 import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.model.effectiveTextLanguageId
 import com.orchestra.core.model.rootNode
@@ -1435,7 +1438,21 @@ class GraphCanvas(
     )
     private data class LinkEndpoint(val point: Point, val xDirection: Int)
     private data class SheetFormat(val id: String, val widthMm: Double, val heightMm: Double, val roll: Boolean = false)
-    private data class BomRow(val index: Int, val name: String, val kind: String)
+    private data class BomRow(
+        val index: Int,
+        val name: String,
+        val kind: String,
+        val modifiedDate: String,
+        val revision: String,
+        val responsible: String,
+    )
+    private data class PartsListColumns(
+        val labels: List<String>,
+        val widths: List<Int>,
+    ) {
+        val totalWidth: Int get() = widths.sum()
+        val offsets: List<Int> get() = widths.runningFold(0, Int::plus)
+    }
     private data class SheetPlan(
         val format: SheetFormat,
         val scale: Int,
@@ -1446,6 +1463,7 @@ class GraphCanvas(
         val contentBounds: Rectangle,
         val scopeIds: Set<NodeId>,
         val bomRows: List<BomRow>,
+        val partsColumns: PartsListColumns,
     )
     private data class RouteSegment(val a: Point, val b: Point, val linkId: NodeId)
     private data class SheetCandidate(
@@ -1498,7 +1516,6 @@ class GraphCanvas(
         const val DRAWING_PAD_MM = 12.0
         const val TITLE_BLOCK_WIDTH_MM = 180.0
         const val TITLE_BLOCK_HEIGHT_MM = 36.0
-        const val PARTS_LIST_WIDTH_MM = 72.0
         val compilerDesignStereotypes = setOf(NodeStereotype.CompilerTemplate, NodeStereotype.StaticFile)
         const val PARTS_ROW_HEIGHT = 20
         const val ROLL_MAX_LENGTH_MM = 1500.0
@@ -1654,6 +1671,9 @@ class GraphCanvas(
             repository.updateNodeLayout(copy.id, node.layout.copy(x = node.layout.x + 40 + index * 20, y = node.layout.y + 40 + index * 20))
             repository.updateNodeText(copy.id, node.text.copy())
             repository.updateNodeTechnology(copy.id, node.technology.copy())
+            repository.updateNodeFileLayoutStrategy(copy.id, node.fileLayoutStrategyId)
+            repository.updateNodeMetadata(copy.id, node.metadata)
+            repository.updateNodeResponsible(copy.id, node.responsible)
             node.ports.forEach { repository.addPort(copy.id, it.copy(id = "${it.id}_copy_$index")) }
             pasted += copy.id
         }
@@ -2140,6 +2160,8 @@ class GraphCanvas(
         g2.drawString("Project", titleBlock.x + inset, firstRowBaseline)
         g2.drawString(projectTitle(), firstColumn + inset, firstRowBaseline)
         g2.drawString("Format: ${activePlan.format.id}", secondColumn + inset, firstRowBaseline)
+        g2.drawString("Revision", titleBlock.x + inset, secondRowBaseline)
+        g2.drawString(masterRevisionLabel(), firstColumn + inset, secondRowBaseline)
         g2.drawString("Scale 1:${activePlan.scale}", secondColumn + inset, secondRowBaseline)
         g2.drawString("version ${versionTimestamp()}", titleBlock.x + inset, bottomBaseline)
 
@@ -2153,14 +2175,19 @@ class GraphCanvas(
             val y = partsList.y + row * partsRowHeight
             g2.drawLine(partsList.x, y, partsList.x + partsList.width, y)
         }
-        g2.drawLine(partsList.x + sheetUnits(42, scale), partsList.y, partsList.x + sheetUnits(42, scale), partsList.y + partsList.height)
-        g2.drawLine(partsList.x + sheetUnits(128, scale), partsList.y, partsList.x + sheetUnits(128, scale), partsList.y + partsList.height)
-        activePlan.bomRows.take((partsList.height / partsRowHeight - 1).coerceAtLeast(0)).forEachIndexed { rowIndex, row ->
-            val y = partsList.y + (rowIndex + 2) * partsRowHeight - sheetUnits(6, scale)
+        val headerTop = partsList.y + partsRowHeight
+        activePlan.partsColumns.offsets.drop(1).dropLast(1).forEach { offset ->
+            g2.drawLine(partsList.x + offset, headerTop, partsList.x + offset, partsList.y + partsList.height)
+        }
+        activePlan.partsColumns.labels.forEachIndexed { columnIndex, label ->
+            g2.drawString(label, partsList.x + activePlan.partsColumns.offsets[columnIndex] + sheetUnits(4, scale), partsList.y + partsRowHeight * 2 - sheetUnits(6, scale))
+        }
+        activePlan.bomRows.take((partsList.height / partsRowHeight - 2).coerceAtLeast(0)).forEachIndexed { rowIndex, row ->
+            val y = partsList.y + (rowIndex + 3) * partsRowHeight - sheetUnits(6, scale)
             g2.color = Color(0x444444)
-            g2.drawString(row.index.toString(), partsList.x + sheetUnits(6, scale), y)
-            g2.drawString(row.name.take(18), partsList.x + sheetUnits(48, scale), y)
-            g2.drawString(row.kind.take(14), partsList.x + sheetUnits(132, scale), y)
+            partsListValues(row).forEachIndexed { columnIndex, value ->
+                g2.drawString(value, partsList.x + activePlan.partsColumns.offsets[columnIndex] + sheetUnits(4, scale), y)
+            }
         }
         g2.font = previousFont
         g2.stroke = previousStroke
@@ -2171,11 +2198,12 @@ class GraphCanvas(
         val contentBounds = contentBounds(scopeIds) ?: return null
         val bomRows = bomRows(scopeIds)
         val scale = sheetScale
+        val partsColumns = partsListColumns(bomRows, scale)
         val drawingPad = sheetMm(DRAWING_PAD_MM, scale)
         val margin = sheetMm(SHEET_MARGIN_MM, scale)
         val titleWidth = sheetMm(TITLE_BLOCK_WIDTH_MM, scale)
         val titleHeight = sheetMm(TITLE_BLOCK_HEIGHT_MM, scale)
-        val partsWidth = sheetMm(PARTS_LIST_WIDTH_MM, scale)
+        val partsWidth = partsColumns.totalWidth
         val partsRowHeight = sheetUnits(PARTS_ROW_HEIGHT, scale)
         val partsRequiredHeight = ((bomRows.size + 2) * partsRowHeight).coerceAtLeast(sheetMm(80.0, scale))
         val gap = sheetMm(8.0, scale)
@@ -2222,7 +2250,7 @@ class GraphCanvas(
             partsWidth,
             partsHeight,
         )
-        return SheetPlan(format, scale, sheet, drawing, titleBlock, partsList, contentBounds, scopeIds, bomRows)
+        return SheetPlan(format, scale, sheet, drawing, titleBlock, partsList, contentBounds, scopeIds, bomRows, partsColumns)
     }
 
     private fun autoSheetCandidate(
@@ -2325,7 +2353,42 @@ class GraphCanvas(
         scopeIds.mapNotNull(repository::getNode)
             .filter { !it.isLink && it.id != repository.getDocument().rootNodeId && isVisibleInCanvas(it) }
             .sortedWith(compareBy<Node> { it.name.lowercase() }.thenBy { it.id.value })
-            .mapIndexed { index, node -> BomRow(index + 1, node.name, nodeStereotype(node).name) }
+            .mapIndexed { index, node ->
+                BomRow(
+                    index = index + 1,
+                    name = node.name,
+                    kind = nodeStereotype(node).name,
+                    modifiedDate = node.modified.date,
+                    revision = repository.getDocument().effectiveRevision(node.id)?.name.orEmpty(),
+                    responsible = repository.getDocument().effectiveResponsible(node.id),
+                )
+            }
+
+    private fun partsListColumns(rows: List<BomRow>, scale: Int): PartsListColumns {
+        val labels = listOf("No.", "Part", "Kind", "Modified", "Rev.", "Responsible", "Signature")
+        val values = rows.map(::partsListValues)
+        val minimumCharacters = listOf(4, 16, 12, 18, 8, 14, 14)
+        val widths = labels.indices.map { column ->
+            val longest = maxOf(
+                values.maxOfOrNull { it[column].length } ?: 0,
+                labels[column].length,
+                minimumCharacters[column],
+            )
+            sheetUnits(longest * 7 + 12, scale)
+        }
+        return PartsListColumns(labels, widths)
+    }
+
+    private fun partsListValues(row: BomRow): List<String> =
+        listOf(
+            row.index.toString(),
+            row.name,
+            row.kind,
+            row.modifiedDate,
+            row.revision,
+            row.responsible,
+            "",
+        )
 
     private fun drawFoldingMarkers(g2: Graphics2D, sheet: Rectangle, scale: Int) {
         val marker = sheetMm(5.0, scale)
@@ -2406,6 +2469,8 @@ class GraphCanvas(
         svgText(svg, "Project", titleBlock.x + inset, firstRowBaseline, textSize, "#444444")
         svgText(svg, projectTitle(), firstColumn + inset, firstRowBaseline, textSize, "#444444")
         svgText(svg, "Format: ${plan.format.id}", secondColumn + inset, firstRowBaseline, textSize, "#444444")
+        svgText(svg, "Revision", titleBlock.x + inset, secondRowBaseline, textSize, "#444444")
+        svgText(svg, masterRevisionLabel(), firstColumn + inset, secondRowBaseline, textSize, "#444444")
         svgText(svg, "Scale 1:${plan.scale}", secondColumn + inset, secondRowBaseline, textSize, "#444444")
         svgText(svg, "version ${versionTimestamp()}", titleBlock.x + inset, titleBlock.y + titleBlock.height - sheetUnits(8, scale), textSize, "#444444")
 
@@ -2417,13 +2482,18 @@ class GraphCanvas(
             val y = partsList.y + row * partsRowHeight
             svgLine(svg, partsList.x, y, partsList.x + partsList.width, y, "#b0b0b0")
         }
-        svgLine(svg, partsList.x + sheetUnits(42, scale), partsList.y, partsList.x + sheetUnits(42, scale), partsList.y + partsList.height, "#b0b0b0")
-        svgLine(svg, partsList.x + sheetUnits(128, scale), partsList.y, partsList.x + sheetUnits(128, scale), partsList.y + partsList.height, "#b0b0b0")
-        plan.bomRows.take((partsList.height / partsRowHeight - 1).coerceAtLeast(0)).forEachIndexed { rowIndex, row ->
-            val y = partsList.y + (rowIndex + 2) * partsRowHeight - sheetUnits(6, scale)
-            svgText(svg, row.index.toString(), partsList.x + sheetUnits(6, scale), y, 10 * scale, "#444444")
-            svgText(svg, row.name.take(18), partsList.x + sheetUnits(48, scale), y, 10 * scale, "#444444")
-            svgText(svg, row.kind.take(14), partsList.x + sheetUnits(132, scale), y, 10 * scale, "#444444")
+        val headerTop = partsList.y + partsRowHeight
+        plan.partsColumns.offsets.drop(1).dropLast(1).forEach { offset ->
+            svgLine(svg, partsList.x + offset, headerTop, partsList.x + offset, partsList.y + partsList.height, "#b0b0b0")
+        }
+        plan.partsColumns.labels.forEachIndexed { columnIndex, label ->
+            svgText(svg, label, partsList.x + plan.partsColumns.offsets[columnIndex] + sheetUnits(4, scale), partsList.y + partsRowHeight * 2 - sheetUnits(6, scale), 10 * scale, "#444444")
+        }
+        plan.bomRows.take((partsList.height / partsRowHeight - 2).coerceAtLeast(0)).forEachIndexed { rowIndex, row ->
+            val y = partsList.y + (rowIndex + 3) * partsRowHeight - sheetUnits(6, scale)
+            partsListValues(row).forEachIndexed { columnIndex, value ->
+                svgText(svg, value, partsList.x + plan.partsColumns.offsets[columnIndex] + sheetUnits(4, scale), y, 10 * scale, "#444444")
+            }
         }
     }
 
@@ -2849,6 +2919,11 @@ class GraphCanvas(
 
     private fun projectTitle(): String =
         repository.getDocument().rootNode().name.trim().ifBlank { repository.getDocument().name }
+
+    private fun masterRevisionLabel(): String {
+        val revision = repository.getDocument().masterRevision
+        return listOf(revision.name.trim(), revision.date.trim()).filter(String::isNotBlank).joinToString(" - ")
+    }
 
     private fun versionTimestamp(): String =
         Version.CURRENT.buildDate
@@ -4045,6 +4120,7 @@ private class InspectorPanel(
     private var nodeId: NodeId? = null
     private var boundNodeIsLink = false
     private var boundNodeIsCompiler = false
+    private var boundNodeIsRoot = false
     private var boundHasNode = false
     private var binding = false
     private var compilerTechnologyProposal = "generated"
@@ -4079,6 +4155,14 @@ private class InspectorPanel(
         isVisible = false
     }
     private val state = JTextField()
+    private val responsible = JTextField()
+    private val computedResponsible = JLabel()
+    private val revisionName = JTextField().apply { isEditable = false }
+    private val revisionDate = JTextField().apply { isEditable = false }
+    private val modifiedDate = JTextField().apply { isEditable = false }
+    private val modifiedBy = JTextField().apply { isEditable = false }
+    private val masterRevisionName = JTextField()
+    private val masterRevisionDate = JTextField()
     private val linkTransportKind = JComboBox(transportKindOptions.toTypedArray()).apply { isEditable = false }
     private val layoutStrategy = JComboBox(layoutStrategyOptions.toTypedArray()).apply { isEditable = false }
     private val computedLayoutStrategy = JLabel()
@@ -4105,6 +4189,22 @@ private class InspectorPanel(
         },
     )
     private val stateRow = fieldRow("State", state)
+    private val responsibleRow = fieldRow(
+        "Responsible",
+        JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            alignmentX = Component.LEFT_ALIGNMENT
+            add(responsible)
+            add(Box.createVerticalStrut(4))
+            add(computedResponsible)
+        },
+    )
+    private val revisionNameRow = fieldRow("Effective revision", revisionName)
+    private val revisionDateRow = fieldRow("Effective revision date", revisionDate)
+    private val modifiedDateRow = fieldRow("Modified date", modifiedDate)
+    private val modifiedByRow = fieldRow("Modified by", modifiedBy)
+    private val masterRevisionNameRow = fieldRow("Master revision", masterRevisionName)
+    private val masterRevisionDateRow = fieldRow("Master revision date", masterRevisionDate)
     private val linkTransportKindRow = fieldRow("Link transport kind", linkTransportKind)
     private val linkTypeNameRow = fieldRow("Link type name", linkTypeName)
     private val payloadDefinitionRow = fieldRow("Link type definition", JScrollPane(payloadDefinition))
@@ -4112,7 +4212,17 @@ private class InspectorPanel(
 
     init {
         installNameCompletions()
-        listOf(nameField, customLanguage, customTechnology, state, linkTypeName, customTransportKind).forEach(::applyOnCommit)
+        listOf(
+            nameField,
+            customLanguage,
+            customTechnology,
+            state,
+            responsible,
+            linkTypeName,
+            customTransportKind,
+            masterRevisionName,
+            masterRevisionDate,
+        ).forEach(::applyOnCommit)
         applyOnCommit(language)
         applyOnCommit(technology)
         applyOnCommit(layoutStrategy)
@@ -4128,6 +4238,13 @@ private class InspectorPanel(
             add(customTechnologyPanel)
             add(layoutStrategyRow)
             add(stateRow)
+            add(responsibleRow)
+            add(revisionNameRow)
+            add(revisionDateRow)
+            add(modifiedDateRow)
+            add(modifiedByRow)
+            add(masterRevisionNameRow)
+            add(masterRevisionDateRow)
             add(linkTransportKindRow)
             add(linkTypeNameRow)
             add(customTransportKindPanel)
@@ -4147,12 +4264,22 @@ private class InspectorPanel(
         boundHasNode = node != null
         boundNodeIsLink = node?.isLink == true
         boundNodeIsCompiler = node?.name?.trim()?.equals("@Compiler", ignoreCase = true) == true
+        boundNodeIsRoot = node?.id == repository.getDocument().rootNodeId
         compilerTechnologyProposal = proposedCompilerTechnologyId()
         nameField.text = node?.name.orEmpty()
         bindLanguage(node?.technology?.languageId.orEmpty())
         bindTechnology(node?.technology?.technologyId.orEmpty(), forceCustom = boundNodeIsCompiler)
         bindLayoutStrategy(node?.fileLayoutStrategyId.orEmpty())
         state.text = node?.metadata?.get("state").orEmpty()
+        responsible.text = node?.responsible.orEmpty()
+        val effectiveRevision = node?.let { repository.getDocument().effectiveRevision(it.id) }
+        revisionName.text = effectiveRevision?.name.orEmpty()
+        revisionDate.text = effectiveRevision?.date.orEmpty()
+        modifiedDate.text = node?.modified?.date.orEmpty()
+        modifiedBy.text = node?.modified?.user.orEmpty()
+        masterRevisionName.text = if (boundNodeIsRoot) repository.getDocument().masterRevision.name else ""
+        masterRevisionDate.text = if (boundNodeIsRoot) repository.getDocument().masterRevision.date else ""
+        refreshResponsibleComputedLabel()
         bindTransportKind(node?.link?.transportKind.orEmpty())
         linkTypeName.text = node?.link?.typeName.orEmpty()
         payloadDefinition.text = node?.link?.payloadDefinition.orEmpty()
@@ -4264,10 +4391,13 @@ private class InspectorPanel(
         nameField.hasFocus() ||
             language.hasFocus() ||
             customLanguage.hasFocus() ||
-        technology.hasFocus() ||
+            technology.hasFocus() ||
             layoutStrategy.hasFocus() ||
             customTechnology.hasFocus() ||
             state.hasFocus() ||
+            responsible.hasFocus() ||
+            masterRevisionName.hasFocus() ||
+            masterRevisionDate.hasFocus() ||
             linkTransportKind.hasFocus() ||
             linkTypeName.hasFocus() ||
             customTransportKind.hasFocus() ||
@@ -4289,20 +4419,23 @@ private class InspectorPanel(
         if (binding) return
         val id = nodeId ?: return
         val node = repository.requireNode(id)
+        if (boundNodeIsRoot) {
+            repository.updateMasterRevision(Revision(masterRevisionName.text.trim(), masterRevisionDate.text.trim()))
+        }
         repository.renameNode(id, nameField.text)
         val isLink = node.isLink
         if (!isLink) {
             repository.updateNodeTechnology(id, node.technology.copy(languageId = selectedLanguage(), technologyId = selectedTechnology()))
         }
-        node.fileLayoutStrategyId = selectedLayoutStrategy()
-        node.metadata.clear()
-        node.metadata.putAll(parseMetadata(includeState = !isLink))
-        if (isLink) node.link?.let {
+        repository.updateNodeFileLayoutStrategy(id, selectedLayoutStrategy())
+        repository.updateNodeMetadata(id, parseMetadata(includeState = !isLink))
+        repository.updateNodeResponsible(id, responsible.text)
+        if (isLink) node.link?.copy()?.let {
             it.transportKind = selectedTransportKind().ifBlank { LinkTransportKinds.Default }
             it.typeName = linkTypeName.text.trim()
             it.payloadDefinition = payloadDefinition.text
+            repository.updateLinkData(id, it)
         }
-        repository.markDirty()
         refreshAll()
     }
 
@@ -4422,10 +4555,22 @@ private class InspectorPanel(
         technologyRow.isVisible = showNodeFields
         customTechnologyPanel.isVisible = showNodeFields && (boundNodeIsCompiler || technology.selectedItem == OtherTechnologyChoice)
         stateRow.isVisible = showNodeFields
+        responsibleRow.isVisible = boundHasNode
+        revisionNameRow.isVisible = boundHasNode
+        revisionDateRow.isVisible = boundHasNode
+        modifiedDateRow.isVisible = boundHasNode
+        modifiedByRow.isVisible = boundHasNode
+        masterRevisionNameRow.isVisible = boundNodeIsRoot
+        masterRevisionDateRow.isVisible = boundNodeIsRoot
         linkTransportKindRow.isVisible = showLinkFields
         linkTypeNameRow.isVisible = showLinkFields
         payloadDefinitionRow.isVisible = showLinkFields
         updateConditionalChoiceVisibility()
+    }
+
+    private fun refreshResponsibleComputedLabel() {
+        val effective = nodeId?.let { repository.getDocument().effectiveResponsible(it) }.orEmpty()
+        computedResponsible.text = "effective: ${effective.ifBlank { "none" }}"
     }
 
     private fun selectedLayoutStrategy(): String =

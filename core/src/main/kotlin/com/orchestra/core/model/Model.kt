@@ -71,6 +71,18 @@ data class TechnologyMetadata(
 )
 
 @Serializable
+data class Revision(
+    var name: String = "",
+    var date: String = "",
+)
+
+@Serializable
+data class ModificationMetadata(
+    var date: String = "",
+    var user: String = "",
+)
+
+@Serializable
 data class NodePort(
     val id: String,
     var name: String,
@@ -109,6 +121,9 @@ data class Node(
     var fileLayoutStrategyId: String = VOID_LAYOUT_STRATEGY_ID,
     var text: NodeText = NodeText(),
     var technology: TechnologyMetadata = TechnologyMetadata(),
+    var revision: Revision? = null,
+    var responsible: String? = null,
+    var modified: ModificationMetadata = ModificationMetadata(),
     val ports: MutableList<NodePort> = mutableListOf(),
     var link: LinkData? = null,
     var metadata: MutableMap<String, String> = mutableMapOf(),
@@ -126,10 +141,12 @@ data class InflowDocument(
     var rootNodeId: NodeId,
     val nodes: MutableMap<NodeId, Node> = mutableMapOf(),
     var metadata: MutableMap<String, String> = mutableMapOf(),
+    var masterRevision: Revision = Revision(),
 )
 
 const val VOID_LANGUAGE_ID = "plain"
 const val VOID_TECHNOLOGY_ID = "none"
+const val VOID_RESPONSIBLE = "none"
 
 fun InflowDocument.rootNode(): Node = nodes[rootNodeId]
     ?: error("Root node '$rootNodeId' is missing")
@@ -174,6 +191,20 @@ fun InflowDocument.effectiveLayoutStrategyId(nodeId: NodeId): String =
         val value = it.fileLayoutStrategyId.trim()
         if (value.isBlank() || value == VOID_LAYOUT_STRATEGY_ID) "" else value
     }
+
+fun InflowDocument.effectiveResponsible(nodeId: NodeId): String =
+    inheritedNodeValue(nodeId, VOID_RESPONSIBLE) { it.responsible.orEmpty() }
+
+fun InflowDocument.effectiveRevision(nodeId: NodeId): Revision? {
+    val visited = mutableSetOf<NodeId>()
+    var current = nodes[nodeId]
+    while (current != null && current.id !in visited) {
+        visited += current.id
+        current.revision?.let { return it.copy() }
+        current = current.parentId?.let(nodes::get)
+    }
+    return null
+}
 
 fun InflowDocument.effectiveTextLanguageId(nodeId: NodeId, section: NodeTextSection): String {
     val visited = mutableSetOf<NodeId>()

@@ -113,4 +113,49 @@ class TechnologyMetadataResolutionTest {
         assertEquals("single-file", document.effectiveLayoutStrategyId(child.id))
         assertEquals("single-file", document.effectiveLayoutStrategyId(grandchild.id))
     }
+
+    @Test
+    fun `effective responsible and revision use the nearest owning ancestor`() {
+        val root = Node(
+            id = NodeId("root"),
+            name = "root",
+            kind = NodeKind.Group,
+            responsible = "Ada",
+            revision = Revision("R1", "2026-08-17"),
+        )
+        val child = Node(NodeId("child"), "child", NodeKind.Processor, parentId = root.id)
+        val grandchild = Node(
+            id = NodeId("grandchild"),
+            name = "grandchild",
+            kind = NodeKind.Processor,
+            parentId = child.id,
+            responsible = "Grace",
+        )
+        root.children += child.id
+        child.children += grandchild.id
+        val document = InflowDocument(
+            id = "doc",
+            name = "doc",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root, child.id to child, grandchild.id to grandchild),
+        )
+
+        assertEquals("Ada", document.effectiveResponsible(child.id))
+        assertEquals("Grace", document.effectiveResponsible(grandchild.id))
+        assertEquals(Revision("R1", "2026-08-17"), document.effectiveRevision(grandchild.id))
+    }
+
+    @Test
+    fun `responsible and revision fall back to none`() {
+        val root = Node(NodeId("root"), "root", NodeKind.Group)
+        val document = InflowDocument(
+            id = "doc",
+            name = "doc",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root),
+        )
+
+        assertEquals(VOID_RESPONSIBLE, document.effectiveResponsible(root.id))
+        assertEquals(null, document.effectiveRevision(root.id))
+    }
 }

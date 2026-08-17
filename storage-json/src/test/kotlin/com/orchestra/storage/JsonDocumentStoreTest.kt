@@ -6,6 +6,7 @@ import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.PortDirection
+import com.orchestra.core.model.Revision
 import com.orchestra.core.validation.DocumentValidator
 import java.nio.file.Files
 import kotlin.io.path.createTempFile
@@ -21,7 +22,9 @@ class JsonDocumentStoreTest {
     @Test
     fun `saves and loads document`() {
         val repository = InMemoryDocumentRepository(newDocument("json test"))
-        repository.createNode(repository.getDocument().rootNodeId, "child", NodeKind.Processor)
+        repository.getDocument().masterRevision = Revision("R4", "2026-08-17")
+        val child = repository.createNode(repository.getDocument().rootNodeId, "child", NodeKind.Processor)
+        repository.updateNodeResponsible(child.id, "Ada")
         val file = createTempFile(suffix = ".inflow.json")
         val store = KotlinxJsonDocumentStore()
 
@@ -31,6 +34,10 @@ class JsonDocumentStoreTest {
 
         assertEquals(repository.getDocument().name, loaded.name)
         assertEquals(repository.getDocument().nodes.keys, loaded.nodes.keys)
+        assertEquals(Revision("R4", "2026-08-17"), loaded.masterRevision)
+        assertEquals("Ada", loaded.nodes.getValue(child.id).responsible)
+        assertEquals("R4", loaded.nodes.getValue(child.id).revision?.name)
+        assertTrue(loaded.nodes.getValue(child.id).modified.date.isNotBlank())
         assertTrue(savedJson.getValue("nodes") is JsonArray)
     }
 

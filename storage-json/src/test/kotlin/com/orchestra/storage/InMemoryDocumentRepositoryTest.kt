@@ -6,6 +6,7 @@ import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.PortDirection
+import com.orchestra.core.model.Revision
 import com.orchestra.core.validation.DocumentValidator
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -94,6 +95,63 @@ class InMemoryDocumentRepositoryTest {
         assertFalse(child.id in repository.requireNode(parentA.id).children)
         assertTrue(child.id in repository.requireNode(parentB.id).children)
         assertEquals(parentB.id, repository.requireNode(child.id).parentId)
+    }
+
+    @Test
+    fun `semantic edits copy master revision and stamp modification metadata`() {
+        val repository = InMemoryDocumentRepository(
+            document = newDocument("test").apply { masterRevision = Revision("R2", "2026-08-17") },
+            modifiedDateProvider = { "2026-08-17T10:15:30Z" },
+            modifiedUserProvider = { "devlin" },
+        )
+        val root = repository.getDocument().rootNodeId
+        val node = repository.createNode(root, "source", NodeKind.Processor)
+
+        repository.updateNodeText(node.id, node.text.copy(declaration = "return value"))
+
+        assertEquals(Revision("R2", "2026-08-17"), node.revision)
+        assertEquals("2026-08-17T10:15:30Z", node.modified.date)
+        assertEquals("devlin", node.modified.user)
+    }
+
+    @Test
+    fun `layout edits do not change revision or modification metadata`() {
+        var timestamp = "created"
+        val repository = InMemoryDocumentRepository(
+            document = newDocument("test").apply { masterRevision = Revision("R1", "2026-08-16") },
+            modifiedDateProvider = { timestamp },
+            modifiedUserProvider = { "devlin" },
+        )
+        val root = repository.getDocument().rootNodeId
+        val node = repository.createNode(root, "source", NodeKind.Processor)
+        timestamp = "moved"
+        repository.updateMasterRevision(Revision("R2", "2026-08-17"))
+
+        repository.updateNodeLayout(node.id, node.layout.copy(x = 100.0, y = 200.0))
+
+        assertEquals(Revision("R1", "2026-08-16"), node.revision)
+        assertEquals("created", node.modified.date)
+    }
+
+    @Test
+    fun `link creation stamps link endpoints and parent`() {
+        val repository = InMemoryDocumentRepository(
+            document = newDocument("test").apply { masterRevision = Revision("R3", "2026-08-17") },
+            modifiedDateProvider = { "linked" },
+            modifiedUserProvider = { "devlin" },
+        )
+        val root = repository.getDocument().rootNodeId
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "data", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "data", PortDirection.Input))
+
+        val link = repository.createLink(root, "data", source.id, "data", target.id, "data")
+
+        listOf(link, source, target, repository.requireNode(root)).forEach { node ->
+            assertEquals(Revision("R3", "2026-08-17"), node.revision)
+            assertEquals("linked", node.modified.date)
+        }
     }
 
     private companion object {

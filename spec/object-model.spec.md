@@ -280,9 +280,16 @@ It carries:
 - visual position
 - compiler metadata
 - communication information
+- revision, responsibility, and modification audit information
 ```
 
 This is the heart of the application.
+
+### Revision and responsibility
+
+The document owns a master revision (`name` and `date`). A semantic repository mutation copies that revision to every affected node or link and records the modification timestamp and operating-system user. Text, hierarchy, port, and link-reference changes are semantic; visual position and size changes are not.
+
+Each entity may declare its own responsible person and revision. Effective-value accessors walk the parent chain when the local value is absent. Responsibility falls back to `none`; revision falls back to no revision. The root inspector is the only place where the project master revision is edited.
 
 ---
 

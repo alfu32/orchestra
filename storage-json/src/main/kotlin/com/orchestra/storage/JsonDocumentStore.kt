@@ -5,6 +5,7 @@ import com.orchestra.core.model.Node
 import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.PortDirection
+import com.orchestra.core.model.Revision
 import com.orchestra.core.validation.DocumentValidator
 import java.nio.file.Files
 import java.nio.file.Path
@@ -36,6 +37,7 @@ class KotlinxJsonDocumentStore(
             rootNodeId = document.rootNodeId,
             nodes = orderedNodes(document),
             metadata = document.metadata.toMutableMap(),
+            masterRevision = document.masterRevision.copy(),
         )
         Files.writeString(filePath, json.encodeToString(InflowDocumentFile.serializer(), file))
     }
@@ -67,6 +69,7 @@ class KotlinxJsonDocumentStore(
             rootNodeId = file.rootNodeId,
             nodes = nodesById(file.nodes),
             metadata = file.metadata,
+            masterRevision = file.masterRevision,
         )
     }
 
@@ -192,4 +195,5 @@ private data class InflowDocumentFile(
     var rootNodeId: NodeId,
     val nodes: List<Node> = emptyList(),
     var metadata: MutableMap<String, String> = mutableMapOf(),
+    var masterRevision: Revision = Revision(),
 )
