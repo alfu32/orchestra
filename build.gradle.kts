@@ -29,22 +29,22 @@ fun normalizeSemver(value: String): String =
         }
     }
 
-val orchestraGitCommitId = gitOutput("rev-parse", "--short=12", "HEAD") ?: "unknown"
-val orchestraGitTag = gitOutput("describe", "--tags", "--abbrev=0")
-val orchestraBuildDate = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).toString()
-val orchestraReleaseNumber = providers.gradleProperty("release_number")
+val threadworkGitCommitId = gitOutput("rev-parse", "--short=12", "HEAD") ?: "unknown"
+val threadworkGitTag = gitOutput("describe", "--tags", "--abbrev=0")
+val threadworkBuildDate = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).toString()
+val threadworkReleaseNumber = providers.gradleProperty("release_number")
     .map(::normalizeSemver)
-    .orElse(provider { orchestraGitTag?.let(::normalizeSemver) ?: "0.1.0" })
+    .orElse(provider { threadworkGitTag?.let(::normalizeSemver) ?: "0.1.0" })
     .get()
 
-extra["orchestraReleaseNumber"] = orchestraReleaseNumber
-extra["orchestraGitCommitId"] = orchestraGitCommitId
-extra["orchestraGitTag"] = orchestraGitTag
-extra["orchestraBuildDate"] = orchestraBuildDate
+extra["threadworkReleaseNumber"] = threadworkReleaseNumber
+extra["threadworkGitCommitId"] = threadworkGitCommitId
+extra["threadworkGitTag"] = threadworkGitTag
+extra["threadworkBuildDate"] = threadworkBuildDate
 
 subprojects {
-    group = "com.orchestra"
-    version = orchestraReleaseNumber
+    group = "com.threadwork"
+    version = threadworkReleaseNumber
 
     plugins.withId("org.jetbrains.kotlin.jvm") {
         extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension>("kotlin") {
@@ -59,6 +59,6 @@ subprojects {
 
 tasks.register("fatJar") {
     group = "distribution"
-    description = "Builds the Orchestra desktop fat jar into the root dist directory."
+    description = "Builds the Threadwork desktop fat jar into the root dist directory."
     dependsOn(":app-desktop:fatJar")
 }

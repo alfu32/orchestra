@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Orchestra CodeMirror Editor</title>
+  <title>Threadwork CodeMirror Editor</title>
   <style>
     html, body, #editor { height: 100%; margin: 0; }
     body { background: #ffffff; color: #222222; font: 13px monospace; }
@@ -13,7 +13,7 @@
 <script type="module">
   /*
    * Bridge contract:
-   * Kotlin -> WebView: window.orchestraEditor.setText, setLanguage,
+   * Kotlin -> WebView: window.threadworkEditor.setText, setLanguage,
    * setDiagnostics, setTheme, focus.
    * WebView -> Kotlin: post JSON messages named textChanged, cursorChanged,
    * completionRequested, editorReady.
@@ -36,10 +36,10 @@
 
   function post(type, payload = {}) {
     const message = JSON.stringify({ type, payload });
-    if (window.orchestraBridge && window.orchestraBridge.postMessage) {
-      window.orchestraBridge.postMessage(message);
+    if (window.threadworkBridge && window.threadworkBridge.postMessage) {
+      window.threadworkBridge.postMessage(message);
     } else {
-      console.debug("orchestraBridge", message);
+      console.debug("threadworkBridge", message);
     }
   }
 
@@ -52,7 +52,7 @@
     post("cursorChanged", { offset: textarea.selectionStart });
   });
 
-  window.orchestraEditor = {
+  window.threadworkEditor = {
     setText(text) {
       state.text = text ?? "";
       textarea.value = state.text;

@@ -12,13 +12,13 @@ dependencies {
 }
 
 application {
-    mainClass.set("com.orchestra.app.MainKt")
+    mainClass.set("com.threadwork.app.MainKt")
 }
 
-val releaseNumber = rootProject.extra["orchestraReleaseNumber"] as String
-val gitCommitId = rootProject.extra["orchestraGitCommitId"] as String
-val gitTag = rootProject.extra["orchestraGitTag"] as String?
-val buildDate = rootProject.extra["orchestraBuildDate"] as String
+val releaseNumber = rootProject.extra["threadworkReleaseNumber"] as String
+val gitCommitId = rootProject.extra["threadworkGitCommitId"] as String
+val gitTag = rootProject.extra["threadworkGitTag"] as String?
+val buildDate = rootProject.extra["threadworkBuildDate"] as String
 
 tasks.register<Jar>("fatJar") {
     group = "distribution"
@@ -26,7 +26,7 @@ tasks.register<Jar>("fatJar") {
     dependsOn(project(":core").tasks.named("generateVersionSource"))
     dependsOn(configurations.runtimeClasspath)
 
-    archiveBaseName.set("orchestra")
+    archiveBaseName.set("threadwork")
     archiveVersion.set(releaseNumber)
     archiveClassifier.set("")
     destinationDirectory.set(rootProject.layout.projectDirectory.dir("dist"))

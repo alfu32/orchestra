@@ -68,7 +68,7 @@ data class LinkTypeAnalysis(
 
 interface LinkTypeAnalyzer {
     fun analyzeType(
-        document: InflowDocument,
+        document: ThreadworkDocument,
         link: Node,
         definition: String,
     ): LinkTypeAnalysis

@@ -2,45 +2,38 @@
 
 ## Project Structure & Module Organization
 
-This repository contains the Kotlin implementation of the Orchestra/InFlow rewrite plus the source specifications.
+Threadwork is a Kotlin/JVM topology-first IDE and compiler framework. Keep changes within the existing module boundaries:
 
-- `README.md`: project overview and local commands.
-- `spec/`: Markdown specifications that define system behavior and architecture.
-- `core/`: serializable node document model, diagnostics, and validation.
-- `storage-json/`: in-memory repository and JSON persistence.
-- `completion-core/`: model-derived completion service.
-- `compiler-api/`: compiler interfaces and generated-project contracts.
-- `compilers-impl/`: deterministic Kotlin/JVM project generator.
-- `app-desktop/`: Swing desktop shell, CLI entry point, editor adapter, and CodeMirror bridge asset.
+- `core/`: serializable `ThreadworkDocument`/node model, classification, diagnostics, and validation.
+- `storage-json/`: repository mutations and `.orch` JSON persistence.
+- `completion-core/`: model- and technology-aware editor completions.
+- `compiler-api/`: compiler, virtual-file, and layout-strategy contracts.
+- `compilers-impl/`: generic/template, Kotlin, Node.js, PHP, and compiler-compiler implementations.
+- `assets/`: licensed fonts, SVG icon sources, and generated resources.
+- `app-desktop/`: CLI, Swing UI, canvas, sheet export, plugins, and code editor.
+- `spec/`: functional and architectural specifications.
 
 ## Build, Test, and Development Commands
 
-Use Gradle with a workspace-local cache:
+Use the Gradle wrapper with the workspace-local cache:
 
-- `GRADLE_USER_HOME=.gradle-user gradle test`: compile all modules and run tests.
-- `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='new build/sample.inflow.json'`: create a sample document.
-- `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='validate build/sample.inflow.json'`: validate document references.
-- `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='compile build/sample.inflow.json build/generated-sample'`: export a generated Kotlin project.
-- `GRADLE_USER_HOME=.gradle-user gradle :app-desktop:run --args='desktop'`: open the graphical editor.
+- `GRADLE_USER_HOME=.gradle-user ./gradlew test`: compile all modules and run tests.
+- `GRADLE_USER_HOME=.gradle-user ./gradlew :app-desktop:run --args='desktop'`: launch the editor.
+- `GRADLE_USER_HOME=.gradle-user ./gradlew :app-desktop:run --args='validate build/sample.orch'`: validate a project.
+- `GRADLE_USER_HOME=.gradle-user ./gradlew clean fatJar -Prelease_number=1.7.0`: create `dist/threadwork-1.7.0.jar`.
 
 ## Coding Style & Naming Conventions
 
-Kotlin code uses 4-space indentation, trailing commas in multiline declarations, and package names under `com.orchestra`. Keep model types in `core`; do not add UI, filesystem, or compiler implementation dependencies there. Markdown specs should keep concise headings and fenced code blocks.
+Use 4-space Kotlin indentation, trailing commas in multiline declarations, and packages under `com.threadwork`. Keep UI, filesystem, and concrete compiler dependencies out of `core`. Prefer established repository abstractions over parallel helpers. Preserve `.orch` compatibility unless a task explicitly changes the persisted contract.
 
 ## Testing Guidelines
 
-Tests use `kotlin.test` under each module's `src/test/kotlin`. Add tests beside the module whose behavior changes. Prefer behavior names such as `create link synchronizes endpoints` or `generates kotlin project files`. Run `gradle test` before handing off changes.
+Tests use `kotlin.test` under each module's `src/test/kotlin`. Add focused tests beside the behavior changed; broaden coverage for model, persistence, compiler, and cross-module contracts. Use descriptive behavior names such as `create link synchronizes endpoints`.
 
-## Commit & Pull Request Guidelines
+## Commits & Pull Requests
 
-This repository has no commit history yet, so use a simple imperative style for commits:
-
-- `Add object model addendum`
-- `Clarify node link semantics`
-- `Document initial test strategy`
-
-Pull requests should include a short summary, affected modules/spec files, and test results. Link related issues when available. For future UI changes, include screenshots or before/after examples.
+Use imperative, scoped commits such as `Rename application to Threadwork`. Pull requests should summarize behavior, list affected modules/specs, report test results, link issues, and include screenshots for visible UI changes.
 
 ## Agent-Specific Instructions
 
-Keep edits scoped and preserve user-authored content. Do not rename spec files or reorganize modules unless the task explicitly requires it.
+Preserve user-authored project content and unrelated worktree changes. Do not reorganize modules or rename specification files unless explicitly required.

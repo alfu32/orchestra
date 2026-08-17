@@ -1,5 +1,5 @@
 {
-  "name": "orchestra/{{ safePackageName }}",
+  "name": "threadwork/{{ safePackageName }}",
   "type": "project",
   "require": {}
 }

@@ -1,4 +1,4 @@
-# InFlow Rewrite — Technical Specification
+# Threadwork Rewrite — Technical Specification
 
 ## 1. Project Objective
 
@@ -163,7 +163,7 @@ Kotlin serialization supports serializable Kotlin classes and JSON encode/decode
 Recommended Gradle module layout:
 
 ```text
-inflow/
+threadwork/
 ├── settings.gradle.kts
 ├── build.gradle.kts
 ├── core/
@@ -552,7 +552,7 @@ identifies the transported payload type. For example, links named
 `WorkOrder`.
 
 The compiler decides whether `payloadDefinition` is a C struct, Kotlin class,
-JSON schema, CSV header, or another technology-specific declaration. Orchestra
+JSON schema, CSV header, or another technology-specific declaration. Threadwork
 does not interpret that text independently of the selected compiler.
 
 ---
@@ -563,7 +563,7 @@ The active project shall be represented by a document object:
 
 ```kotlin
 @Serializable
-data class InflowDocument(
+data class ThreadworkDocument(
     val id: String,
     var name: String,
     var rootNodeId: NodeId,
@@ -614,7 +614,7 @@ The repository holds one active document.
 
 ```kotlin
 interface DocumentRepository {
-    fun getDocument(): InflowDocument
+    fun getDocument(): ThreadworkDocument
 
     fun getNode(id: NodeId): Node?
     fun requireNode(id: NodeId): Node
@@ -652,8 +652,8 @@ interface DocumentRepository {
 
 ```kotlin
 interface JsonDocumentStore {
-    fun save(document: InflowDocument, filePath: Path)
-    fun load(filePath: Path): InflowDocument
+    fun save(document: ThreadworkDocument, filePath: Path)
+    fun load(filePath: Path): ThreadworkDocument
 }
 ```
 
@@ -670,7 +670,7 @@ A saved project file shall contain the full document.
 Suggested extension:
 
 ```text
-.inflow.json
+.threadwork.json
 ```
 
 Example structure:
@@ -1146,7 +1146,7 @@ interface TechnologyCompletionProvider {
 
     fun getSuggestions(
         node: Node,
-        document: InflowDocument,
+        document: ThreadworkDocument,
         request: CompletionRequest
     ): List<CompletionSuggestion>
 }
@@ -1178,12 +1178,12 @@ interface CompilerPlugin {
     val id: String
     val displayName: String
 
-    fun supports(document: InflowDocument): Boolean
+    fun supports(document: ThreadworkDocument): Boolean
 
-    fun validate(document: InflowDocument): List<CompilerDiagnostic>
+    fun validate(document: ThreadworkDocument): List<CompilerDiagnostic>
 
     fun compile(
-        document: InflowDocument,
+        document: ThreadworkDocument,
         options: CompilerOptions
     ): CompilationResult
 }
@@ -1490,7 +1490,7 @@ Deliver:
 
 ```text
 - Node
-- InflowDocument
+- ThreadworkDocument
 - NodeLayout
 - NodeText
 - NodePort

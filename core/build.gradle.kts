@@ -9,11 +9,11 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
-val releaseNumber = rootProject.extra["orchestraReleaseNumber"] as String
-val gitCommitId = rootProject.extra["orchestraGitCommitId"] as String
-val gitTag = rootProject.extra["orchestraGitTag"] as String?
-val buildDate = rootProject.extra["orchestraBuildDate"] as String
-val versionSource = layout.projectDirectory.file("src/main/kotlin/com/orchestra/Version.kt")
+val releaseNumber = rootProject.extra["threadworkReleaseNumber"] as String
+val gitCommitId = rootProject.extra["threadworkGitCommitId"] as String
+val gitTag = rootProject.extra["threadworkGitTag"] as String?
+val buildDate = rootProject.extra["threadworkBuildDate"] as String
+val versionSource = layout.projectDirectory.file("src/main/kotlin/com/threadwork/Version.kt")
 
 val generateVersionSource = tasks.register("generateVersionSource") {
     inputs.property("releaseNumber", releaseNumber)
@@ -28,7 +28,7 @@ val generateVersionSource = tasks.register("generateVersionSource") {
         file.parentFile.mkdirs()
         file.writeText(
             """
-            package com.orchestra
+            package com.threadwork
 
             data class Version(
                 val semver: String,

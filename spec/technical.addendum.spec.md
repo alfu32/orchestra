@@ -58,7 +58,7 @@ The desktop application acts as the host platform.
                          v
 +------------------------------------------------------+
 | Core Model                                           |
-| - InflowDocument                                     |
+| - ThreadworkDocument                                     |
 | - Node                                               |
 | - NodeText                                           |
 | - NodeLayout                                         |
@@ -101,13 +101,13 @@ Example layout:
 
 ```text
 plugins/
-├── inflow-compiler-kotlin-jvm.jar
-├── inflow-compiler-python.jar
-├── inflow-technology-kotlin-jvm.jar
-├── inflow-testrunner-kotlin-jvm.jar
-├── inflow-analytics-structure.jar
-├── inflow-pm-kanban.jar
-└── inflow-export-human-workflow.jar
+├── threadwork-compiler-kotlin-jvm.jar
+├── threadwork-compiler-python.jar
+├── threadwork-technology-kotlin-jvm.jar
+├── threadwork-testrunner-kotlin-jvm.jar
+├── threadwork-analytics-structure.jar
+├── threadwork-pm-kanban.jar
+└── threadwork-export-human-workflow.jar
 ```
 
 At startup, the application shall:
@@ -164,7 +164,7 @@ Security isolation may be added later if untrusted third-party plugins become a 
 All plugins shall implement a base interface.
 
 ```kotlin
-interface InflowPlugin {
+interface ThreadworkPlugin {
     val id: String
     val displayName: String
     val version: String
@@ -182,13 +182,13 @@ The plugin id must be stable.
 Recommended naming convention:
 
 ```text
-inflow.compiler.kotlin.jvm
-inflow.compiler.python
-inflow.technology.kotlin.jvm
-inflow.testrunner.kotlin.jvm
-inflow.analytics.structure
-inflow.pm.kanban
-inflow.export.human.workflow
+threadwork.compiler.kotlin.jvm
+threadwork.compiler.python
+threadwork.technology.kotlin.jvm
+threadwork.testrunner.kotlin.jvm
+threadwork.analytics.structure
+threadwork.pm.kanban
+threadwork.export.human.workflow
 ```
 
 The plugin id is used for:
@@ -233,7 +233,7 @@ Access shall be mediated by interfaces.
 
 ```kotlin
 interface ReadOnlyDocumentAccess {
-    fun getDocumentSnapshot(): InflowDocument
+    fun getDocumentSnapshot(): ThreadworkDocument
     fun getNode(id: NodeId): Node?
     fun requireNode(id: NodeId): Node
 }
@@ -300,16 +300,16 @@ Examples:
 
 
 Project-management plugin:
-    `pluginData["inflow.pm.kanban"]`
+    `pluginData["threadwork.pm.kanban"]`
 
 Test runner plugin:
-    `pluginData["inflow.testrunner.kotlin.jvm"]`
+    `pluginData["threadwork.testrunner.kotlin.jvm"]`
 
 Analytics plugin:
-    `pluginData["inflow.analytics.structure"]`
+    `pluginData["threadwork.analytics.structure"]`
 
 AI-agent plugin:
-    `pluginData["inflow.ai.agent.generator"]`
+    `pluginData["threadwork.ai.agent.generator"]`
 
 
 ### 8.2 Example Project-Management Plugin Data
@@ -372,51 +372,51 @@ Plugins may subscribe to document and application events.
 
 ```kotlin
 interface EventBus {
-    fun publish(event: InflowEvent)
-    fun subscribe(listener: (InflowEvent) -> Unit): Subscription
+    fun publish(event: ThreadworkEvent)
+    fun subscribe(listener: (ThreadworkEvent) -> Unit): Subscription
 }
 ```
 
 Events:
 
 ```kotlin
-sealed interface InflowEvent
+sealed interface ThreadworkEvent
 
 data class DocumentLoadedEvent(
     val documentId: String
-) : InflowEvent
+) : ThreadworkEvent
 
 data class DocumentSavedEvent(
     val documentId: String
-) : InflowEvent
+) : ThreadworkEvent
 
 data class NodeCreatedEvent(
     val nodeId: NodeId
-) : InflowEvent
+) : ThreadworkEvent
 
 data class NodeUpdatedEvent(
     val nodeId: NodeId
-) : InflowEvent
+) : ThreadworkEvent
 
 data class NodeDeletedEvent(
     val nodeId: NodeId
-) : InflowEvent
+) : ThreadworkEvent
 
 data class SelectionChangedEvent(
     val selectedNodeIds: List<NodeId>
-) : InflowEvent
+) : ThreadworkEvent
 
 data class CompilationCompletedEvent(
     val result: CompilationResult
-) : InflowEvent
+) : ThreadworkEvent
 
 data class TestRunCompletedEvent(
     val result: TestRunResult
-) : InflowEvent
+) : ThreadworkEvent
 
 data class DiagnosticsChangedEvent(
     val sourcePluginId: String?
-) : InflowEvent
+) : ThreadworkEvent
 ```
 
 Use cases:
@@ -500,17 +500,17 @@ Examples:
 Interface:
 
 ```kotlin
-interface CompilerPlugin : InflowPlugin {
-    fun supports(document: InflowDocument): Boolean
+interface CompilerPlugin : ThreadworkPlugin {
+    fun supports(document: ThreadworkDocument): Boolean
 
     fun validate(
         context: PluginContext,
-        document: InflowDocument
+        document: ThreadworkDocument
     ): List<Diagnostic>
 
     fun compile(
         context: PluginContext,
-        document: InflowDocument,
+        document: ThreadworkDocument,
         options: CompilerOptions
     ): CompilationResult
 }
@@ -563,7 +563,7 @@ They may provide:
 Interface:
 
 ```kotlin
-interface TechnologyPlugin : InflowPlugin {
+interface TechnologyPlugin : ThreadworkPlugin {
     fun getTechnologies(): List<TechnologyDescriptor>
 
     fun getDefaultTemplate(
@@ -623,7 +623,7 @@ The completion service shall aggregate suggestions from:
 Interface:
 
 ```kotlin
-interface CompletionPlugin : InflowPlugin {
+interface CompletionPlugin : ThreadworkPlugin {
     fun getSuggestions(
         context: PluginContext,
         request: CompletionRequest
@@ -710,15 +710,15 @@ They may run tests for:
 Interface:
 
 ```kotlin
-interface TestRunnerPlugin : InflowPlugin {
+interface TestRunnerPlugin : ThreadworkPlugin {
     fun supports(
         node: Node,
-        document: InflowDocument
+        document: ThreadworkDocument
     ): Boolean
 
     fun runTests(
         context: PluginContext,
-        document: InflowDocument,
+        document: ThreadworkDocument,
         nodeId: NodeId,
         options: TestRunOptions
     ): TestRunResult
@@ -781,10 +781,10 @@ Examples:
 Interface:
 
 ```kotlin
-interface AnalyticsPlugin : InflowPlugin {
+interface AnalyticsPlugin : ThreadworkPlugin {
     fun analyze(
         context: PluginContext,
-        document: InflowDocument,
+        document: ThreadworkDocument,
         selection: NodeSelection?
     ): AnalyticsReport
 }
@@ -831,7 +831,7 @@ Examples:
 Interface:
 
 ```kotlin
-interface ProjectManagementPlugin : InflowPlugin {
+interface ProjectManagementPlugin : ThreadworkPlugin {
     fun getStatusDescriptors(): List<ProjectStatusDescriptor>
 
     fun getNodeStatus(
@@ -883,12 +883,12 @@ Examples:
 Interface:
 
 ```kotlin
-interface ExportPlugin : InflowPlugin {
-    fun supports(document: InflowDocument): Boolean
+interface ExportPlugin : ThreadworkPlugin {
+    fun supports(document: ThreadworkDocument): Boolean
 
     fun export(
         context: PluginContext,
-        document: InflowDocument,
+        document: ThreadworkDocument,
         options: ExportOptions
     ): ExportResult
 }
@@ -905,7 +905,7 @@ interface PluginManager {
     fun loadPlugins(pluginDirectory: Path)
     fun shutdownPlugins()
 
-    fun getAllPlugins(): List<InflowPlugin>
+    fun getAllPlugins(): List<ThreadworkPlugin>
 
     fun getCompilerPlugins(): List<CompilerPlugin>
     fun getTechnologyPlugins(): List<TechnologyPlugin>
@@ -943,14 +943,14 @@ Each plugin JAR shall include provider declarations under:
 
 Example:
 
-`META-INF/services/com.inflow.plugin.api.InflowPlugin`
+`META-INF/services/com.threadwork.plugin.api.ThreadworkPlugin`
 
 Content:
 
 ```java
-com.example.inflow.kotlin.KotlinJvmCompilerPlugin
-com.example.inflow.kotlin.KotlinJvmTechnologyPlugin
-com.example.inflow.kotlin.KotlinJvmTestRunnerPlugin
+com.example.threadwork.kotlin.KotlinJvmCompilerPlugin
+com.example.threadwork.kotlin.KotlinJvmTechnologyPlugin
+com.example.threadwork.kotlin.KotlinJvmTestRunnerPlugin
 ```
 
 A plugin JAR may expose multiple plugin classes.
@@ -1014,7 +1014,7 @@ Failures shall be reported as diagnostics or plugin manager errors.
 Example diagnostic:
 
 ```
-Plugin inflow.compiler.kotlin.jvm failed during compile:
+Plugin threadwork.compiler.kotlin.jvm failed during compile:
 NullPointerException while generating node read_assoc_smt.
 ```
 
@@ -1049,7 +1049,7 @@ Later, more sophisticated compatibility checks may be added.
 ## 25. Recommended Module Layout
 
 ```text
-inflow/
+threadwork/
 ├── core/
 │   ├── model
 │   ├── diagnostics
@@ -1061,7 +1061,7 @@ inflow/
 │   └── JSON save/load
 │
 ├── plugin-api/
-│   ├── InflowPlugin
+│   ├── ThreadworkPlugin
 │   ├── PluginContext
 │   ├── DocumentAccess
 │   ├── Diagnostics

@@ -12,7 +12,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "orchestra"
+rootProject.name = "threadwork"
 
 include(
     "core",

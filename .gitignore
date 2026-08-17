@@ -3,7 +3,7 @@
 build
 dist
 .kotlin
-core/src/main/kotlin/com/orchestra/Version.kt
+core/src/main/kotlin/com/threadwork/Version.kt
 .idea
 assets/fonts/**/*.zip
 generated

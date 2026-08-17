@@ -51,7 +51,7 @@ fun renderSvgToPng(source: java.io.File, target: java.io.File, width: Int, heigh
     val batikSource = source.takeIf { svg ->
         svg.readText().contains("context-stroke") || svg.readText().contains("context-fill")
     }?.let { svg ->
-        Files.createTempFile("orchestra-svg-", ".svg").toFile().apply {
+        Files.createTempFile("threadwork-svg-", ".svg").toFile().apply {
             writeText(
                 svg.readText()
                     .replace("context-stroke", "#000000")
