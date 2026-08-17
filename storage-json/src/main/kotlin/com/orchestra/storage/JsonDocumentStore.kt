@@ -6,6 +6,7 @@ import com.orchestra.core.model.NodeId
 import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.Revision
+import com.orchestra.core.model.projectName
 import com.orchestra.core.validation.DocumentValidator
 import java.nio.file.Files
 import java.nio.file.Path
@@ -33,7 +34,7 @@ class KotlinxJsonDocumentStore(
         filePath.parent?.let(Files::createDirectories)
         val file = InflowDocumentFile(
             id = document.id,
-            name = document.name,
+            name = document.projectName(),
             rootNodeId = document.rootNodeId,
             nodes = orderedNodes(document),
             metadata = document.metadata.toMutableMap(),
@@ -45,6 +46,7 @@ class KotlinxJsonDocumentStore(
     override fun load(filePath: Path): InflowDocument {
         val document = decodeDocument(Files.readString(filePath))
         repairDocument(document)
+        document.name = document.projectName()
         val errors = DocumentValidator.validate(document).filter { it.severity.name == "Error" }
         require(errors.isEmpty()) {
             errors.joinToString(prefix = "Invalid document:\n", separator = "\n") { "- ${it.message}" }

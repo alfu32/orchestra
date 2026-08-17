@@ -47,6 +47,7 @@ import com.orchestra.core.model.effectiveResponsible
 import com.orchestra.core.model.effectiveRevision
 import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.model.effectiveTextLanguageId
+import com.orchestra.core.model.projectName
 import com.orchestra.core.model.rootNode
 import com.orchestra.storage.DocumentRepository
 import com.orchestra.storage.InMemoryDocumentRepository
@@ -841,16 +842,12 @@ class OrchestraDesktopApp(
             JOptionPane.showMessageDialog(frame, "No compiler plugin supports this project.", "Compile", JOptionPane.ERROR_MESSAGE)
             return
         }
-        val output = chooseOutputDirectory() ?: return
         val scopedSelection = selection
             .filter { it in document.nodes }
             .toSet()
-        val projectName = if (scopedSelection.isEmpty()) {
-            currentFile?.fileName?.toString()?.substringBeforeLast('.')?.takeIf { it.isNotBlank() }
-                ?: document.name
-        } else {
-            document.name
-        }
+        val outputName = if (scopedSelection.isEmpty()) currentProjectFileStem() ?: document.projectName() else "generated"
+        val output = chooseOutputDirectory(outputName) ?: return
+        val projectName = document.projectName()
         val result = compiler.compile(
             document,
             CompilerOptions(
@@ -897,7 +894,7 @@ class OrchestraDesktopApp(
             return
         }
         val output = chooseOutputDirectory() ?: return
-        val result = compilerCompiler.compile(document, CompilerOptions(projectName = document.name))
+        val result = compilerCompiler.compile(document, CompilerOptions(projectName = document.projectName()))
         val diagnostics = result.diagnostics.joinToString(separator = "\n") { "${it.severity}: ${it.message}" }
         val generatedProject = result.generatedProject
         if (!result.success || generatedProject == null || result.diagnostics.any { it.severity == DiagnosticSeverity.Error }) {
@@ -938,16 +935,19 @@ class OrchestraDesktopApp(
             supporting.firstOrNull()
     }
 
-    private fun chooseOutputDirectory(): Path? {
+    private fun chooseOutputDirectory(suggestedName: String = "generated"): Path? {
         val dialog = FileDialog(frame, "Choose compile output directory", FileDialog.SAVE).apply {
             directory = currentFile?.parent?.toString() ?: Path.of(".").toAbsolutePath().toString()
-            file = currentFile?.parent?.resolve("generated")?.fileName?.toString() ?: "generated"
+            file = suggestedName
         }
         dialog.isVisible = true
         val directory = dialog.directory?.takeIf { it.isNotBlank() } ?: return null
         val file = dialog.file?.takeIf { it.isNotBlank() }
         return if (file == null) Path.of(directory) else Path.of(directory).resolve(file)
     }
+
+    private fun currentProjectFileStem(): String? =
+        currentFile?.fileName?.toString()?.substringBeforeLast('.')?.takeIf(String::isNotBlank)
 
     private fun documentSnapshot(): String =
         historyJson.encodeToString(InflowDocument.serializer(), repository.getDocument())

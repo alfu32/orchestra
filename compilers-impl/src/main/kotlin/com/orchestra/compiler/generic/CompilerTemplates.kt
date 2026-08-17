@@ -24,6 +24,7 @@ import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.model.getElementById
+import com.orchestra.core.model.projectName
 import com.orchestra.core.diagnostics.Diagnostic
 import com.orchestra.core.validation.DocumentValidator
 import io.pebbletemplates.pebble.PebbleEngine
@@ -236,7 +237,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
     }
 
     final override fun normalizedProjectName(document: InflowDocument, options: CompilerOptions): String {
-        val rawName = options.projectName?.takeIf { it.isNotBlank() } ?: document.name.ifBlank { "project" }
+        val rawName = options.projectName?.takeIf { it.isNotBlank() } ?: document.projectName()
         val template = requireTemplateSet().template(CompilerTemplateRoles.ProjectName) ?: return rawName
         return renderer.render(
             template,
@@ -394,7 +395,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
         return linkedMapOf(
             "id" to node.id.value,
             "name" to node.name,
-            "document" to mapOf("id" to document.id, "name" to document.name, "rootNodeId" to document.rootNodeId.value),
+            "document" to mapOf("id" to document.id, "name" to document.projectName(), "rootNodeId" to document.rootNodeId.value),
             "options" to mapOf("projectName" to context.projectName),
             "node" to nodeView,
             "self" to nodeView,
@@ -471,7 +472,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
         return mapOf(
             "document" to mapOf(
                 "id" to document.id,
-                "name" to document.name,
+                "name" to document.projectName(),
                 "rootNodeId" to document.rootNodeId.value,
                 "nodes" to document.nodes.values.map { nodeView(document, it) },
             ),

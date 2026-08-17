@@ -5,6 +5,19 @@ import kotlin.test.assertEquals
 
 class TechnologyMetadataResolutionTest {
     @Test
+    fun `project name comes from the root node`() {
+        val root = Node(NodeId("root"), "Renamed Project", NodeKind.Group)
+        val document = InflowDocument(
+            id = "doc",
+            name = "Untitled Orchestra",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root),
+        )
+
+        assertEquals("Renamed Project", document.projectName())
+    }
+
+    @Test
     fun `effective language and technology are inherited from nearest parent`() {
         val root = Node(
             id = NodeId("root"),

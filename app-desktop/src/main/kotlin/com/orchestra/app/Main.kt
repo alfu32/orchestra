@@ -14,6 +14,7 @@ import com.orchestra.core.model.NodePort
 import com.orchestra.core.model.PortDirection
 import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.core.model.effectiveTechnologyId
+import com.orchestra.core.model.projectName
 import com.orchestra.core.model.rootNode
 import com.orchestra.core.validation.DocumentValidator
 import com.orchestra.app.ui.defaultPluginsFolder
@@ -113,7 +114,7 @@ private fun compile(args: Array<String>) {
     val compilers = compilersFrom(pluginsFolder)
     val compiler = selectCompiler(document, compilers)
         ?: error("No compiler plugin supports ${file.fileName}")
-    val result = compiler.compile(document, CompilerOptions(projectName = document.name, compilerPlugins = compilers))
+    val result = compiler.compile(document, CompilerOptions(projectName = document.projectName(), compilerPlugins = compilers))
     result.diagnostics.forEach { println("${it.severity}: ${it.message}") }
     val generatedProject = result.generatedProject
     if (!result.success || generatedProject == null) error("Compilation failed")

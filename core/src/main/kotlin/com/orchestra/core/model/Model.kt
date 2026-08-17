@@ -151,6 +151,11 @@ const val VOID_RESPONSIBLE = "none"
 fun InflowDocument.rootNode(): Node = nodes[rootNodeId]
     ?: error("Root node '$rootNodeId' is missing")
 
+fun InflowDocument.projectName(): String =
+    nodes[rootNodeId]?.name?.trim()?.takeIf(String::isNotBlank)
+        ?: name.trim().takeIf(String::isNotBlank)
+        ?: "project"
+
 fun InflowDocument.getElementById(id: String): Node? = nodes[NodeId(id)]
 
 fun InflowDocument.getElementById(id: NodeId): Node? = nodes[id]

@@ -19,6 +19,7 @@ import com.orchestra.core.model.NodeKind
 import com.orchestra.core.model.TechnologyMetadata
 import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.getElementById
+import com.orchestra.core.model.projectName
 import com.orchestra.core.validation.DocumentValidator
 
 open class GenericCompiler : TemplateSetCompiler() {
@@ -123,7 +124,7 @@ class CompilerCompiler : CompilerPlugin {
             elementKind = GeneratedElementKind.CompilerTemplate,
         )
         return CompilationResult(
-            generatedProject = ClassifiedFilesystemLayoutStrategy.layout(document, options.projectName ?: document.name, listOf(file), options),
+            generatedProject = ClassifiedFilesystemLayoutStrategy.layout(document, options.projectName ?: document.projectName(), listOf(file), options),
             diagnostics = diagnostics,
             success = true,
         )
@@ -213,7 +214,7 @@ $templateWhen
     private fun effectiveCompilerTechnology(document: InflowDocument, node: Node): TechnologyMetadata =
         node.technology.copy(
             languageId = document.effectiveLanguageId(node.id),
-            technologyId = node.technology.technologyId.trim().ifBlank { safeCompilerId(document.name) },
+            technologyId = node.technology.technologyId.trim().ifBlank { safeCompilerId(document.projectName()) },
         )
 }
 

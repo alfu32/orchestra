@@ -104,8 +104,10 @@ class InMemoryDocumentRepository(
 
     override fun renameNode(id: NodeId, name: String) {
         val node = requireNode(id)
-        if (node.name == name) return
+        val documentNameChanged = id == document.rootNodeId && document.name != name
+        if (node.name == name && !documentNameChanged) return
         node.name = name
+        if (id == document.rootNodeId) document.name = name
         touchNodes(listOf(id))
         markDirty()
     }

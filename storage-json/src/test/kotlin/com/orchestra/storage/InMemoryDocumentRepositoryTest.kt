@@ -15,6 +15,15 @@ import kotlin.test.assertTrue
 
 class InMemoryDocumentRepositoryTest {
     @Test
+    fun `renaming the root synchronizes the legacy document name`() {
+        val repository = InMemoryDocumentRepository(newDocument("Untitled Orchestra"))
+
+        repository.renameNode(repository.getDocument().rootNodeId, "Renamed Project")
+
+        assertEquals("Renamed Project", repository.getDocument().name)
+    }
+
+    @Test
     fun `generated ids are uuid backed`() {
         val repository = InMemoryDocumentRepository(newDocument("test"))
         val node = repository.createNode(repository.getDocument().rootNodeId, "source", NodeKind.Processor)

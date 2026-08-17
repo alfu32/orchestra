@@ -15,6 +15,7 @@ import com.orchestra.core.model.effectiveLanguageId
 import com.orchestra.core.model.effectiveLayoutStrategyId
 import com.orchestra.core.model.effectiveTechnologyId
 import com.orchestra.core.model.getElementById
+import com.orchestra.core.model.projectName
 import java.nio.file.Path
 
 enum class GeneratedElementKind {
@@ -79,14 +80,14 @@ interface CompilerPlugin : FsStorage {
         compile(
             document,
             options.copy(
-                projectName = options.projectName ?: document.name,
+                projectName = options.projectName ?: document.projectName(),
                 scopeNodeIds = setOf(node.id),
                 includeScopeAncestors = false,
             ),
         ).generatedProject?.toVirtualFiles().orEmpty()
 
     override fun store(document: InflowDocument, node: Node): List<VirtualFile> =
-        store(document, node, CompilerOptions(projectName = document.name))
+        store(document, node, CompilerOptions(projectName = document.projectName()))
 
     override fun restore(document: InflowDocument, chunk: List<VirtualFile>): InflowDocument =
         document
@@ -301,7 +302,7 @@ abstract class StructuredCompiler : CompilerPlugin {
     }
 
     protected open fun normalizedProjectName(document: InflowDocument, options: CompilerOptions): String =
-        options.projectName?.takeIf { it.isNotBlank() } ?: document.name.ifBlank { "project" }
+        options.projectName?.takeIf { it.isNotBlank() } ?: document.projectName()
 
     protected open fun projectFiles(document: InflowDocument, options: CompilerOptions, projectName: String): List<GeneratedFile> =
         emptyList()
@@ -659,7 +660,7 @@ object SingleFileLayoutStrategy : LayoutStrategy {
             ?.let(document::getElementById)
             ?.name
             ?.takeIf { it.isNotBlank() }
-            ?: projectName.trim().ifBlank { document.name.ifBlank { "project" } }
+            ?: projectName.trim().ifBlank { document.projectName() }
         val extension = files.singleFileExtension()
         val content = files
             .joinToString(separator = "\n\n") { it.content.trimEnd() }
