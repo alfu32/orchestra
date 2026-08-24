@@ -1584,6 +1584,7 @@ class GraphCanvas(
             SheetFormat("A2", 420.0, 594.0),
             SheetFormat("A1", 594.0, 841.0),
             SheetFormat("A0", 841.0, 1189.0),
+            SheetFormat("A4-roll", 210.0, ROLL_MAX_LENGTH_MM, roll = true),
             SheetFormat("A3-roll", 297.0, ROLL_MAX_LENGTH_MM, roll = true),
             SheetFormat("A2-roll", 420.0, ROLL_MAX_LENGTH_MM, roll = true),
             SheetFormat("A1-roll", 594.0, ROLL_MAX_LENGTH_MM, roll = true),
