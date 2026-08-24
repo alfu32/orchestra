@@ -20,8 +20,8 @@ class SheetLayoutTest {
         assertEquals(1, layout.rows)
         assertEquals(1, layout.columns)
         assertEquals(0, layout.overlap)
-        assertEquals(550.0, layout.tiles.single().drawing.centerX)
-        assertEquals(450.0, layout.tiles.single().drawing.centerY)
+        assertEquals(550.0, layout.drawing.centerX)
+        assertEquals(450.0, layout.drawing.centerY)
     }
 
     @Test
@@ -39,11 +39,21 @@ class SheetLayoutTest {
         assertEquals(3, layout.columns)
         assertEquals(3, layout.rows)
         assertEquals(20, layout.overlap)
-        val first = layout.tiles.first().drawing
-        val right = layout.tiles.first { it.row == 0 && it.column == 1 }.drawing
-        val below = layout.tiles.first { it.row == 1 && it.column == 0 }.drawing
+        val first = layout.tiles.first().sheet
+        val right = layout.tiles.first { it.row == 0 && it.column == 1 }.sheet
+        val below = layout.tiles.first { it.row == 1 && it.column == 0 }.sheet
         assertEquals(20, first.x + first.width - right.x)
         assertEquals(20, first.y + first.height - below.y)
-        assertTrue(layout.tiles.map(SheetTile::drawing).reduce(Rectangle::union).contains(content))
+        assertTrue(layout.drawing.contains(content))
+        assertEquals(
+            Rectangle(
+                layout.bounds.x + 20,
+                layout.bounds.y + 20,
+                layout.bounds.width - 40,
+                layout.bounds.height - 40,
+            ),
+            layout.drawing,
+        )
+        assertTrue(layout.tiles.all { it.sheet.width == 400 && it.sheet.height == 300 })
     }
 }

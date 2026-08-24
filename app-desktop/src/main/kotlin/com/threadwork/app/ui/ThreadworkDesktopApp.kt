@@ -1530,6 +1530,9 @@ class GraphCanvas(
         val scale: Int,
         val pages: List<SheetPage>,
         val overlap: Int,
+        val drawing: Rectangle,
+        val titleBlock: Rectangle,
+        val partsList: Rectangle,
         val contentBounds: Rectangle,
         val scopeIds: Set<NodeId>,
         val bomRows: List<BomRow>,
@@ -1542,9 +1545,6 @@ class GraphCanvas(
         val row: Int,
         val column: Int,
         val sheet: Rectangle,
-        val drawing: Rectangle,
-        val titleBlock: Rectangle,
-        val partsList: Rectangle,
     )
     private data class RouteSegment(val a: Point, val b: Point, val linkId: NodeId)
     private data class SheetCandidate(
@@ -2236,15 +2236,8 @@ class GraphCanvas(
         g2.color = Color.WHITE
         g2.fill(activePlan.sheet)
         if (includeGrid) drawGrid(g2, activePlan.sheet)
-        activePlan.pages.forEach { page ->
-            drawSheetPage(
-                g2,
-                activePlan,
-                page,
-                drawPageBoundary = drawPreviewGuides,
-                drawRegistrationMarks = drawPreviewGuides,
-            )
-        }
+        drawTechnicalSheet(g2, activePlan)
+        if (drawPreviewGuides) drawSheetPreviewGuides(g2, activePlan)
         g2.font = previousFont
         g2.stroke = previousStroke
     }
@@ -2262,26 +2255,18 @@ class GraphCanvas(
         g2.stroke = previousStroke
     }
 
-    private fun drawSheetPage(
+    private fun drawTechnicalSheet(
         g2: Graphics2D,
         plan: SheetPlan,
-        page: SheetPage,
-        drawPageBoundary: Boolean,
-        drawRegistrationMarks: Boolean,
     ) {
-        val sheet = page.sheet
+        val sheet = plan.sheet
         val scale = plan.scale
-        if (drawPageBoundary) {
-            g2.color = Color(0x999999)
-            g2.stroke = BasicStroke((0.5 * scale).toFloat().coerceAtLeast(0.5f))
-            g2.draw(sheet)
-        }
         drawFoldingMarkers(g2, sheet, scale)
         g2.color = Color(0x777777)
         g2.stroke = BasicStroke(1f * scale)
-        g2.draw(page.drawing)
+        g2.draw(plan.drawing)
 
-        val titleBlock = page.titleBlock
+        val titleBlock = plan.titleBlock
         val rowHeight = titleBlock.height / 5
         val firstColumn = titleBlock.x + sheetMm(45.0, scale)
         val secondColumn = titleBlock.x + sheetMm(112.0, scale)
@@ -2307,7 +2292,7 @@ class GraphCanvas(
         g2.drawString("Scale 1:${plan.scale}", secondColumn + inset, secondRowBaseline)
         g2.drawString("version ${versionTimestamp()}", titleBlock.x + inset, bottomBaseline)
 
-        val partsList = page.partsList
+        val partsList = plan.partsList
         val partsRowHeight = sheetUnits(PARTS_ROW_HEIGHT, scale)
         g2.color = Color(0xb0b0b0)
         g2.draw(partsList)
@@ -2331,7 +2316,6 @@ class GraphCanvas(
                 g2.drawString(value, partsList.x + plan.partsColumns.offsets[columnIndex] + sheetUnits(4, scale), y)
             }
         }
-        if (plan.isMultipage && drawRegistrationMarks) drawAlignmentCrosses(g2, plan, page)
     }
 
     private fun sheetPlan(requestMultipage: Boolean = multipagePdfEnabled): SheetPlan? {
@@ -2348,13 +2332,9 @@ class GraphCanvas(
         val partsRequiredHeight = ((bomRows.size + 2) * partsRowHeight).coerceAtLeast(sheetMm(80.0, scale))
         val gap = sheetMm(8.0, scale)
 
-        val overlayWidth = max(partsWidth, titleWidth)
-        val overlayHeight = partsRequiredHeight + titleHeight + gap
-        val requiredWidth = margin * 2 + max(contentBounds.width, overlayWidth)
-        val requiredHeight = margin * 2 + max(contentBounds.height, overlayHeight)
-        val occupiedArea = contentBounds.width.toDouble() * contentBounds.height +
-            partsWidth.toDouble() * partsRequiredHeight +
-            titleWidth.toDouble() * titleHeight
+        val requiredWidth = margin * 2 + contentBounds.width
+        val requiredHeight = margin * 2 + contentBounds.height
+        val occupiedArea = contentBounds.width.toDouble() * contentBounds.height
         val best = when (val choice = sheetFormatChoice) {
             AUTO_SHEET_FORMAT -> autoSheetCandidate(requiredWidth, requiredHeight, occupiedArea, scale)
             else -> SHEET_FORMATS.firstOrNull { it.id == choice }?.let {
@@ -2373,29 +2353,39 @@ class GraphCanvas(
             requestedOverlap = sheetMm(sheetOverlapMm, scale),
             multipage = tiled,
         )
+        val drawing = tileLayout.drawing
+        val titleBlock = Rectangle(
+            drawing.x + drawing.width - titleWidth,
+            drawing.y + drawing.height - titleHeight,
+            titleWidth,
+            titleHeight,
+        )
+        val partsHeight = partsRequiredHeight.coerceAtMost((titleBlock.y - drawing.y - gap).coerceAtLeast(partsRowHeight * 2))
         val pages = tileLayout.tiles.map { tile ->
-            val titleBlock = Rectangle(
-                tile.drawing.x + tile.drawing.width - titleWidth,
-                tile.drawing.y + tile.drawing.height - titleHeight,
-                titleWidth,
-                titleHeight,
-            )
-            val partsHeight = partsRequiredHeight.coerceAtMost((titleBlock.y - tile.drawing.y - gap).coerceAtLeast(partsRowHeight * 2))
             SheetPage(
                 row = tile.row,
                 column = tile.column,
                 sheet = tile.sheet,
-                drawing = tile.drawing,
-                titleBlock = titleBlock,
-                partsList = Rectangle(
-                    tile.drawing.x + tile.drawing.width - partsWidth,
-                    tile.drawing.y + gap,
-                    partsWidth,
-                    partsHeight,
-                ),
             )
         }
-        return SheetPlan(format, scale, pages, tileLayout.overlap, contentBounds, scopeIds, bomRows, partsColumns)
+        return SheetPlan(
+            format = format,
+            scale = scale,
+            pages = pages,
+            overlap = tileLayout.overlap,
+            drawing = drawing,
+            titleBlock = titleBlock,
+            partsList = Rectangle(
+                drawing.x + drawing.width - partsWidth,
+                drawing.y + gap,
+                partsWidth,
+                partsHeight,
+            ),
+            contentBounds = contentBounds,
+            scopeIds = scopeIds,
+            bomRows = bomRows,
+            partsColumns = partsColumns,
+        )
     }
 
     private fun autoSheetCandidate(
@@ -2552,12 +2542,12 @@ class GraphCanvas(
         val lastColumn = plan.pages.maxOf(SheetPage::column)
         val halfOverlap = plan.overlap / 2
         val horizontalCrosses = listOf(
-            page.drawing.x + page.drawing.width / 4,
-            page.drawing.x + page.drawing.width * 3 / 4,
+            page.sheet.x + page.sheet.width / 4,
+            page.sheet.x + page.sheet.width * 3 / 4,
         )
         val verticalCrosses = listOf(
-            page.drawing.y + page.drawing.height / 4,
-            page.drawing.y + page.drawing.height * 3 / 4,
+            page.sheet.y + page.sheet.height / 4,
+            page.sheet.y + page.sheet.height * 3 / 4,
         )
         val crossRadius = sheetMm(3.0, plan.scale)
         val previousColor = g2.color
@@ -2566,16 +2556,16 @@ class GraphCanvas(
         g2.stroke = BasicStroke((0.6 * plan.scale).toFloat().coerceAtLeast(0.6f))
 
         if (page.row > 0) {
-            horizontalCrosses.forEach { drawAlignmentCross(g2, it, page.drawing.y + halfOverlap, crossRadius) }
+            horizontalCrosses.forEach { drawAlignmentCross(g2, it, page.sheet.y + halfOverlap, crossRadius) }
         }
         if (page.row < lastRow) {
-            horizontalCrosses.forEach { drawAlignmentCross(g2, it, page.drawing.y + page.drawing.height - halfOverlap, crossRadius) }
+            horizontalCrosses.forEach { drawAlignmentCross(g2, it, page.sheet.y + page.sheet.height - halfOverlap, crossRadius) }
         }
         if (page.column > 0) {
-            verticalCrosses.forEach { drawAlignmentCross(g2, page.drawing.x + halfOverlap, it, crossRadius) }
+            verticalCrosses.forEach { drawAlignmentCross(g2, page.sheet.x + halfOverlap, it, crossRadius) }
         }
         if (page.column < lastColumn) {
-            verticalCrosses.forEach { drawAlignmentCross(g2, page.drawing.x + page.drawing.width - halfOverlap, it, crossRadius) }
+            verticalCrosses.forEach { drawAlignmentCross(g2, page.sheet.x + page.sheet.width - halfOverlap, it, crossRadius) }
         }
         g2.color = previousColor
         g2.stroke = previousStroke
@@ -2588,7 +2578,6 @@ class GraphCanvas(
 
     private fun renderSheetImage(): BufferedImage? {
         val plan = sheetPlan(requestMultipage = false) ?: return null
-        val page = plan.pages.single()
         val image = BufferedImage(plan.sheet.width, plan.sheet.height, BufferedImage.TYPE_INT_ARGB)
         val g2 = image.createGraphics()
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
@@ -2598,8 +2587,8 @@ class GraphCanvas(
         g2.translate(-plan.sheet.x, -plan.sheet.y)
         val previousClip = g2.clip
         g2.clip = plan.sheet
-        drawIsoSheet(g2, plan, includeGrid = false)
-        g2.clip = page.drawing
+        drawIsoSheet(g2, plan, includeGrid = false, drawPreviewGuides = false)
+        g2.clip = plan.drawing
         drawGraph(g2, plan.scopeIds)
         g2.clip = previousClip
         g2.dispose()
@@ -2627,13 +2616,12 @@ class GraphCanvas(
     }
 
     private fun svgSheet(svg: StringBuilder, plan: SheetPlan) {
-        val page = plan.pages.single()
-        val sheet = page.sheet
+        val sheet = plan.sheet
         svgRect(svg, sheet, fill = "#ffffff", stroke = "#999999")
         svgFoldingMarkers(svg, sheet, plan.scale)
-        svgRect(svg, page.drawing, fill = "none", stroke = "#777777")
+        svgRect(svg, plan.drawing, fill = "none", stroke = "#777777")
 
-        val titleBlock = page.titleBlock
+        val titleBlock = plan.titleBlock
         val scale = plan.scale
         val rowHeight = titleBlock.height / 5
         val firstColumn = titleBlock.x + sheetMm(45.0, scale)
@@ -2657,7 +2645,7 @@ class GraphCanvas(
         svgText(svg, "Scale 1:${plan.scale}", secondColumn + inset, secondRowBaseline, textSize, "#444444")
         svgText(svg, "version ${versionTimestamp()}", titleBlock.x + inset, titleBlock.y + titleBlock.height - sheetUnits(8, scale), textSize, "#444444")
 
-        val partsList = page.partsList
+        val partsList = plan.partsList
         val partsRowHeight = sheetUnits(PARTS_ROW_HEIGHT, scale)
         svgRect(svg, partsList, fill = "none", stroke = "#b0b0b0")
         svgText(svg, "Parts List", partsList.x + sheetUnits(8, scale), partsList.y + sheetUnits(15, scale), 10 * scale, "#444444")
@@ -3063,8 +3051,9 @@ class GraphCanvas(
         g2.scale(1.0 / plan.scale, 1.0 / plan.scale)
         g2.translate(-page.sheet.x, -page.sheet.y)
         g2.clip = page.sheet
-        drawSheetPage(g2, plan, page, drawPageBoundary = false, drawRegistrationMarks = false)
-        g2.clip = page.drawing
+        drawTechnicalSheet(g2, plan)
+        g2.clip = page.sheet
+        g2.clip(plan.drawing)
         drawGraph(g2, plan.scopeIds)
         g2.clip = page.sheet
         if (plan.isMultipage) drawAlignmentCrosses(g2, plan, page)

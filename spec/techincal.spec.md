@@ -924,13 +924,17 @@ responsible for arranging content around them.
 
 For fixed ISO formats, the user may enable multipage PDF layout. When the
 transformed bounding box exceeds one page, the planner covers it with the
-required number of rows and columns. Adjacent page drawing windows overlap in
-paper space by a configurable distance, defaulting to 5 mm. Preview page seams
-are rendered as thin guides above the drawing and are omitted from export.
-Exported pages instead carry matching registration crosses inside overlap zones
-to support alignment after printing and assembly. The PDF contains one physical
-page per planned tile. Multipage layout does not apply to roll formats; disabling
-it retains the single-sheet planning behavior. The editor grid is never exported.
+required number of rows and columns. These tiles are overlapping viewports onto
+one assembled technical sheet, not independent technical sheets: the drawing
+frame, title block, parts list, and folding marks occur once in assembled-sheet
+coordinates and are clipped across physical pages as necessary. Adjacent page
+windows overlap in paper space by a configurable distance, defaulting to 5 mm.
+Preview page seams are rendered as thin guides above the drawing and are omitted
+from export. Exported pages instead carry matching registration crosses inside
+overlap zones to support alignment after printing and assembly. The PDF contains
+one physical page per planned tile. Multipage layout does not apply to roll
+formats; disabling it retains the single-sheet planning behavior. The editor
+grid is never exported.
 
 ---
 
