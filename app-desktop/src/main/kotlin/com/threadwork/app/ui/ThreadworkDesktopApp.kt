@@ -91,7 +91,6 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseWheelEvent
 import java.awt.image.BufferedImage
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FilenameFilter
 import java.io.StringReader
@@ -112,6 +111,7 @@ import javax.swing.ButtonGroup
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
+import javax.swing.JCheckBox
 import javax.swing.JComponent
 import javax.swing.JDialog
 import javax.swing.DropMode
@@ -326,6 +326,19 @@ class ThreadworkDesktopApp(
                 preferredSize = Dimension(80, preferredSize.height)
                 maximumSize = preferredSize
             })
+            add(JCheckBox("Multi-page PDF").apply {
+                toolTipText = "Split fixed-format PDF output across multiple overlapping pages."
+                isSelected = canvas.isMultipagePdfEnabled()
+                addActionListener { canvas.setMultipagePdfEnabled(isSelected) }
+            })
+            add(JLabel("Overlap"))
+            add(JSpinner(SpinnerNumberModel(canvas.sheetOverlapMm(), 0.0, 50.0, 0.5)).apply {
+                toolTipText = "Paper-space overlap between adjacent pages, in millimetres."
+                preferredSize = Dimension(64, preferredSize.height)
+                maximumSize = preferredSize
+                addChangeListener { canvas.setSheetOverlapMm((value as Number).toDouble()) }
+            })
+            add(JLabel("mm"))
             pluginToolbarButtons.forEach { button ->
                 add(JButton(button.label).apply { addActionListener { button.action() } })
             }
@@ -1463,6 +1476,8 @@ class GraphCanvas(
     private var showSheet = false
     private var sheetFormatChoice = AUTO_SHEET_FORMAT
     private var sheetScale = 1
+    private var multipagePdfEnabled = false
+    private var sheetOverlapMm = DEFAULT_SHEET_OVERLAP_MM
     private var designerFont: Font = ThreadworkFonts.designerFont(13f)
     private val routeCache = mutableMapOf<NodeId, LinkRoute>()
     private val activeRouteLinks = mutableSetOf<NodeId>()
@@ -1513,14 +1528,23 @@ class GraphCanvas(
     private data class SheetPlan(
         val format: SheetFormat,
         val scale: Int,
-        val sheet: Rectangle,
-        val drawing: Rectangle,
-        val titleBlock: Rectangle,
-        val partsList: Rectangle,
+        val pages: List<SheetPage>,
+        val overlap: Int,
         val contentBounds: Rectangle,
         val scopeIds: Set<NodeId>,
         val bomRows: List<BomRow>,
         val partsColumns: PartsListColumns,
+    ) {
+        val sheet: Rectangle = pages.map(SheetPage::sheet).reduce(Rectangle::union)
+        val isMultipage: Boolean get() = pages.size > 1
+    }
+    private data class SheetPage(
+        val row: Int,
+        val column: Int,
+        val sheet: Rectangle,
+        val drawing: Rectangle,
+        val titleBlock: Rectangle,
+        val partsList: Rectangle,
     )
     private data class RouteSegment(val a: Point, val b: Point, val linkId: NodeId)
     private data class SheetCandidate(
@@ -1529,7 +1553,7 @@ class GraphCanvas(
         val height: Int,
         val coverage: Double,
     ) {
-        val area: Int get() = width * height
+        val area: Long get() = width.toLong() * height
     }
     private data class CompositeTextMetrics(
         val titleSize: Float,
@@ -1570,9 +1594,10 @@ class GraphCanvas(
         const val COMPOSITE_TEXT_MAX_MODEL_SIZE = 256.0
         const val SHEET_UNITS_PER_MM = 4.0
         const val SHEET_MARGIN_MM = 10.0
-        const val DRAWING_PAD_MM = 12.0
         const val TITLE_BLOCK_WIDTH_MM = 180.0
         const val TITLE_BLOCK_HEIGHT_MM = 36.0
+        const val DEFAULT_SHEET_OVERLAP_MM = 5.0
+        const val PDF_POINTS_PER_MM = 72.0 / 25.4
         val compilerDesignStereotypes = setOf(NodeStereotype.CompilerTemplate, NodeStereotype.StaticFile)
         const val PARTS_ROW_HEIGHT = 20
         const val ROLL_MAX_LENGTH_MM = 1500.0
@@ -1678,6 +1703,25 @@ class GraphCanvas(
         repaint()
     }
 
+    fun isMultipagePdfEnabled(): Boolean = multipagePdfEnabled
+
+    fun setMultipagePdfEnabled(enabled: Boolean) {
+        if (multipagePdfEnabled == enabled) return
+        multipagePdfEnabled = enabled
+        invalidateRenderCache()
+        repaint()
+    }
+
+    fun sheetOverlapMm(): Double = sheetOverlapMm
+
+    fun setSheetOverlapMm(overlapMm: Double) {
+        val next = overlapMm.coerceIn(0.0, 50.0)
+        if (sheetOverlapMm == next) return
+        sheetOverlapMm = next
+        invalidateRenderCache()
+        repaint()
+    }
+
     fun setDesignerFont(font: Font) {
         designerFont = font
         this.font = font
@@ -1705,11 +1749,8 @@ class GraphCanvas(
         runCatching {
             when (format) {
                 "svg" -> writeSvgSheet(file)
-                "png",
-                "pdf" -> {
-                    val image = renderSheetImage() ?: error("Nothing to export.")
-                    if (format == "png") ImageIO.write(image, "png", file) else writePdfWithJpeg(file, image)
-                }
+                "png" -> ImageIO.write(renderSheetImage() ?: error("Nothing to export."), "png", file)
+                "pdf" -> writePdfSheet(file)
             }
         }.onSuccess {
             JOptionPane.showMessageDialog(parent, "Saved ${file.absolutePath}", "Export Sheet", JOptionPane.INFORMATION_MESSAGE)
@@ -2124,9 +2165,11 @@ class GraphCanvas(
     }
 
     private fun drawStaticScene(g2: Graphics2D, viewport: Rectangle) {
-        if (showSheet) drawIsoSheet(g2, includeGrid = true)
+        val activeSheetPlan = if (showSheet) sheetPlan() else null
+        activeSheetPlan?.let { drawIsoSheet(g2, it, includeGrid = true, drawPreviewGuides = false) }
         if (!showSheet) drawGrid(g2, viewport)
         drawGraph(g2, viewport = viewport)
+        activeSheetPlan?.let { drawSheetPreviewGuides(g2, it) }
     }
 
     private fun zoomBucket(): Int =
@@ -2181,24 +2224,64 @@ class GraphCanvas(
         return source.union(target).apply { grow(PORT_STUB_LENGTH * 2, PORT_SPACING * 2) }.intersects(viewport)
     }
 
-    private fun drawIsoSheet(g2: Graphics2D, plan: SheetPlan? = null, includeGrid: Boolean = true) {
+    private fun drawIsoSheet(
+        g2: Graphics2D,
+        plan: SheetPlan? = null,
+        includeGrid: Boolean = true,
+        drawPreviewGuides: Boolean = true,
+    ) {
         val activePlan = plan ?: sheetPlan() ?: return
-        val sheet = activePlan.sheet
         val previousStroke = g2.stroke
         val previousFont = g2.font
         g2.color = Color.WHITE
-        g2.fill(sheet)
-        if (includeGrid) drawGrid(g2, sheet)
-        g2.color = Color(0x999999)
-        g2.stroke = BasicStroke(1f)
-        g2.draw(sheet)
+        g2.fill(activePlan.sheet)
+        if (includeGrid) drawGrid(g2, activePlan.sheet)
+        activePlan.pages.forEach { page ->
+            drawSheetPage(
+                g2,
+                activePlan,
+                page,
+                drawPageBoundary = drawPreviewGuides,
+                drawRegistrationMarks = drawPreviewGuides,
+            )
+        }
+        g2.font = previousFont
+        g2.stroke = previousStroke
+    }
 
-        drawFoldingMarkers(g2, sheet, activePlan.scale)
+    private fun drawSheetPreviewGuides(g2: Graphics2D, plan: SheetPlan) {
+        val previousColor = g2.color
+        val previousStroke = g2.stroke
+        plan.pages.forEach { page ->
+            g2.color = Color(0x888888)
+            g2.stroke = BasicStroke((0.5 * plan.scale).toFloat().coerceAtLeast(0.5f))
+            g2.draw(page.sheet)
+            if (plan.isMultipage) drawAlignmentCrosses(g2, plan, page)
+        }
+        g2.color = previousColor
+        g2.stroke = previousStroke
+    }
+
+    private fun drawSheetPage(
+        g2: Graphics2D,
+        plan: SheetPlan,
+        page: SheetPage,
+        drawPageBoundary: Boolean,
+        drawRegistrationMarks: Boolean,
+    ) {
+        val sheet = page.sheet
+        val scale = plan.scale
+        if (drawPageBoundary) {
+            g2.color = Color(0x999999)
+            g2.stroke = BasicStroke((0.5 * scale).toFloat().coerceAtLeast(0.5f))
+            g2.draw(sheet)
+        }
+        drawFoldingMarkers(g2, sheet, scale)
         g2.color = Color(0x777777)
-        g2.draw(activePlan.drawing)
+        g2.stroke = BasicStroke(1f * scale)
+        g2.draw(page.drawing)
 
-        val titleBlock = activePlan.titleBlock
-        val scale = activePlan.scale
+        val titleBlock = page.titleBlock
         val rowHeight = titleBlock.height / 5
         val firstColumn = titleBlock.x + sheetMm(45.0, scale)
         val secondColumn = titleBlock.x + sheetMm(112.0, scale)
@@ -2218,13 +2301,13 @@ class GraphCanvas(
         val bottomBaseline = titleBlock.y + titleBlock.height - sheetUnits(8, scale)
         g2.drawString("Project", titleBlock.x + inset, firstRowBaseline)
         g2.drawString(projectTitle(), firstColumn + inset, firstRowBaseline)
-        g2.drawString("Format: ${activePlan.format.id}", secondColumn + inset, firstRowBaseline)
+        g2.drawString("Format: ${plan.format.id}", secondColumn + inset, firstRowBaseline)
         g2.drawString("Revision", titleBlock.x + inset, secondRowBaseline)
         g2.drawString(masterRevisionLabel(), firstColumn + inset, secondRowBaseline)
-        g2.drawString("Scale 1:${activePlan.scale}", secondColumn + inset, secondRowBaseline)
+        g2.drawString("Scale 1:${plan.scale}", secondColumn + inset, secondRowBaseline)
         g2.drawString("version ${versionTimestamp()}", titleBlock.x + inset, bottomBaseline)
 
-        val partsList = activePlan.partsList
+        val partsList = page.partsList
         val partsRowHeight = sheetUnits(PARTS_ROW_HEIGHT, scale)
         g2.color = Color(0xb0b0b0)
         g2.draw(partsList)
@@ -2235,30 +2318,28 @@ class GraphCanvas(
             g2.drawLine(partsList.x, y, partsList.x + partsList.width, y)
         }
         val headerTop = partsList.y + partsRowHeight
-        activePlan.partsColumns.offsets.drop(1).dropLast(1).forEach { offset ->
+        plan.partsColumns.offsets.drop(1).dropLast(1).forEach { offset ->
             g2.drawLine(partsList.x + offset, headerTop, partsList.x + offset, partsList.y + partsList.height)
         }
-        activePlan.partsColumns.labels.forEachIndexed { columnIndex, label ->
-            g2.drawString(label, partsList.x + activePlan.partsColumns.offsets[columnIndex] + sheetUnits(4, scale), partsList.y + partsRowHeight * 2 - sheetUnits(6, scale))
+        plan.partsColumns.labels.forEachIndexed { columnIndex, label ->
+            g2.drawString(label, partsList.x + plan.partsColumns.offsets[columnIndex] + sheetUnits(4, scale), partsList.y + partsRowHeight * 2 - sheetUnits(6, scale))
         }
-        activePlan.bomRows.take((partsList.height / partsRowHeight - 2).coerceAtLeast(0)).forEachIndexed { rowIndex, row ->
+        plan.bomRows.take((partsList.height / partsRowHeight - 2).coerceAtLeast(0)).forEachIndexed { rowIndex, row ->
             val y = partsList.y + (rowIndex + 3) * partsRowHeight - sheetUnits(6, scale)
             g2.color = Color(0x444444)
             partsListValues(row).forEachIndexed { columnIndex, value ->
-                g2.drawString(value, partsList.x + activePlan.partsColumns.offsets[columnIndex] + sheetUnits(4, scale), y)
+                g2.drawString(value, partsList.x + plan.partsColumns.offsets[columnIndex] + sheetUnits(4, scale), y)
             }
         }
-        g2.font = previousFont
-        g2.stroke = previousStroke
+        if (plan.isMultipage && drawRegistrationMarks) drawAlignmentCrosses(g2, plan, page)
     }
 
-    private fun sheetPlan(): SheetPlan? {
+    private fun sheetPlan(requestMultipage: Boolean = multipagePdfEnabled): SheetPlan? {
         val scopeIds = sheetScopeIds()
         val contentBounds = contentBounds(scopeIds) ?: return null
         val bomRows = bomRows(scopeIds)
         val scale = sheetScale
         val partsColumns = partsListColumns(bomRows, scale)
-        val drawingPad = sheetMm(DRAWING_PAD_MM, scale)
         val margin = sheetMm(SHEET_MARGIN_MM, scale)
         val titleWidth = sheetMm(TITLE_BLOCK_WIDTH_MM, scale)
         val titleHeight = sheetMm(TITLE_BLOCK_HEIGHT_MM, scale)
@@ -2267,79 +2348,76 @@ class GraphCanvas(
         val partsRequiredHeight = ((bomRows.size + 2) * partsRowHeight).coerceAtLeast(sheetMm(80.0, scale))
         val gap = sheetMm(8.0, scale)
 
-        val requiredWidth = margin * 2 + partsWidth + gap + contentBounds.width + drawingPad * 2
-        val requiredHeight = margin * 2 + titleHeight + gap + max(partsRequiredHeight, contentBounds.height + drawingPad * 2)
-        val occupiedArea = (contentBounds.width + drawingPad * 2) * (contentBounds.height + drawingPad * 2) +
-            partsWidth * partsRequiredHeight +
-            titleWidth * titleHeight
+        val overlayWidth = max(partsWidth, titleWidth)
+        val overlayHeight = partsRequiredHeight + titleHeight + gap
+        val requiredWidth = margin * 2 + max(contentBounds.width, overlayWidth)
+        val requiredHeight = margin * 2 + max(contentBounds.height, overlayHeight)
+        val occupiedArea = contentBounds.width.toDouble() * contentBounds.height +
+            partsWidth.toDouble() * partsRequiredHeight +
+            titleWidth.toDouble() * titleHeight
         val best = when (val choice = sheetFormatChoice) {
-            AUTO_SHEET_FORMAT -> autoSheetCandidate(requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, scale)
+            AUTO_SHEET_FORMAT -> autoSheetCandidate(requiredWidth, requiredHeight, occupiedArea, scale)
             else -> SHEET_FORMATS.firstOrNull { it.id == choice }?.let {
-                sheetCandidateFor(it, requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, scale, enforceFit = false)
+                sheetCandidateFor(it, requiredWidth, requiredHeight, occupiedArea, scale, enforceFit = false)
             }
-        } ?: autoSheetCandidate(requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, scale)
+        } ?: autoSheetCandidate(requiredWidth, requiredHeight, occupiedArea, scale)
             ?: return null
 
         val format = best.format
-        val sheetWidth = best.width
-        val sheetHeight = best.height
-        val availableWidth = (sheetWidth - margin * 2 - partsWidth - gap).coerceAtLeast(1)
-        val availableHeight = (sheetHeight - margin * 2 - titleHeight - gap).coerceAtLeast(1)
-        val contentCenterX = contentBounds.x + contentBounds.width / 2.0
-        val contentCenterY = contentBounds.y + contentBounds.height / 2.0
-        val sheetX = (contentCenterX - margin - availableWidth / 2.0).roundToInt()
-        val sheetY = (contentCenterY - margin - availableHeight / 2.0).roundToInt()
-        val sheet = Rectangle(sheetX, sheetY, sheetWidth, sheetHeight)
-        val drawing = Rectangle(
-            sheet.x + margin,
-            sheet.y + margin,
-            sheet.width - margin * 2,
-            sheet.height - margin * 2,
+        val tiled = requestMultipage && !format.roll
+        val tileLayout = SheetLayout.tile(
+            contentBounds = contentBounds,
+            sheetWidth = best.width,
+            sheetHeight = best.height,
+            margin = margin,
+            requestedOverlap = sheetMm(sheetOverlapMm, scale),
+            multipage = tiled,
         )
-        val titleBlock = Rectangle(
-            drawing.x + drawing.width - titleWidth,
-            drawing.y + drawing.height - titleHeight,
-            titleWidth,
-            titleHeight,
-        )
-        val partsHeight = partsRequiredHeight.coerceAtMost(titleBlock.y - drawing.y - gap)
-        val partsList = Rectangle(
-            drawing.x + drawing.width - partsWidth,
-            drawing.y + gap,
-            partsWidth,
-            partsHeight,
-        )
-        return SheetPlan(format, scale, sheet, drawing, titleBlock, partsList, contentBounds, scopeIds, bomRows, partsColumns)
+        val pages = tileLayout.tiles.map { tile ->
+            val titleBlock = Rectangle(
+                tile.drawing.x + tile.drawing.width - titleWidth,
+                tile.drawing.y + tile.drawing.height - titleHeight,
+                titleWidth,
+                titleHeight,
+            )
+            val partsHeight = partsRequiredHeight.coerceAtMost((titleBlock.y - tile.drawing.y - gap).coerceAtLeast(partsRowHeight * 2))
+            SheetPage(
+                row = tile.row,
+                column = tile.column,
+                sheet = tile.sheet,
+                drawing = tile.drawing,
+                titleBlock = titleBlock,
+                partsList = Rectangle(
+                    tile.drawing.x + tile.drawing.width - partsWidth,
+                    tile.drawing.y + gap,
+                    partsWidth,
+                    partsHeight,
+                ),
+            )
+        }
+        return SheetPlan(format, scale, pages, tileLayout.overlap, contentBounds, scopeIds, bomRows, partsColumns)
     }
 
     private fun autoSheetCandidate(
         requiredWidth: Int,
         requiredHeight: Int,
-        partsRequiredHeight: Int,
-        margin: Int,
-        titleHeight: Int,
-        gap: Int,
-        occupiedArea: Int,
+        occupiedArea: Double,
         scale: Int,
     ): SheetCandidate? =
         SHEET_FORMATS
             .mapNotNull { format ->
-                sheetCandidateFor(format, requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, scale, enforceFit = true)
+                sheetCandidateFor(format, requiredWidth, requiredHeight, occupiedArea, scale, enforceFit = true)
             }
-            .maxWithOrNull(compareBy<SheetCandidate> { it.coverage }.thenByDescending { -it.area })
+            .maxWithOrNull(compareBy<SheetCandidate> { it.coverage }.thenByDescending { it.area })
             ?: SHEET_FORMATS
-                .mapNotNull { sheetCandidateFor(it, requiredWidth, requiredHeight, partsRequiredHeight, margin, titleHeight, gap, occupiedArea, scale, enforceFit = false) }
+                .mapNotNull { sheetCandidateFor(it, requiredWidth, requiredHeight, occupiedArea, scale, enforceFit = false) }
                 .maxByOrNull { it.area }
 
     private fun sheetCandidateFor(
         format: SheetFormat,
         requiredWidth: Int,
         requiredHeight: Int,
-        partsRequiredHeight: Int,
-        margin: Int,
-        titleHeight: Int,
-        gap: Int,
-        occupiedArea: Int,
+        occupiedArea: Double,
         scale: Int,
         enforceFit: Boolean,
     ): SheetCandidate? {
@@ -2351,8 +2429,7 @@ class GraphCanvas(
         }
         val fits =
             requiredWidth <= sheetWidth &&
-                requiredHeight <= sheetHeight &&
-                partsRequiredHeight <= sheetHeight - margin * 2 - titleHeight - gap
+                requiredHeight <= sheetHeight
         if (enforceFit && !fits) return null
         return SheetCandidate(
             format = format,
@@ -2469,17 +2546,60 @@ class GraphCanvas(
         }
     }
 
+    private fun drawAlignmentCrosses(g2: Graphics2D, plan: SheetPlan, page: SheetPage) {
+        if (plan.overlap <= 0) return
+        val lastRow = plan.pages.maxOf(SheetPage::row)
+        val lastColumn = plan.pages.maxOf(SheetPage::column)
+        val halfOverlap = plan.overlap / 2
+        val horizontalCrosses = listOf(
+            page.drawing.x + page.drawing.width / 4,
+            page.drawing.x + page.drawing.width * 3 / 4,
+        )
+        val verticalCrosses = listOf(
+            page.drawing.y + page.drawing.height / 4,
+            page.drawing.y + page.drawing.height * 3 / 4,
+        )
+        val crossRadius = sheetMm(3.0, plan.scale)
+        val previousColor = g2.color
+        val previousStroke = g2.stroke
+        g2.color = Color(0x555555)
+        g2.stroke = BasicStroke((0.6 * plan.scale).toFloat().coerceAtLeast(0.6f))
+
+        if (page.row > 0) {
+            horizontalCrosses.forEach { drawAlignmentCross(g2, it, page.drawing.y + halfOverlap, crossRadius) }
+        }
+        if (page.row < lastRow) {
+            horizontalCrosses.forEach { drawAlignmentCross(g2, it, page.drawing.y + page.drawing.height - halfOverlap, crossRadius) }
+        }
+        if (page.column > 0) {
+            verticalCrosses.forEach { drawAlignmentCross(g2, page.drawing.x + halfOverlap, it, crossRadius) }
+        }
+        if (page.column < lastColumn) {
+            verticalCrosses.forEach { drawAlignmentCross(g2, page.drawing.x + page.drawing.width - halfOverlap, it, crossRadius) }
+        }
+        g2.color = previousColor
+        g2.stroke = previousStroke
+    }
+
+    private fun drawAlignmentCross(g2: Graphics2D, x: Int, y: Int, radius: Int) {
+        g2.drawLine(x - radius, y, x + radius, y)
+        g2.drawLine(x, y - radius, x, y + radius)
+    }
+
     private fun renderSheetImage(): BufferedImage? {
-        val plan = sheetPlan() ?: return null
+        val plan = sheetPlan(requestMultipage = false) ?: return null
+        val page = plan.pages.single()
         val image = BufferedImage(plan.sheet.width, plan.sheet.height, BufferedImage.TYPE_INT_ARGB)
         val g2 = image.createGraphics()
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2.font = designerFont
         g2.color = Color.WHITE
         g2.fillRect(0, 0, image.width, image.height)
         g2.translate(-plan.sheet.x, -plan.sheet.y)
         val previousClip = g2.clip
         g2.clip = plan.sheet
         drawIsoSheet(g2, plan, includeGrid = false)
+        g2.clip = page.drawing
         drawGraph(g2, plan.scopeIds)
         g2.clip = previousClip
         g2.dispose()
@@ -2490,7 +2610,7 @@ class GraphCanvas(
         if (file.name.endsWith(".$extension", ignoreCase = true)) file else File(file.parentFile, "${file.name}.$extension")
 
     private fun writeSvgSheet(file: File) {
-        val plan = sheetPlan() ?: error("Nothing to export.")
+        val plan = sheetPlan(requestMultipage = false) ?: error("Nothing to export.")
         val svg = StringBuilder()
         svg.appendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
         svg.appendLine(
@@ -2507,12 +2627,13 @@ class GraphCanvas(
     }
 
     private fun svgSheet(svg: StringBuilder, plan: SheetPlan) {
-        val sheet = plan.sheet
+        val page = plan.pages.single()
+        val sheet = page.sheet
         svgRect(svg, sheet, fill = "#ffffff", stroke = "#999999")
         svgFoldingMarkers(svg, sheet, plan.scale)
-        svgRect(svg, plan.drawing, fill = "none", stroke = "#777777")
+        svgRect(svg, page.drawing, fill = "none", stroke = "#777777")
 
-        val titleBlock = plan.titleBlock
+        val titleBlock = page.titleBlock
         val scale = plan.scale
         val rowHeight = titleBlock.height / 5
         val firstColumn = titleBlock.x + sheetMm(45.0, scale)
@@ -2536,7 +2657,7 @@ class GraphCanvas(
         svgText(svg, "Scale 1:${plan.scale}", secondColumn + inset, secondRowBaseline, textSize, "#444444")
         svgText(svg, "version ${versionTimestamp()}", titleBlock.x + inset, titleBlock.y + titleBlock.height - sheetUnits(8, scale), textSize, "#444444")
 
-        val partsList = plan.partsList
+        val partsList = page.partsList
         val partsRowHeight = sheetUnits(PARTS_ROW_HEIGHT, scale)
         svgRect(svg, partsList, fill = "none", stroke = "#b0b0b0")
         svgText(svg, "Parts List", partsList.x + sheetUnits(8, scale), partsList.y + sheetUnits(15, scale), 10 * scale, "#444444")
@@ -2915,61 +3036,40 @@ class GraphCanvas(
     private fun fmt(value: Double): String =
         if (value % 1.0 == 0.0) value.toInt().toString() else "%.2f".format(java.util.Locale.ROOT, value)
 
-    private fun writePdfWithJpeg(file: File, image: BufferedImage) {
-        val rgb = BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_RGB)
-        val rgbGraphics = rgb.createGraphics()
-        rgbGraphics.color = Color.WHITE
-        rgbGraphics.fillRect(0, 0, rgb.width, rgb.height)
-        rgbGraphics.drawImage(image, 0, 0, null)
-        rgbGraphics.dispose()
-
-        val jpeg = ByteArrayOutputStream()
-        ImageIO.write(rgb, "jpg", jpeg)
-        val jpegBytes = jpeg.toByteArray()
-        val content = "q ${image.width} 0 0 ${image.height} 0 0 cm /Im0 Do Q\n".toByteArray(Charsets.ISO_8859_1)
-        val objects = listOf(
-            "<< /Type /Catalog /Pages 2 0 R >>\n".toByteArray(Charsets.ISO_8859_1),
-            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>\n".toByteArray(Charsets.ISO_8859_1),
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${image.width} ${image.height}] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>\n".toByteArray(Charsets.ISO_8859_1),
-            pdfStream(content),
-            pdfImageStream(image.width, image.height, jpegBytes),
-        )
-        val output = ByteArrayOutputStream()
-        output.write("%PDF-1.4\n".toByteArray(Charsets.ISO_8859_1))
-        val offsets = mutableListOf(0)
-        objects.forEachIndexed { index, bytes ->
-            offsets += output.size()
-            output.write("${index + 1} 0 obj\n".toByteArray(Charsets.ISO_8859_1))
-            output.write(bytes)
-            output.write("endobj\n".toByteArray(Charsets.ISO_8859_1))
+    private fun writePdfSheet(file: File) {
+        val plan = sheetPlan(requestMultipage = multipagePdfEnabled) ?: error("Nothing to export.")
+        val pages = plan.pages.map { page ->
+            val image = renderPdfPage(plan, page)
+            val widthMm = page.sheet.width / SHEET_UNITS_PER_MM / plan.scale
+            val heightMm = page.sheet.height / SHEET_UNITS_PER_MM / plan.scale
+            PdfRasterPage(
+                image = image,
+                widthPoints = widthMm * PDF_POINTS_PER_MM,
+                heightPoints = heightMm * PDF_POINTS_PER_MM,
+            )
         }
-        val xref = output.size()
-        output.write("xref\n0 ${objects.size + 1}\n".toByteArray(Charsets.ISO_8859_1))
-        output.write("0000000000 65535 f \n".toByteArray(Charsets.ISO_8859_1))
-        offsets.drop(1).forEach { offset ->
-            output.write(String.format("%010d 00000 n \n", offset).toByteArray(Charsets.ISO_8859_1))
-        }
-        output.write("trailer << /Size ${objects.size + 1} /Root 1 0 R >>\nstartxref\n$xref\n%%EOF\n".toByteArray(Charsets.ISO_8859_1))
-        Files.write(file.toPath(), output.toByteArray())
+        RasterPdfWriter.write(file.toPath(), pages)
     }
 
-    private fun pdfStream(bytes: ByteArray): ByteArray {
-        val output = ByteArrayOutputStream()
-        output.write("<< /Length ${bytes.size} >>\nstream\n".toByteArray(Charsets.ISO_8859_1))
-        output.write(bytes)
-        output.write("endstream\n".toByteArray(Charsets.ISO_8859_1))
-        return output.toByteArray()
-    }
-
-    private fun pdfImageStream(width: Int, height: Int, bytes: ByteArray): ByteArray {
-        val output = ByteArrayOutputStream()
-        output.write(
-            "<< /Type /XObject /Subtype /Image /Width $width /Height $height /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${bytes.size} >>\nstream\n"
-                .toByteArray(Charsets.ISO_8859_1),
-        )
-        output.write(bytes)
-        output.write("\nendstream\n".toByteArray(Charsets.ISO_8859_1))
-        return output.toByteArray()
+    private fun renderPdfPage(plan: SheetPlan, page: SheetPage): BufferedImage {
+        val imageWidth = (page.sheet.width.toDouble() / plan.scale).roundToInt().coerceAtLeast(1)
+        val imageHeight = (page.sheet.height.toDouble() / plan.scale).roundToInt().coerceAtLeast(1)
+        val image = BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB)
+        val g2 = image.createGraphics()
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2.color = Color.WHITE
+        g2.fillRect(0, 0, image.width, image.height)
+        g2.font = designerFont
+        g2.scale(1.0 / plan.scale, 1.0 / plan.scale)
+        g2.translate(-page.sheet.x, -page.sheet.y)
+        g2.clip = page.sheet
+        drawSheetPage(g2, plan, page, drawPageBoundary = false, drawRegistrationMarks = false)
+        g2.clip = page.drawing
+        drawGraph(g2, plan.scopeIds)
+        g2.clip = page.sheet
+        if (plan.isMultipage) drawAlignmentCrosses(g2, plan, page)
+        g2.dispose()
+        return image
     }
 
     private fun mm(value: Double): Int = (value * SHEET_UNITS_PER_MM).roundToInt()

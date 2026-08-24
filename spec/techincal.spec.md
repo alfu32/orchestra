@@ -910,9 +910,27 @@ a direct line between the library and the dependent node. Instead, the service
 library shows dependent flyouts on its right side, and each dependent processing
 unit shows a top-anchored vertical dependency list.
 
-The drawing surface should support technical drawing output. The MVP may expose
-an ISO sheet preview with grid, drawing frame, cartouche/title block, and a
-parts/list table; later versions may export SVG/PDF/print-ready documents.
+The drawing surface supports ISO technical-sheet preview and SVG, PNG, and PDF
+export. The export scope is the current selection, including descendants of a
+selected composite, or the complete drawing when the selection is empty. Its
+model-space bounding box is transformed into paper space using the selected
+format and scale. Scaling changes the represented sheet dimensions in model
+space; it does not resize model entities.
+
+The complete margin-inset drawing frame is available for model content. Sheet
+planning must not subtract the cartouche/title block or parts-list footprint
+from this area; these elements overlay the drawing area and the user is
+responsible for arranging content around them.
+
+For fixed ISO formats, the user may enable multipage PDF layout. When the
+transformed bounding box exceeds one page, the planner covers it with the
+required number of rows and columns. Adjacent page drawing windows overlap in
+paper space by a configurable distance, defaulting to 5 mm. Preview page seams
+are rendered as thin guides above the drawing and are omitted from export.
+Exported pages instead carry matching registration crosses inside overlap zones
+to support alignment after printing and assembly. The PDF contains one physical
+page per planned tile. Multipage layout does not apply to roll formats; disabling
+it retains the single-sheet planning behavior. The editor grid is never exported.
 
 ---
 

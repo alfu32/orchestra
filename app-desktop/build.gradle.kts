@@ -9,6 +9,7 @@ dependencies {
     implementation(project(":completion-core"))
     implementation(project(":compilers-impl"))
     implementation(project(":assets"))
+    testImplementation(kotlin("test"))
 }
 
 application {

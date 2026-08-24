@@ -55,7 +55,9 @@ The built-in grid code editor provides multiple cursors and selections, configur
 
 Sheet preview supports automatic or explicit A4 through A0 portrait/landscape formats plus A3/A2/A1/A0 roll formats. Scale choices range from `1:1` upward; scaling enlarges the represented sheet rather than the entities. Selection controls the export scope, with selected composites including their descendants.
 
-Exports are available as vector SVG, PNG, or PDF. The export omits the editor grid and includes the project name, format, scale, revision, standard border/folding marks, title block, and a parts list with name, kind, modification date, revision, responsible person, and signature space.
+Exports are available as vector SVG, PNG, or PDF. Fixed-format PDF output can optionally tile the drawing bounding box across multiple physical pages at the selected scale. Adjacent pages overlap by a configurable amount (5 mm by default), preview-only page seams identify the tiles, and exported registration crosses support physical assembly. Roll formats and disabled tiling retain the single-sheet behavior.
+
+The drawing may use the complete margin-inset frame; the title block and parts list overlay that area instead of reducing it. Export omits the editor grid and includes the project name, format, scale, revision, standard border/folding marks, title block, and a parts list with name, kind, modification date, revision, responsible person, and signature space.
 
 ## Compilation Architecture
 

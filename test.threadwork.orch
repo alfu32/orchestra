@@ -37,7 +37,8 @@
                 "link_11b70edf-67a9-4080-a4e1-7e0613453d1c",
                 "link_802d7da8-d815-4f59-b30d-e0e47ff93a36",
                 "link_afbf950c-3073-4552-8157-432a3aa2ad3a",
-                "link_5b65bb8d-20a1-487f-92bd-7cb17f92e78d"
+                "link_5b65bb8d-20a1-487f-92bd-7cb17f92e78d",
+                "node_86e4bf12-f202-46b3-af16-dad1ed0acc35"
             ],
             "incomingLinks": [],
             "outgoingLinks": [],
@@ -78,7 +79,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-17T23:27:31.464457469Z",
+                "date": "2026-08-24T14:35:10.654347336Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -101,8 +102,8 @@
                 "link_18"
             ],
             "layout": {
-                "x": -943.0,
-                "y": 303.0,
+                "x": 863.0,
+                "y": 1546.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -176,14 +177,14 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 1573.0,
-                "y": 241.0,
-                "width": 1044.0,
-                "height": 663.0,
+                "x": 1994.0,
+                "y": 1439.0,
+                "width": 771.0,
+                "height": 416.0,
                 "closedWidth": 276.0,
                 "closedHeight": 138.0,
-                "openWidth": 1044.0,
-                "openHeight": 663.0,
+                "openWidth": 771.0,
+                "openHeight": 416.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -249,8 +250,8 @@
                 "link_30"
             ],
             "layout": {
-                "x": 2309.0,
-                "y": 339.0,
+                "x": 2457.0,
+                "y": 1525.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -320,8 +321,8 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 1605.0,
-                "y": 748.0,
+                "x": 2026.0,
+                "y": 1699.0,
                 "width": 276.0,
                 "height": 108.0,
                 "closedWidth": 276.0,
@@ -395,8 +396,8 @@
                 "link_14d701b7-ae01-4f47-a887-a18f6b250f8e"
             ],
             "layout": {
-                "x": -389.0,
-                "y": 218.0,
+                "x": 1395.0,
+                "y": 1666.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -469,8 +470,8 @@
                 "link_afbf950c-3073-4552-8157-432a3aa2ad3a"
             ],
             "layout": {
-                "x": 819.0,
-                "y": 814.0,
+                "x": 1578.0,
+                "y": 1956.0,
                 "width": 276.0,
                 "height": 138.0,
                 "closedWidth": 276.0,
@@ -539,8 +540,8 @@
                 "link_8"
             ],
             "layout": {
-                "x": 790.0,
-                "y": -142.0,
+                "x": 324.0,
+                "y": 547.0,
                 "width": 276.0,
                 "height": 100.0,
                 "closedWidth": 276.0,
@@ -600,14 +601,14 @@
                 "link_13"
             ],
             "layout": {
-                "x": 117.5,
-                "y": -142.0,
+                "x": 328.5,
+                "y": 708.0,
                 "width": 276.0,
-                "height": 100.0,
+                "height": 108.0,
                 "closedWidth": 276.0,
-                "closedHeight": 100.0,
+                "closedHeight": 108.0,
                 "openWidth": 276.0,
-                "openHeight": 100.0,
+                "openHeight": 108.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -662,8 +663,8 @@
                 "link_12"
             ],
             "layout": {
-                "x": -555.0,
-                "y": -142.0,
+                "x": 337.0,
+                "y": 888.0,
                 "width": 276.0,
                 "height": 138.0,
                 "closedWidth": 276.0,
@@ -1132,14 +1133,14 @@
                 "link_23"
             ],
             "layout": {
-                "x": 159.0,
-                "y": 501.0,
+                "x": 261.0,
+                "y": 1809.0,
                 "width": 276.0,
-                "height": 108.0,
+                "height": 168.0,
                 "closedWidth": 276.0,
-                "closedHeight": 108.0,
+                "closedHeight": 168.0,
                 "openWidth": 276.0,
-                "openHeight": 108.0,
+                "openHeight": 168.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -1375,8 +1376,8 @@
                 "link_11b70edf-67a9-4080-a4e1-7e0613453d1c"
             ],
             "layout": {
-                "x": 882.0,
-                "y": 501.0,
+                "x": 69.0,
+                "y": 1409.0,
                 "width": 276.0,
                 "height": 108.0,
                 "closedWidth": 276.0,
@@ -1559,8 +1560,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 1432.0,
-                "y": -142.0,
+                "x": 1052.0,
+                "y": 576.0,
                 "width": 228.0,
                 "height": 100.0,
                 "closedWidth": 228.0,
@@ -1609,8 +1610,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 1741.0,
-                "y": -142.0,
+                "x": 1060.0,
+                "y": 728.0,
                 "width": 228.0,
                 "height": 100.0,
                 "closedWidth": 228.0,
@@ -2043,6 +2044,59 @@
                 "typeName": "",
                 "payloadDefinition": ""
             },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_86e4bf12-f202-46b3-af16-dad1ed0acc35",
+            "name": "New Node",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": -1217.0,
+                "y": 953.0,
+                "width": 276.0,
+                "height": 90.0,
+                "closedWidth": 276.0,
+                "closedHeight": 90.0,
+                "openWidth": 276.0,
+                "openHeight": 90.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-24T14:35:10.654347336Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": null,
             "metadata": {},
             "pluginData": {}
         }
