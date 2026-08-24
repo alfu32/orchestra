@@ -1587,6 +1587,7 @@ class GraphCanvas(
         const val ZOOM_BUCKET_STEP = 1.25
         const val COMPOSITE_TOP_PADDING = 80
         const val COMPOSITE_HEADER_EXTRA_HEIGHT = 36
+        const val COMPOSITE_HORIZONTAL_PADDING = 180
         const val COMPOSITE_BOTTOM_PADDING = 48
         const val COMPOSITE_INFO_TEXT_RATIO = 0.875
         const val COMPOSITE_TEXT_CHILD_BOOST_DIVISOR = 64.0
@@ -1840,7 +1841,10 @@ class GraphCanvas(
                     val childBottom = boxes.maxOf { it.y + it.height }
                     val childSpanWidth = childRight - childLeft
                     val childSpanHeight = childBottom - childTop
-                    val envelopeWidth = max(childSpanWidth + 64, parent.layout.closedWidth.roundToInt())
+                    val envelopeWidth = max(
+                        childSpanWidth + COMPOSITE_HORIZONTAL_PADDING * 2,
+                        parent.layout.closedWidth.roundToInt(),
+                    )
                     val firstPassHeight = childSpanHeight + COMPOSITE_TOP_PADDING + COMPOSITE_BOTTOM_PADDING
                     val labelWidth = requiredOpenCompositeLabelWidth(parent, envelopeWidth.toDouble(), firstPassHeight.toDouble())
                     val openWidth = maxOf(
@@ -1849,7 +1853,7 @@ class GraphCanvas(
                         labelWidth,
                     ).toDouble()
                     val topPadding = compositeTextMetrics(parent, openWidth, firstPassHeight.toDouble()).topPadding
-                    val openX = childLeft - 32
+                    val openX = childLeft - COMPOSITE_HORIZONTAL_PADDING
                     val openY = childTop - topPadding
                     val openHeight = max(
                         childSpanHeight + topPadding + COMPOSITE_BOTTOM_PADDING,
@@ -3519,11 +3523,13 @@ class GraphCanvas(
         val target = anchors.target
         val sourceStub = Point(source.point.x + PORT_STUB_LENGTH * source.xDirection, source.point.y)
         val targetStub = Point(target.point.x + PORT_STUB_LENGTH * target.xDirection, target.point.y)
-        val obstacles = routeObstacles(anchors.sourceNodeId, anchors.targetNodeId)
+        val obstacles = routeObstacles(linkNode, anchors.sourceNodeId, anchors.targetNodeId)
+        val container = routingContainer(linkNode)
         val candidates = routeCandidates(sourceStub, targetStub)
             .map { compact(chamferOrthogonalTurns(it)) }
             .filter { it.size >= 2 }
             .filter(::isOctilinearPath)
+            .filter { points -> container == null || points.all { container.containsInclusive(it) } }
 
         val best = candidates.minWithOrNull(compareBy<List<Point>> {
             routeCost(it, obstacles, routedSegments, linkNode.id)
@@ -3645,9 +3651,15 @@ class GraphCanvas(
             dx == 0 || dy == 0 || dx == dy
         }
 
-    private fun routeObstacles(sourceId: NodeId, targetId: NodeId): List<Rectangle> =
-        visibleNodes()
-            .filter { it.id != sourceId && it.id != targetId }
+    private fun routeObstacles(linkNode: Node, sourceId: NodeId, targetId: NodeId): List<Rectangle> {
+        val ignoredIds = mutableSetOf(sourceId, targetId)
+        var ancestorId = linkNode.parentId
+        while (ancestorId != null) {
+            ignoredIds += ancestorId
+            ancestorId = repository.getNode(ancestorId)?.parentId
+        }
+        return visibleNodes()
+            .filter { it.id !in ignoredIds }
             .map {
                 val r = it.layout.rect()
                 Rectangle(
@@ -3657,6 +3669,19 @@ class GraphCanvas(
                     r.height + ROUTING_OBSTACLE_PADDING * 2,
                 )
             }
+    }
+
+    private fun routingContainer(linkNode: Node): Rectangle? {
+        val document = repository.getDocument()
+        val parent = linkNode.parentId?.let(document.nodes::get) ?: return null
+        return parent
+            .takeIf { it.id != document.rootNodeId && it.isComposite && it.layout.isExpanded }
+            ?.layout
+            ?.rect()
+    }
+
+    private fun Rectangle.containsInclusive(point: Point): Boolean =
+        point.x >= x && point.x <= x + width && point.y >= y && point.y <= y + height
 
     private fun segmentsCross(a: Point, b: Point, c: Point, d: Point): Boolean {
         if (a == c || a == d || b == c || b == d) return false

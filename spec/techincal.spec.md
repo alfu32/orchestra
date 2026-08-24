@@ -905,6 +905,12 @@ routes should include directional arrow markers at readable intervals, at least
 near the last quarter of the route. Links and port icons are drawn after node and
 composite bodies so internal composite links remain visible.
 
+An expanded composite reserves sufficient horizontal clearance between its
+children and both boundaries for port stubs, labels, and a routing lane. A link
+owned by an expanded composite is routed within that composite; the owning
+composite and its ancestors are containers, not obstacles that the link must
+route around.
+
 Usage/dependency links are annotations, not data-flow lines. They should not draw
 a direct line between the library and the dependent node. Instead, the service
 library shows dependent flyouts on its right side, and each dependent processing
