@@ -9,6 +9,7 @@ import com.threadwork.Version
 import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.CompilerPlugin
 import com.threadwork.compiler.c.CCompiler
+import com.threadwork.compiler.documentation.DocumentationCompiler
 import com.threadwork.compiler.api.CompilerTechnology
 import com.threadwork.compiler.api.ClassifiedFilesystemLayoutStrategy
 import com.threadwork.compiler.api.DirectFileSystemHomorphismLayoutStrategy
@@ -202,6 +203,7 @@ class ThreadworkDesktopApp(
     private val treeExpandedIds = mutableMapOf<JTree, MutableSet<String>>()
     private var restoringTreeExpansion = false
     private val compilerCompiler = CompilerCompiler()
+    private val documentationCompiler = DocumentationCompiler()
     private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + JSCompiler() + PhpCompiler() + CCompiler() + GenericCompiler() + NaiveKotlinCompiler()
     private val compilerTechnologies = availableCompilerTechnologies()
     private val languageIds = availableLanguageIds(compilerTechnologies)
@@ -438,6 +440,7 @@ class ThreadworkDesktopApp(
         add(JMenu("Build").apply {
             add(commandItem("compile.project", "build", "Build"))
             add(commandItem("compile.compiler", "build", "Build Compiler"))
+            add(commandItem("compile.documentation", "build", "Compile Documentation"))
         })
         add(JMenu("Help").apply {
             add(commandItem("help.about"))
@@ -493,6 +496,7 @@ class ThreadworkDesktopApp(
         registerCommand(AppCommand("sheet.export", "Sheet: Export...") { canvas.exportSheet(frame) })
         registerCommand(AppCommand("compile.project", "Build: Project or Selection") { compileProject() })
         registerCommand(AppCommand("compile.compiler", "Build: Generate Compiler From @Compiler") { generateCompilerFromDesign() })
+        registerCommand(AppCommand("compile.documentation", "Build: Compile Documentation") { compileDocumentation() })
         registerCommand(AppCommand("commands.palette", "Commands: Open Palette", KeyStroke.getKeyStroke(KeyEvent.VK_P, shiftShortcut)) { showCommandPalette() })
         registerCommand(AppCommand("help.about", "Help: About") { showAbout() })
     }
@@ -944,6 +948,52 @@ class ThreadworkDesktopApp(
         }.onFailure {
             JOptionPane.showMessageDialog(frame, it.message ?: "Compiler generation failed.", "Generate Compiler", JOptionPane.ERROR_MESSAGE)
             status.text = "Compiler generation failed: ${it.message}"
+        }
+    }
+
+    private fun compileDocumentation() {
+        autosave()
+        val document = repository.getDocument()
+        val scopedSelection = selection.filterTo(linkedSetOf()) { it in document.nodes }
+        val suggestedName = if (scopedSelection.isEmpty()) {
+            "${currentProjectFileStem() ?: document.projectName()}-documentation"
+        } else {
+            "documentation"
+        }
+        val output = chooseOutputDirectory(suggestedName) ?: return
+        val result = documentationCompiler.compile(
+            document,
+            CompilerOptions(
+                projectName = document.projectName(),
+                scopeNodeIds = scopedSelection,
+                includeScopeAncestors = false,
+            ),
+        )
+        val generatedProject = result.generatedProject
+        if (!result.success || generatedProject == null) {
+            JOptionPane.showMessageDialog(frame, "Documentation compilation failed.", "Compile Documentation", JOptionPane.ERROR_MESSAGE)
+            status.text = "Documentation compilation failed"
+            return
+        }
+        runCatching {
+            Files.createDirectories(output)
+            generatedProject.writeTo(output)
+        }.onSuccess {
+            status.text = "Compiled documentation to ${output.toAbsolutePath()}"
+            JOptionPane.showMessageDialog(
+                frame,
+                "Generated ${generatedProject.files.joinToString { file -> file.path }} in ${output.toAbsolutePath()}",
+                "Compile Documentation",
+                JOptionPane.INFORMATION_MESSAGE,
+            )
+        }.onFailure {
+            JOptionPane.showMessageDialog(
+                frame,
+                it.message ?: "Documentation compilation failed.",
+                "Compile Documentation",
+                JOptionPane.ERROR_MESSAGE,
+            )
+            status.text = "Documentation compilation failed: ${it.message}"
         }
     }
 

@@ -27,6 +27,7 @@ enum class GeneratedElementKind {
     CompilerTemplate,
     Runtime,
     ProjectLayout,
+    Documentation,
 }
 
 const val ANY_LANGUAGE_ID = "any"

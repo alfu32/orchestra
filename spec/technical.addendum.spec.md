@@ -520,6 +520,17 @@ Compiler plugins should usually receive read-only document access.
 
 Compiler output shall include traceability to source nodes.
 
+### 13.1 Documentation Compilation
+
+The desktop Build menu shall expose **Compile Documentation**. Documentation compilation is independent of entity technology identifiers, compiler selection, and filesystem layout strategies. It operates on the current selection, including descendants of selected composites, or on the complete project when the selection is empty.
+
+The documentation compiler shall emit two Markdown files:
+
+- `<project-or-scope-name>.SPEC.md`, containing processing-node functional specifications and typed input/output flows.
+- `<project-or-scope-name>.TECH.md`, containing direct node technology declarations, dependencies, typed data contracts, payload definitions, and running or compiling instructions from the usage-instructions field.
+
+Generated sections and contracts shall retain source node identifiers or hierarchy paths for traceability. Inherited technology values shall not be reported as direct node technology declarations.
+
 ```kotlin
 data class CompilationResult(
     val generatedProject: GeneratedProject?,
