@@ -1,2 +1,1 @@
-src/main/kotlin/generated/nodes/{{ classFileSymbol }}.kt
-
+{# primary-file.path.source-set: places this node's primary source under generated/nodes using collision-resistant classFileSymbol. #}src/main/kotlin/generated/nodes/{{ classFileSymbol }}.kt

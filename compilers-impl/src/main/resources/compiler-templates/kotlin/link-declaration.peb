@@ -1,3 +1,2 @@
-{{ node.metadataComment }}
+{# link.declaration: preserves node metadataComment and classified stereotype as link artifact declaration text; standalone link files are disabled. #}{{ node.metadataComment }}
 linkStereotype={{ stereotype }}
-

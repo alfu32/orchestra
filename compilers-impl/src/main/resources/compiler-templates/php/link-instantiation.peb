@@ -1,2 +1,1 @@
-transport($context, '{{ link.escapedNameSingleQuoted }}', '{{ link.escapedSourceReferenceSingleQuoted }}', '{{ link.escapedTargetReferenceSingleQuoted }}');
-
+{# link.instantiation: invokes named-link transport using single-quote-safe source and target endpoint references. #}transport($context, '{{ link.escapedNameSingleQuoted }}', '{{ link.escapedSourceReferenceSingleQuoted }}', '{{ link.escapedTargetReferenceSingleQuoted }}');

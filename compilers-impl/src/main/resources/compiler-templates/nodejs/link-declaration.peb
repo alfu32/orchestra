@@ -1,5 +1,4 @@
-/**
+{# link.declaration: documents link.name, optional typeName, and complete typeDefinition beside the owning composite. #}/**
  * Link {{ link.name }}:{% if link.typeName is not empty %}{{ link.typeName }}{% else %}{{ link.name }}{% endif %}
 {% for line in link.typeDefinition | split("\n") %} * {{ line }}
 {% endfor %} */
-

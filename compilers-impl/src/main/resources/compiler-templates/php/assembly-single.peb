@@ -1,4 +1,4 @@
-<?php
+{# composite.single-file: builds one PHP unit from imports, runtime, inline child declarations without nested tags, links, and own declaration. #}<?php
 
 {% if childImports is not empty %}{{ childImports }}
 
@@ -9,4 +9,3 @@
 {{ linkDeclarations }}
 {% endif %}
 {{ ownDeclaration }}
-

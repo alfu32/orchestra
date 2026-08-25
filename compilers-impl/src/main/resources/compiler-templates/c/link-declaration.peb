@@ -1,0 +1,2 @@
+{# Preserves the user-authored C wire type definition verbatim in the translation-unit type prelude. #}
+{% if link.typeDefinition is not empty %}{{ link.typeDefinition }}{% endif %}

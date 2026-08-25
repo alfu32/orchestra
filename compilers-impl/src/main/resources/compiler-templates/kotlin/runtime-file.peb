@@ -1,4 +1,4 @@
-package generated
+{# Project runtime file: declares RuntimeContext queues/imports and runLink packet transfer support for file-based layouts. #}package generated
 
 class RuntimeContext {
     val inputs: MutableMap<String, MutableList<Any?>> = mutableMapOf()
@@ -14,4 +14,3 @@ fun runLink(context: RuntimeContext, source: String, target: String) {
         targetQueue.add(sourceQueue.removeAt(0))
     }
 }
-

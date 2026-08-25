@@ -1,2 +1,1 @@
-transport(context, "{{ link.escapedNameDoubleQuoted }}", "{{ link.escapedSourceReferenceDoubleQuoted }}", "{{ link.escapedTargetReferenceDoubleQuoted }}");
-
+{# link.instantiation: transfers this named link from its escaped source endpoint reference to its escaped target endpoint reference. #}transport(context, "{{ link.escapedNameDoubleQuoted }}", "{{ link.escapedSourceReferenceDoubleQuoted }}", "{{ link.escapedTargetReferenceDoubleQuoted }}");

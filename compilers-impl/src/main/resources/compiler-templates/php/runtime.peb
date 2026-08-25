@@ -1,4 +1,4 @@
-function transport(array &$context, string $linkReference, string $source, string $target): void
+{# runtime.support: records named link endpoints and drains source output packets into the target input queue. #}function transport(array &$context, string $linkReference, string $source, string $target): void
 {
     $context['outputs'] ??= [];
     $context['inputs'] ??= [];
@@ -10,4 +10,3 @@ function transport(array &$context, string $linkReference, string $source, strin
         $context['inputs'][$target][] = array_shift($queue);
     }
 }
-

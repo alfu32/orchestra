@@ -1,5 +1,4 @@
-/**
+{# link.declaration: records link.name, optional typeName, and complete typeDefinition as PHPDoc in the owning composite. #}/**
  * Link {{ link.name }}:{% if link.typeName is not empty %}{{ link.typeName }}{% else %}{{ link.name }}{% endif %}
  * {{ link.typeDefinition }}
  */
-

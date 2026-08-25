@@ -1,4 +1,4 @@
-package generated
+{# Project entry point: creates RuntimeContext, then initializes and runs each project-level scopeRoots node view. #}package generated
 
 fun main() {
     val context = RuntimeContext()

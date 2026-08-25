@@ -1,2 +1,1 @@
-{% if explicitPath is not empty %}{{ explicitPath }}{% else %}{{ name }}{% endif %}
-
+{# static-file.path: chooses node metadata path/file as explicitPath, otherwise preserves the literal static node name. #}{% if explicitPath is not empty %}{{ explicitPath }}{% else %}{{ name }}{% endif %}

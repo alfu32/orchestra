@@ -176,14 +176,14 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 1875.0,
-                "y": 1626.0,
-                "width": 1295.0,
-                "height": 336.0,
+                "x": 1908.0,
+                "y": 1483.0,
+                "width": 1560.0,
+                "height": 550.0,
                 "closedWidth": 276.0,
                 "closedHeight": 138.0,
-                "openWidth": 1295.0,
-                "openHeight": 336.0,
+                "openWidth": 1560.0,
+                "openHeight": 550.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -249,8 +249,8 @@
                 "link_30"
             ],
             "layout": {
-                "x": 2862.0,
-                "y": 1741.0,
+                "x": 3012.0,
+                "y": 1635.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -320,8 +320,8 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 1907.0,
-                "y": 1800.0,
+                "x": 2088.0,
+                "y": 1871.0,
                 "width": 276.0,
                 "height": 114.0,
                 "closedWidth": 276.0,
@@ -1795,8 +1795,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 2198.0,
-                "y": 1408.0,
+                "x": 2202.0,
+                "y": 1336.0,
                 "width": 228.0,
                 "height": 100.0,
                 "closedWidth": 228.0,

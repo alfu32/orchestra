@@ -131,6 +131,14 @@ data class CompiledNodeArtifact(
     val instantiationText: String,
     val primaryFile: GeneratedFile?,
     val files: List<GeneratedFile>,
+    /** Prototype text generated for this entity only. */
+    val forwardDeclarationText: String = "",
+    /** Order-preserving prototype blocks for this entity and its compiled subtree. */
+    val forwardDeclarations: List<String> = emptyList(),
+    /** Declaration text, such as a wire type, that must precede every executable definition. */
+    val hoistedDeclarationText: String = "",
+    /** Order-preserving declarations required before code for this entity and its compiled subtree. */
+    val hoistedDeclarations: List<String> = emptyList(),
 ) {
     val isComposite: Boolean get() = node.children.isNotEmpty() && !node.isLink
 }
@@ -166,6 +174,24 @@ data class NodeCompilerContext(
     val childInstantiations: String get() = childArtifacts.joinToString("\n") { it.instantiationText }.trim()
     val linkDeclarations: String get() = linkArtifacts.joinToString("\n\n") { it.declarationText }.trim()
     val linkInstantiations: String get() = linkArtifacts.joinToString("\n") { it.instantiationText }.trim()
+    val childForwardDeclarationLines: List<String>
+        get() = childArtifacts.flatMap { it.forwardDeclarations }.filter(String::isNotBlank).distinct()
+    val linkForwardDeclarationLines: List<String>
+        get() = linkArtifacts.flatMap { it.forwardDeclarations }.filter(String::isNotBlank).distinct()
+    val descendantForwardDeclarationLines: List<String>
+        get() = (childForwardDeclarationLines + linkForwardDeclarationLines).distinct()
+    val childForwardDeclarations: String get() = childForwardDeclarationLines.joinToString("\n")
+    val linkForwardDeclarations: String get() = linkForwardDeclarationLines.joinToString("\n")
+    val descendantForwardDeclarations: String get() = descendantForwardDeclarationLines.joinToString("\n")
+    val childHoistedDeclarationLines: List<String>
+        get() = childArtifacts.flatMap { it.hoistedDeclarations }.filter(String::isNotBlank).distinct()
+    val linkHoistedDeclarationLines: List<String>
+        get() = linkArtifacts.flatMap { it.hoistedDeclarations }.filter(String::isNotBlank).distinct()
+    val descendantHoistedDeclarationLines: List<String>
+        get() = (childHoistedDeclarationLines + linkHoistedDeclarationLines).distinct()
+    val childHoistedDeclarations: String get() = childHoistedDeclarationLines.joinToString("\n\n")
+    val linkHoistedDeclarations: String get() = linkHoistedDeclarationLines.joinToString("\n\n")
+    val descendantHoistedDeclarations: String get() = descendantHoistedDeclarationLines.joinToString("\n\n")
 
     fun primaryPath(): String =
         layoutStrategy.primaryPathFor(document, node, projectName, extension, options)
@@ -187,6 +213,12 @@ interface LayoutCompilerVariant {
     fun staticFileFor(context: NodeCompilerContext): GeneratedFile? = null
 
     fun declarationFor(context: NodeCompilerContext): String
+
+    /** Generates declarations that must be visible before this entity's full definition. */
+    fun forwardDeclarationFor(context: NodeCompilerContext): String = ""
+
+    /** Generates complete declarations that must be hoisted before executable definitions. */
+    fun hoistedDeclarationFor(context: NodeCompilerContext): String = ""
 
     fun instantiationFor(context: NodeCompilerContext): String =
         context.node.text.instantiation
@@ -254,6 +286,12 @@ abstract class LayoutCompositeCompiler : StructuredCompiler() {
 
     final override fun declarationFor(context: NodeCompilerContext): String =
         layoutVariantFor(context).declarationFor(context)
+
+    final override fun forwardDeclarationFor(context: NodeCompilerContext): String =
+        layoutVariantFor(context).forwardDeclarationFor(context)
+
+    final override fun hoistedDeclarationFor(context: NodeCompilerContext): String =
+        layoutVariantFor(context).hoistedDeclarationFor(context)
 
     final override fun instantiationFor(context: NodeCompilerContext): String =
         layoutVariantFor(context).instantiationFor(context)
@@ -342,6 +380,10 @@ abstract class StructuredCompiler : CompilerPlugin {
             NodeKind.Group -> getGroupDeclaration(context)
             NodeKind.Note -> getNoteDeclaration(context)
         }
+
+    protected open fun forwardDeclarationFor(context: NodeCompilerContext): String = ""
+
+    protected open fun hoistedDeclarationFor(context: NodeCompilerContext): String = ""
 
     protected open fun instantiationFor(context: NodeCompilerContext): String =
         when (context.node.kind) {
@@ -496,6 +538,14 @@ abstract class StructuredCompiler : CompilerPlugin {
     }
 
     private fun regularArtifact(context: NodeCompilerContext): CompiledNodeArtifact {
+        val ownForwardDeclaration = forwardDeclarationFor(context).trim()
+        val forwardDeclarations = (
+            context.descendantForwardDeclarationLines + ownForwardDeclaration
+        ).filter(String::isNotBlank).distinct()
+        val ownHoistedDeclaration = hoistedDeclarationFor(context).trim()
+        val hoistedDeclarations = (
+            context.descendantHoistedDeclarationLines + ownHoistedDeclaration
+        ).filter(String::isNotBlank).distinct()
         val declaration = declarationFor(context).trimEnd()
         val instantiation = instantiationFor(context).trimEnd()
         val primary = primaryFileFor(context, declaration)
@@ -515,6 +565,10 @@ abstract class StructuredCompiler : CompilerPlugin {
             instantiationText = instantiation,
             primaryFile = primary,
             files = ownFiles + childFiles,
+            forwardDeclarationText = ownForwardDeclaration,
+            forwardDeclarations = forwardDeclarations,
+            hoistedDeclarationText = ownHoistedDeclaration,
+            hoistedDeclarations = hoistedDeclarations,
         )
     }
 

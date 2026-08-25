@@ -2,6 +2,7 @@ package com.threadwork.app.editor
 
 import com.threadwork.completion.CompletionRequest
 import com.threadwork.completion.CompletionSuggestion
+import com.threadwork.completion.DeclarationSymbol
 import com.threadwork.app.fonts.ThreadworkFonts
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.diagnostics.DiagnosticSeverity
@@ -76,6 +77,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private var technology = TechnologyMetadata()
     private var completionContext = EditorCompletionContext(null, NodeTextSection.Declaration)
     private var diagnostics: List<Diagnostic> = emptyList()
+    private var declarationSymbols: List<DeclarationSymbol> = emptyList()
     private var completionItems: List<CompletionSuggestion> = emptyList()
     private var completionIndex = 0
     private var completionScrollOffset = 0
@@ -98,6 +100,11 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     override var onTextChanged: ((String) -> Unit)? = null
     override var onCursorChanged: ((EditorCursor) -> Unit)? = null
     override var onCompletionRequested: ((CompletionRequest) -> List<CompletionSuggestion>)? = null
+    override var onDeclarationSymbolsRequested: ((CompletionRequest) -> List<DeclarationSymbol>)? = null
+        set(value) {
+            field = value
+            refreshDeclarationSymbols()
+        }
     var onUndoRequested: (() -> Unit)? = null
     var onRedoRequested: (() -> Unit)? = null
 
@@ -188,6 +195,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         undoStack.clear()
         redoStack.clear()
         hideCompletions()
+        refreshDeclarationSymbols()
         notifyCursor()
         repaint()
     }
@@ -196,6 +204,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
     override fun setLanguage(languageId: String) {
         this.languageId = RegexSyntaxHighlighter.normalizeLanguage(languageId)
+        refreshDeclarationSymbols()
         updateToolTip()
         repaint()
     }
@@ -218,6 +227,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
     override fun setCompletionContext(context: EditorCompletionContext) {
         completionContext = context
+        refreshDeclarationSymbols()
     }
 
     override fun focus() {
@@ -401,23 +411,34 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     }
 
     private fun requestCompletions() {
-        val nodeId = completionContext.nodeId?.let(::NodeId) ?: return
-        val line = lines[caret.line]
-        val prefix = currentPrefix()
-        val request = CompletionRequest(
-            nodeId = nodeId,
-            textSection = completionContext.textSection,
-            languageId = languageId,
-            technologyId = technology.technologyId,
-            cursorOffset = offsetFor(caret),
-            fullText = getText(),
-            currentLine = line,
-            prefix = prefix,
-        )
+        val request = currentCompletionRequest() ?: return
         completionItems = onCompletionRequested?.invoke(request).orEmpty()
         completionIndex = 0
         completionScrollOffset = 0
         repaint()
+    }
+
+    private fun refreshDeclarationSymbols() {
+        declarationSymbols = currentCompletionRequest()
+            ?.let { request -> onDeclarationSymbolsRequested?.invoke(request) }
+            .orEmpty()
+        repaint()
+    }
+
+    private fun currentCompletionRequest(): CompletionRequest? {
+        val nodeId = completionContext.nodeId?.let(::NodeId) ?: return null
+        val currentCaret = caret
+        val line = lines.getOrElse(currentCaret.line) { "" }
+        return CompletionRequest(
+            nodeId = nodeId,
+            textSection = completionContext.textSection,
+            languageId = languageId,
+            technologyId = technology.technologyId,
+            cursorOffset = offsetFor(currentCaret),
+            fullText = getText(),
+            currentLine = line,
+            prefix = currentPrefix(),
+        )
     }
 
     private fun applyCompletion(suggestion: CompletionSuggestion) {
@@ -437,6 +458,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         redoStack.clear()
         operation()
         hideCompletions()
+        refreshDeclarationSymbols()
         notifyTextChanged()
     }
 
@@ -677,7 +699,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val start = scrollColumn.coerceAtMost(line.length)
         val end = (scrollColumn + visibleCols).coerceAtMost(line.length)
         if (start >= end) return
-        val tokens = RegexSyntaxHighlighter.highlightLine(languageId, line)
+        val tokens = RegexSyntaxHighlighter.highlightLine(languageId, line, declarationSymbols)
         var cursor = start
 
         fun drawSegment(segmentStart: Int, segmentEnd: Int, color: Color) {

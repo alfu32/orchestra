@@ -1,0 +1,21 @@
+{# Defines a composite: own setup, child setup, own execution, child execution, then link transport. #}
+static int tw_{{ initializerSymbol }}(threadwork_context *context)
+{
+    (void)context;
+{% if instantiation is not empty %}{{ instantiationIndent4 }}
+{% endif %}{% for child in childArtifacts %}{% if child.declaration is not empty and child.node.kind.name != "Note" %}    if (tw_{{ child.initializerSymbol }}(context) != THREADWORK_OK) {
+        return THREADWORK_ERROR;
+    }
+{% endif %}{% endfor %}    return THREADWORK_OK;
+}
+
+static int tw_{{ runSymbol }}(threadwork_context *context)
+{
+    (void)context;
+{% if declaration is not empty %}{{ declarationIndent4 }}
+{% endif %}{% for child in childArtifacts %}{% if child.declaration is not empty and child.node.kind.name != "Note" %}    if (tw_{{ child.runSymbol }}(context) != THREADWORK_OK) {
+        return THREADWORK_ERROR;
+    }
+{% endif %}{% endfor %}{% for linkArtifact in linkArtifacts %}{% if linkArtifact.instantiation is not empty %}{{ linkArtifact.instantiation }}
+{% endif %}{% endfor %}    return THREADWORK_OK;
+}

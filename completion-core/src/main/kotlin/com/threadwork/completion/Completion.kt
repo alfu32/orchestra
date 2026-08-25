@@ -53,6 +53,8 @@ enum class CompletionSuggestionKind {
 
 interface NodeCompletionService {
     fun getSuggestions(request: CompletionRequest): List<CompletionSuggestion>
+
+    fun getDeclarationSymbols(request: CompletionRequest): List<DeclarationSymbol> = emptyList()
 }
 
 interface TechnologyCompletionProvider {
@@ -66,6 +68,7 @@ class ModelAwareCompletionService(
         KotlinJvmCompletionProvider(),
         FlowTemplateCompletionProvider(),
     ),
+    private val declarationSymbolIndex: DocumentDeclarationSymbolIndex = DocumentDeclarationSymbolIndex(),
 ) : NodeCompletionService {
     override fun getSuggestions(request: CompletionRequest): List<CompletionSuggestion> {
         val document = documentProvider()
@@ -119,6 +122,16 @@ class ModelAwareCompletionService(
             suggestions += CompletionSuggestion(label, label, CompletionSuggestionKind.Import, "metadata import")
         }
 
+        getDeclarationSymbols(request).mapTo(suggestions) { symbol ->
+            CompletionSuggestion(
+                label = symbol.name,
+                insertText = symbol.name,
+                kind = CompletionSuggestionKind.UserSymbol,
+                detail = "${symbol.kind.name.lowercase()} from ${symbol.ownerNodeName}",
+                documentation = symbol.header,
+            )
+        }
+
         technologyProviders
             .filter { it.supports(request.languageId, request.technologyId) }
             .flatMapTo(suggestions) { it.getSuggestions(node, document, request) }
@@ -128,6 +141,9 @@ class ModelAwareCompletionService(
             .distinctBy { it.insertText }
             .sortedWith(compareBy({ suggestionPriority(it.kind) }, { it.label.lowercase() }))
     }
+
+    override fun getDeclarationSymbols(request: CompletionRequest): List<DeclarationSymbol> =
+        declarationSymbolIndex.symbols(documentProvider(), request)
 
     private fun linkNameSuggestion(document: ThreadworkDocument, linkNode: Node, incoming: Boolean): CompletionSuggestion? {
         val link = linkNode.link
@@ -301,6 +317,14 @@ class FlowTemplateCompletionProvider : TechnologyCompletionProvider {
         suggestions += fieldSuggestion("linkArtifacts", "compiled link artifacts")
         suggestions += fieldSuggestion("childDeclarations", "all child declarations")
         suggestions += fieldSuggestion("inlineChildDeclarations", "single-file child declarations")
+        suggestions += fieldSuggestion("childHoistedDeclarations", "child declarations required before executable code")
+        suggestions += fieldSuggestion("linkHoistedDeclarations", "link declarations required before executable code")
+        suggestions += fieldSuggestion("descendantHoistedDeclarations", "all descendant declarations required before executable code")
+        suggestions += fieldSuggestion("hoistedDeclarations", "complete declarations required before executable code")
+        suggestions += fieldSuggestion("childForwardDeclarations", "child function forward declarations")
+        suggestions += fieldSuggestion("linkForwardDeclarations", "link function forward declarations")
+        suggestions += fieldSuggestion("descendantForwardDeclarations", "all descendant function forward declarations")
+        suggestions += fieldSuggestion("forwardDeclarations", "complete function forward declarations")
         suggestions += fieldSuggestion("childInstantiations", "all child instantiations")
         suggestions += fieldSuggestion("linkDeclarations", "all link declarations")
         suggestions += fieldSuggestion("linkInstantiations", "all link instantiations")

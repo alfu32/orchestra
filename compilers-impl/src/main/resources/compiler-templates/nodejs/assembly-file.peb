@@ -1,8 +1,7 @@
-{% if childImports is not empty %}{{ childImports }}
+{# composite.file-based: orders childImports, runtimeSupport, owned linkDeclarations, and ownDeclaration into one CommonJS module. #}{% if childImports is not empty %}{{ childImports }}
 
 {% endif %}{{ runtimeSupport }}
 {% if linkDeclarations is not empty %}
 {{ linkDeclarations }}
 {% endif %}
 {{ ownDeclaration }}
-

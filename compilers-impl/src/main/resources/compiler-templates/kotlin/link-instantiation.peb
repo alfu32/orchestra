@@ -1,2 +1,1 @@
-runLink(context, "{{ link.escapedSourceReferenceDoubleQuoted }}", "{{ link.escapedTargetReferenceDoubleQuoted }}")
-
+{# link.instantiation: emits the composite-level transport call from escaped source and target endpoint references. #}runLink(context, "{{ link.escapedSourceReferenceDoubleQuoted }}", "{{ link.escapedTargetReferenceDoubleQuoted }}")

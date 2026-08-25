@@ -1,0 +1,14 @@
+{# Defines one terminal processor. Instantiation is setup code; declaration is recurring code. #}
+static int tw_{{ initializerSymbol }}(threadwork_context *context)
+{
+    (void)context;
+{% if instantiation is not empty %}{{ instantiationIndent4 }}
+{% endif %}    return THREADWORK_OK;
+}
+
+static int tw_{{ runSymbol }}(threadwork_context *context)
+{
+    (void)context;
+{% if declaration is not empty %}{{ declarationIndent4 }}
+{% endif %}    return THREADWORK_OK;
+}

@@ -1,4 +1,4 @@
-plugins {
+{# Project build file: uses project-level mainClassName to configure the generated Kotlin application entry point. #}plugins {
     kotlin("jvm") version "2.2.0"
     application
 }
@@ -14,4 +14,3 @@ kotlin {
 application {
     mainClass.set("{{ mainClassName }}")
 }
-

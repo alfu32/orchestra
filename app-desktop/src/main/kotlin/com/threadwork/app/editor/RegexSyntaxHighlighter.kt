@@ -1,5 +1,7 @@
 package com.threadwork.app.editor
 
+import com.threadwork.completion.DeclarationSymbol
+import com.threadwork.completion.DeclarationSymbolKind
 import com.threadwork.core.model.VOID_LANGUAGE_ID
 import java.awt.Color
 
@@ -22,6 +24,9 @@ object RegexSyntaxHighlighter {
     private val Comment = Color(0x6a9955)
     private val StringLiteral = Color(0xce9178)
     private val NumberLiteral = Color(0xb5cea8)
+    private val FunctionSymbol = Color(0xdcdcaa)
+    private val TypeSymbol = Color(0x4ec9b0)
+    private val ValueSymbol = Color(0x9cdcfe)
 
     private val stringPattern = Regex(""""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'""")
     private val blockCommentPattern = Regex("""/\*.*?\*/""")
@@ -46,7 +51,11 @@ object RegexSyntaxHighlighter {
     fun normalizeLanguage(languageId: String): String =
         aliasIndex[languageId.normalizedLanguageKey()] ?: VOID_LANGUAGE_ID
 
-    fun highlightLine(languageId: String, line: String): List<SyntaxToken> {
+    fun highlightLine(
+        languageId: String,
+        line: String,
+        declarationSymbols: List<DeclarationSymbol> = emptyList(),
+    ): List<SyntaxToken> {
         if (line.isEmpty()) return emptyList()
         val tokens = mutableListOf<SyntaxToken>()
         val occupied = BooleanArray(line.length)
@@ -75,8 +84,33 @@ object RegexSyntaxHighlighter {
                 add(range.first, range.last + 1, syntax.color)
             }
         }
+        declarationSymbols.forEach { symbol ->
+            var start = line.indexOf(symbol.name)
+            while (start >= 0) {
+                val end = start + symbol.name.length
+                if (line.isIdentifierBoundary(start - 1) && line.isIdentifierBoundary(end)) {
+                    add(start, end, semanticColor(symbol.kind))
+                }
+                start = line.indexOf(symbol.name, start + symbol.name.length.coerceAtLeast(1))
+            }
+        }
         return tokens.sortedBy { it.start }
     }
+
+    private fun semanticColor(kind: DeclarationSymbolKind): Color = when (kind) {
+        DeclarationSymbolKind.Function -> FunctionSymbol
+        DeclarationSymbolKind.Class,
+        DeclarationSymbolKind.Interface,
+        DeclarationSymbolKind.Struct,
+        DeclarationSymbolKind.Union,
+        DeclarationSymbolKind.Enum,
+        DeclarationSymbolKind.TypeAlias -> TypeSymbol
+        DeclarationSymbolKind.Constant,
+        DeclarationSymbolKind.Variable -> ValueSymbol
+    }
+
+    private fun String.isIdentifierBoundary(index: Int): Boolean =
+        index !in indices || !(this[index].isLetterOrDigit() || this[index] == '_' || this[index] == '$')
 
     private fun registerBuiltIns() {
         register("c", """(^|\b)(#[a-z]+|auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|int|long|register|return|short|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|volatile|while)($|\b)""")

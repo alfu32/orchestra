@@ -1,8 +1,7 @@
-function {{ symbol }}(array &$context = []): void
+{# composite.declaration: emits a by-reference context function containing own text, child calls, and link transport instantiations. #}function {{ symbol }}(array &$context = []): void
 {
 {% if instantiation is not empty %}{{ instantiationIndent4 }}
 {% endif %}{% if declaration is not empty %}{{ declarationIndent4 }}
 {% endif %}{% for child in childArtifacts %}{% if child.node.kind.name != "Note" %}    {{ child.symbol }}($context);
 {% endif %}{% endfor %}{% for linkArtifact in linkArtifacts %}{% if linkArtifact.instantiation is not empty %}    {{ linkArtifact.instantiation }}
 {% endif %}{% endfor %}}
-

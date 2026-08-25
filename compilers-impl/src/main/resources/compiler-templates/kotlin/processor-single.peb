@@ -1,4 +1,4 @@
-fun {{ initializerSymbol }}(context: RuntimeContext) {
+{# Single-file node/composite declaration: emits initializerSymbol and runSymbol; terminals use user text, composites invoke child/link artifacts. #}fun {{ initializerSymbol }}(context: RuntimeContext) {
 {% if node.isComposite %}{% for child in childArtifacts %}    {% if child.isInline == false %}generated.nodes.{% endif %}{{ child.initializerSymbol }}(context)
 {% else %}    // Composite node '{{ name }}' has no executable children to initialize.
 {% endfor %}{% elseif instantiation is not empty %}{{ instantiationIndent4 }}
@@ -11,4 +11,3 @@ fun {{ runSymbol }}(context: RuntimeContext) {
 {% endif %}{% endfor %}{% elseif declaration is not empty %}{{ declarationIndent4 }}
 {% else %}    // Node '{{ name }}' has no declaration text yet.
 {% endif %}}
-

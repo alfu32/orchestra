@@ -1,0 +1,234 @@
+{# Byte-copying endpoint queue runtime shared by all generated C processors. #}
+enum {
+    THREADWORK_OK = 0,
+    THREADWORK_ERROR = 1
+};
+
+typedef struct threadwork_packet {
+    void *data;
+    size_t size;
+    struct threadwork_packet *next;
+} threadwork_packet;
+
+typedef struct threadwork_queue {
+    threadwork_packet *head;
+    threadwork_packet *tail;
+} threadwork_queue;
+
+typedef struct threadwork_endpoint {
+    char *name;
+    threadwork_queue queue;
+    struct threadwork_endpoint *next;
+} threadwork_endpoint;
+
+typedef struct threadwork_context {
+    threadwork_endpoint *inputs;
+    threadwork_endpoint *outputs;
+} threadwork_context;
+
+static char *threadwork_string_copy(const char *value)
+{
+    size_t size;
+    char *copy;
+
+    if (value == NULL) {
+        return NULL;
+    }
+    size = strlen(value) + 1U;
+    copy = (char *)malloc(size);
+    if (copy != NULL) {
+        memcpy(copy, value, size);
+    }
+    return copy;
+}
+
+static threadwork_endpoint *threadwork_endpoint_find(
+    threadwork_endpoint *head,
+    const char *name)
+{
+    threadwork_endpoint *current = head;
+
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+static threadwork_endpoint *threadwork_endpoint_get_or_create(
+    threadwork_endpoint **head,
+    const char *name)
+{
+    threadwork_endpoint *endpoint;
+
+    if (head == NULL || name == NULL) {
+        return NULL;
+    }
+    endpoint = threadwork_endpoint_find(*head, name);
+    if (endpoint != NULL) {
+        return endpoint;
+    }
+    endpoint = (threadwork_endpoint *)calloc(1U, sizeof(*endpoint));
+    if (endpoint == NULL) {
+        return NULL;
+    }
+    endpoint->name = threadwork_string_copy(name);
+    if (endpoint->name == NULL) {
+        free(endpoint);
+        return NULL;
+    }
+    endpoint->next = *head;
+    *head = endpoint;
+    return endpoint;
+}
+
+static void threadwork_packet_destroy(threadwork_packet *packet)
+{
+    if (packet != NULL) {
+        free(packet->data);
+        free(packet);
+    }
+}
+
+static void threadwork_endpoint_list_destroy(threadwork_endpoint *head)
+{
+    while (head != NULL) {
+        threadwork_endpoint *next_endpoint = head->next;
+        threadwork_packet *packet = head->queue.head;
+        while (packet != NULL) {
+            threadwork_packet *next_packet = packet->next;
+            threadwork_packet_destroy(packet);
+            packet = next_packet;
+        }
+        free(head->name);
+        free(head);
+        head = next_endpoint;
+    }
+}
+
+int threadwork_context_init(threadwork_context *context)
+{
+    if (context == NULL) {
+        return THREADWORK_ERROR;
+    }
+    context->inputs = NULL;
+    context->outputs = NULL;
+    return THREADWORK_OK;
+}
+
+void threadwork_context_destroy(threadwork_context *context)
+{
+    if (context == NULL) {
+        return;
+    }
+    threadwork_endpoint_list_destroy(context->inputs);
+    threadwork_endpoint_list_destroy(context->outputs);
+    context->inputs = NULL;
+    context->outputs = NULL;
+}
+
+int threadwork_output_write(
+    threadwork_context *context,
+    const char *endpoint_name,
+    const void *data,
+    size_t size)
+{
+    threadwork_endpoint *endpoint;
+    threadwork_packet *packet;
+
+    if (context == NULL || endpoint_name == NULL || (size > 0U && data == NULL)) {
+        return THREADWORK_ERROR;
+    }
+    endpoint = threadwork_endpoint_get_or_create(&context->outputs, endpoint_name);
+    if (endpoint == NULL) {
+        return THREADWORK_ERROR;
+    }
+    packet = (threadwork_packet *)calloc(1U, sizeof(*packet));
+    if (packet == NULL) {
+        return THREADWORK_ERROR;
+    }
+    if (size > 0U) {
+        packet->data = malloc(size);
+        if (packet->data == NULL) {
+            free(packet);
+            return THREADWORK_ERROR;
+        }
+        memcpy(packet->data, data, size);
+    }
+    packet->size = size;
+    if (endpoint->queue.tail == NULL) {
+        endpoint->queue.head = packet;
+    } else {
+        endpoint->queue.tail->next = packet;
+    }
+    endpoint->queue.tail = packet;
+    return THREADWORK_OK;
+}
+
+int threadwork_input_read(
+    threadwork_context *context,
+    const char *endpoint_name,
+    void *destination,
+    size_t capacity,
+    size_t *actual_size)
+{
+    threadwork_endpoint *endpoint;
+    threadwork_packet *packet;
+
+    if (context == NULL || endpoint_name == NULL) {
+        return THREADWORK_ERROR;
+    }
+    endpoint = threadwork_endpoint_find(context->inputs, endpoint_name);
+    if (endpoint == NULL || endpoint->queue.head == NULL) {
+        return THREADWORK_ERROR;
+    }
+    packet = endpoint->queue.head;
+    if (actual_size != NULL) {
+        *actual_size = packet->size;
+    }
+    if (packet->size > capacity || (packet->size > 0U && destination == NULL)) {
+        return THREADWORK_ERROR;
+    }
+    if (packet->size > 0U) {
+        memcpy(destination, packet->data, packet->size);
+    }
+    endpoint->queue.head = packet->next;
+    if (endpoint->queue.head == NULL) {
+        endpoint->queue.tail = NULL;
+    }
+    threadwork_packet_destroy(packet);
+    return THREADWORK_OK;
+}
+
+int threadwork_transport(
+    threadwork_context *context,
+    const char *link_reference,
+    const char *source_name,
+    const char *target_name)
+{
+    threadwork_endpoint *source;
+    threadwork_endpoint *target;
+
+    if (context == NULL || link_reference == NULL || source_name == NULL || target_name == NULL) {
+        return THREADWORK_ERROR;
+    }
+    source = threadwork_endpoint_find(context->outputs, source_name);
+    if (source == NULL || source->queue.head == NULL) {
+        return THREADWORK_OK;
+    }
+    target = threadwork_endpoint_get_or_create(&context->inputs, target_name);
+    if (target == NULL) {
+        return THREADWORK_ERROR;
+    }
+    if (target->queue.tail == NULL) {
+        target->queue.head = source->queue.head;
+    } else {
+        target->queue.tail->next = source->queue.head;
+    }
+    target->queue.tail = source->queue.tail;
+    source->queue.head = NULL;
+    source->queue.tail = NULL;
+    return THREADWORK_OK;
+}

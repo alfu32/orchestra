@@ -1,4 +1,4 @@
-<?php
+{# composite.file-based: opens PHP then orders childImports, runtimeSupport, linkDeclarations, and ownDeclaration. #}<?php
 
 {% if childImports is not empty %}{{ childImports }}
 
@@ -7,4 +7,3 @@
 {{ linkDeclarations }}
 {% endif %}
 {{ ownDeclaration }}
-

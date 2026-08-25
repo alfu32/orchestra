@@ -8,6 +8,7 @@ import com.threadwork.app.fonts.ThreadworkFonts
 import com.threadwork.Version
 import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.CompilerPlugin
+import com.threadwork.compiler.c.CCompiler
 import com.threadwork.compiler.api.CompilerTechnology
 import com.threadwork.compiler.api.ClassifiedFilesystemLayoutStrategy
 import com.threadwork.compiler.api.DirectFileSystemHomorphismLayoutStrategy
@@ -200,7 +201,7 @@ class ThreadworkDesktopApp(
     private val treeExpandedIds = mutableMapOf<JTree, MutableSet<String>>()
     private var restoringTreeExpansion = false
     private val compilerCompiler = CompilerCompiler()
-    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + JSCompiler() + PhpCompiler() + GenericCompiler() + NaiveKotlinCompiler()
+    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + JSCompiler() + PhpCompiler() + CCompiler() + GenericCompiler() + NaiveKotlinCompiler()
     private val compilerTechnologies = availableCompilerTechnologies()
     private val languageIds = availableLanguageIds(compilerTechnologies)
     private val technologyIds = availableTechnologyIds(compilerTechnologies)
@@ -4982,6 +4983,7 @@ private class NodeTextEditor(
         editor.setTechnology(effectiveTechnology().copy(languageId = effectiveTextLanguage(spec.section)))
         editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
         editor.onCompletionRequested = completionService::getSuggestions
+        editor.onDeclarationSymbolsRequested = completionService::getDeclarationSymbols
         editor.setText(spec.textGetter(node.text))
         fun saveNow() {
             val current = repository.requireNode(nodeId)
@@ -5046,6 +5048,7 @@ private class NodeTextEditor(
         editor.setTechnology(effectiveTechnology().copy(languageId = effectiveTextLanguage(NodeTextSection.Tests)))
         editor.setCompletionContext(EditorCompletionContext(node.id.value, NodeTextSection.Tests))
         editor.onCompletionRequested = completionService::getSuggestions
+        editor.onDeclarationSymbolsRequested = completionService::getDeclarationSymbols
         editor.setText(node.text.tests)
         fun saveNow() {
             val current = repository.requireNode(nodeId)

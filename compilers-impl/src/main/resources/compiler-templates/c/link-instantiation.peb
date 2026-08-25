@@ -1,0 +1,8 @@
+{# Moves all packets on this distinct modeled link after child execution. #}
+    if (threadwork_transport(
+            context,
+            "{{ link.escapedNameDoubleQuoted }}",
+            "{{ link.escapedSourceReferenceDoubleQuoted }}",
+            "{{ link.escapedTargetReferenceDoubleQuoted }}") != THREADWORK_OK) {
+        return THREADWORK_ERROR;
+    }

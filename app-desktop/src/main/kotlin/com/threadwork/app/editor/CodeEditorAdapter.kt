@@ -2,6 +2,7 @@ package com.threadwork.app.editor
 
 import com.threadwork.completion.CompletionRequest
 import com.threadwork.completion.CompletionSuggestion
+import com.threadwork.completion.DeclarationSymbol
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.TechnologyMetadata
@@ -30,12 +31,14 @@ interface CodeEditorAdapter {
     var onTextChanged: ((String) -> Unit)?
     var onCursorChanged: ((EditorCursor) -> Unit)?
     var onCompletionRequested: ((CompletionRequest) -> List<CompletionSuggestion>)?
+    var onDeclarationSymbolsRequested: ((CompletionRequest) -> List<DeclarationSymbol>)?
 }
 
 class CodeMirrorWebViewAdapterUnsupported : CodeEditorAdapter {
     override var onTextChanged: ((String) -> Unit)? = null
     override var onCursorChanged: ((EditorCursor) -> Unit)? = null
     override var onCompletionRequested: ((CompletionRequest) -> List<CompletionSuggestion>)? = null
+    override var onDeclarationSymbolsRequested: ((CompletionRequest) -> List<DeclarationSymbol>)? = null
 
     override fun setText(text: String) = unsupported()
     override fun getText(): String = unsupported()

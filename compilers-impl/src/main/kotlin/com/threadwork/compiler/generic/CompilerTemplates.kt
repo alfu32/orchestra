@@ -33,16 +33,28 @@ import java.io.StringWriter
 import java.nio.file.Path
 
 object CompilerTemplateRoles {
+    const val NodeHoistedDeclaration = "node.hoisted-declaration"
+    const val NodeForwardDeclaration = "node.forward-declaration"
     const val NodeDeclaration = "node.declaration"
     const val NodeInstantiation = "node.instantiation"
+    const val ProcessorHoistedDeclaration = "processor.hoisted-declaration"
+    const val ProcessorForwardDeclaration = "processor.forward-declaration"
     const val ProcessorDeclaration = "processor.declaration"
     const val ProcessorInstantiation = "processor.instantiation"
+    const val LinkHoistedDeclaration = "link.hoisted-declaration"
+    const val LinkForwardDeclaration = "link.forward-declaration"
     const val LinkDeclaration = "link.declaration"
     const val LinkInstantiation = "link.instantiation"
+    const val GroupHoistedDeclaration = "group.hoisted-declaration"
+    const val GroupForwardDeclaration = "group.forward-declaration"
     const val GroupDeclaration = "group.declaration"
     const val GroupInstantiation = "group.instantiation"
+    const val NoteHoistedDeclaration = "note.hoisted-declaration"
+    const val NoteForwardDeclaration = "note.forward-declaration"
     const val NoteDeclaration = "note.declaration"
     const val NoteInstantiation = "note.instantiation"
+    const val CompositeHoistedDeclaration = "composite.hoisted-declaration"
+    const val CompositeForwardDeclaration = "composite.forward-declaration"
     const val CompositeDeclaration = "composite.declaration"
     const val CompositeInstantiation = "composite.instantiation"
     const val CompositeSingleFile = "composite.single-file"
@@ -59,6 +71,12 @@ object CompilerTemplateRoles {
     fun stereotypeDeclaration(stereotype: NodeStereotype): String =
         "${stereotype.name.toTemplateToken()}.declaration"
 
+    fun stereotypeHoistedDeclaration(stereotype: NodeStereotype): String =
+        "${stereotype.name.toTemplateToken()}.hoisted-declaration"
+
+    fun stereotypeForwardDeclaration(stereotype: NodeStereotype): String =
+        "${stereotype.name.toTemplateToken()}.forward-declaration"
+
     fun stereotypeInstantiation(stereotype: NodeStereotype): String =
         "${stereotype.name.toTemplateToken()}.instantiation"
 
@@ -72,16 +90,28 @@ object CompilerTemplateRoles {
         }
 
     val overrideNodeNames: Map<String, String> = linkedMapOf(
+        "@NodeHoistedDeclaration" to NodeHoistedDeclaration,
+        "@NodeForwardDeclaration" to NodeForwardDeclaration,
         "@NodeDeclaration" to NodeDeclaration,
         "@NodeInstantiation" to NodeInstantiation,
+        "@ProcessorHoistedDeclaration" to ProcessorHoistedDeclaration,
+        "@ProcessorForwardDeclaration" to ProcessorForwardDeclaration,
         "@ProcessorDeclaration" to ProcessorDeclaration,
         "@ProcessorInstantiation" to ProcessorInstantiation,
+        "@LinkHoistedDeclaration" to LinkHoistedDeclaration,
+        "@LinkForwardDeclaration" to LinkForwardDeclaration,
         "@LinkDeclaration" to LinkDeclaration,
         "@LinkInstantiation" to LinkInstantiation,
+        "@GroupHoistedDeclaration" to GroupHoistedDeclaration,
+        "@GroupForwardDeclaration" to GroupForwardDeclaration,
         "@GroupDeclaration" to GroupDeclaration,
         "@GroupInstantiation" to GroupInstantiation,
+        "@NoteHoistedDeclaration" to NoteHoistedDeclaration,
+        "@NoteForwardDeclaration" to NoteForwardDeclaration,
         "@NoteDeclaration" to NoteDeclaration,
         "@NoteInstantiation" to NoteInstantiation,
+        "@CompositeHoistedDeclaration" to CompositeHoistedDeclaration,
+        "@CompositeForwardDeclaration" to CompositeForwardDeclaration,
         "@CompositeDeclaration" to CompositeDeclaration,
         "@CompositeInstantiation" to CompositeInstantiation,
         "@CompositeSingleFile" to CompositeSingleFile,
@@ -102,6 +132,8 @@ object CompilerTemplateRoles {
         }
         NodeStereotype.entries.forEach { stereotype ->
             val normalizedName = stereotype.name.normalizedTemplateName()
+            put("${normalizedName}hoisteddeclaration", stereotypeHoistedDeclaration(stereotype))
+            put("${normalizedName}forwarddeclaration", stereotypeForwardDeclaration(stereotype))
             put("${normalizedName}declaration", stereotypeDeclaration(stereotype))
             put("${normalizedName}instantiation", stereotypeInstantiation(stereotype))
         }
@@ -110,6 +142,8 @@ object CompilerTemplateRoles {
     val all: Set<String> = buildSet {
         addAll(overrideNodeNames.values)
         NodeStereotype.entries.forEach { stereotype ->
+            add(stereotypeHoistedDeclaration(stereotype))
+            add(stereotypeForwardDeclaration(stereotype))
             add(stereotypeDeclaration(stereotype))
             add(stereotypeInstantiation(stereotype))
         }
@@ -118,6 +152,8 @@ object CompilerTemplateRoles {
     val suggestedOverrideNodeNames: List<String> = buildList {
         addAll(overrideNodeNames.keys)
         NodeStereotype.entries.forEach { stereotype ->
+            add("@${stereotype.name}HoistedDeclaration")
+            add("@${stereotype.name}ForwardDeclaration")
             add("@${stereotype.name}Declaration")
             add("@${stereotype.name}Instantiation")
         }
@@ -180,7 +216,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
     private val renderer = CompilerTemplateRenderer()
     private val activeTemplateSet = ThreadLocal<CompilerTemplateSet?>()
 
-    final override val supportedLayoutStrategyIds: Set<String> = setOf(
+    override val supportedLayoutStrategyIds: Set<String> = setOf(
         SingleFileLayoutStrategy.id,
         DirectFileSystemHomorphismLayoutStrategy.id,
         ClassifiedFilesystemLayoutStrategy.id,
@@ -296,6 +332,16 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             context,
             mapOf(
                 "ownDeclaration" to ownDeclaration,
+                "ownHoistedDeclaration" to hoistedDeclarationFor(context),
+                "ownForwardDeclaration" to forwardDeclarationFor(context),
+                "childHoistedDeclarations" to context.childHoistedDeclarations,
+                "linkHoistedDeclarations" to context.linkHoistedDeclarations,
+                "descendantHoistedDeclarations" to context.descendantHoistedDeclarations,
+                "hoistedDeclarations" to hoistedDeclarationBlock(context),
+                "childForwardDeclarations" to context.childForwardDeclarations,
+                "linkForwardDeclarations" to context.linkForwardDeclarations,
+                "descendantForwardDeclarations" to context.descendantForwardDeclarations,
+                "forwardDeclarations" to forwardDeclarationBlock(context),
                 "runtimeSupport" to renderRole(CompilerTemplateRoles.RuntimeSupport, context),
                 "childImports" to childImports(context),
                 "inlineChildDeclarations" to context.inlineChildDeclarations,
@@ -306,6 +352,12 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             ),
         )
     }
+
+    override fun forwardDeclarationFor(context: NodeCompilerContext): String =
+        forwardDeclarationTemplateFor(context)?.let { render(it, context) }.orEmpty()
+
+    override fun hoistedDeclarationFor(context: NodeCompilerContext): String =
+        hoistedDeclarationTemplateFor(context)?.let { render(it, context) }.orEmpty()
 
     override fun instantiationFor(context: NodeCompilerContext): String {
         val template = templateFor(context, declaration = false)
@@ -376,6 +428,64 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
         )
     }
 
+    private fun forwardDeclarationTemplateFor(context: NodeCompilerContext): String? {
+        val stereotype = stereotypeForTemplateContext(context.document, context.node)
+        val kindRole = when (context.node.kind) {
+            NodeKind.Node -> CompilerTemplateRoles.NodeForwardDeclaration
+            NodeKind.Processor -> CompilerTemplateRoles.ProcessorForwardDeclaration
+            NodeKind.Link -> CompilerTemplateRoles.LinkForwardDeclaration
+            NodeKind.Group -> CompilerTemplateRoles.GroupForwardDeclaration
+            NodeKind.Note -> CompilerTemplateRoles.NoteForwardDeclaration
+        }
+        val compositeRole = CompilerTemplateRoles.CompositeForwardDeclaration
+            .takeIf { context.node.children.isNotEmpty() && !context.node.isLink }
+        val layoutToken = context.effectiveLayoutStrategy.id
+        return requireTemplateSet().template(
+            "${stereotype.name.toTemplateToken()}.forward-declaration.$layoutToken",
+            CompilerTemplateRoles.stereotypeForwardDeclaration(stereotype),
+            compositeRole?.let { "$it.$layoutToken" }.orEmpty(),
+            compositeRole.orEmpty(),
+            "$kindRole.$layoutToken",
+            kindRole,
+            CompilerTemplateRoles.NodeForwardDeclaration,
+        )
+    }
+
+    private fun hoistedDeclarationTemplateFor(context: NodeCompilerContext): String? {
+        val stereotype = stereotypeForTemplateContext(context.document, context.node)
+        val kindRole = when (context.node.kind) {
+            NodeKind.Node -> CompilerTemplateRoles.NodeHoistedDeclaration
+            NodeKind.Processor -> CompilerTemplateRoles.ProcessorHoistedDeclaration
+            NodeKind.Link -> CompilerTemplateRoles.LinkHoistedDeclaration
+            NodeKind.Group -> CompilerTemplateRoles.GroupHoistedDeclaration
+            NodeKind.Note -> CompilerTemplateRoles.NoteHoistedDeclaration
+        }
+        val compositeRole = CompilerTemplateRoles.CompositeHoistedDeclaration
+            .takeIf { context.node.children.isNotEmpty() && !context.node.isLink }
+        val layoutToken = context.effectiveLayoutStrategy.id
+        return requireTemplateSet().template(
+            "${stereotype.name.toTemplateToken()}.hoisted-declaration.$layoutToken",
+            CompilerTemplateRoles.stereotypeHoistedDeclaration(stereotype),
+            compositeRole?.let { "$it.$layoutToken" }.orEmpty(),
+            compositeRole.orEmpty(),
+            "$kindRole.$layoutToken",
+            kindRole,
+            CompilerTemplateRoles.NodeHoistedDeclaration,
+        )
+    }
+
+    private fun forwardDeclarationBlock(context: NodeCompilerContext): String =
+        (context.descendantForwardDeclarationLines + forwardDeclarationFor(context).trim())
+            .filter(String::isNotBlank)
+            .distinct()
+            .joinToString("\n")
+
+    private fun hoistedDeclarationBlock(context: NodeCompilerContext): String =
+        (context.descendantHoistedDeclarationLines + hoistedDeclarationFor(context).trim())
+            .filter(String::isNotBlank)
+            .distinct()
+            .joinToString("\n\n")
+
     private fun childImports(context: NodeCompilerContext): String {
         val artifacts = if (context.isSingleFileLayout) context.externalChildArtifacts else context.childArtifacts
         return artifacts.joinToString("\n") { child -> importForChild(context, child) }.trim()
@@ -434,6 +544,12 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             "childDeclarations" to context.childDeclarations,
             "inlineChildDeclarations" to context.inlineChildDeclarations,
             "inlineChildDeclarationsWithoutPhpTag" to context.inlineChildDeclarations.replace("<?php", "").trim(),
+            "childHoistedDeclarations" to context.childHoistedDeclarations,
+            "linkHoistedDeclarations" to context.linkHoistedDeclarations,
+            "descendantHoistedDeclarations" to context.descendantHoistedDeclarations,
+            "childForwardDeclarations" to context.childForwardDeclarations,
+            "linkForwardDeclarations" to context.linkForwardDeclarations,
+            "descendantForwardDeclarations" to context.descendantForwardDeclarations,
             "childInstantiations" to context.childInstantiations,
             "linkDeclarations" to context.linkDeclarations,
             "linkInstantiations" to context.linkInstantiations,
@@ -599,6 +715,10 @@ private fun layoutView(node: Node): Map<String, Any?> = mapOf(
 
 private fun artifactView(context: NodeCompilerContext, artifact: CompiledNodeArtifact): Map<String, Any?> = mapOf(
     "node" to nodeView(context.document, artifact.node),
+    "hoistedDeclaration" to artifact.hoistedDeclarationText,
+    "hoistedDeclarations" to artifact.hoistedDeclarations,
+    "forwardDeclaration" to artifact.forwardDeclarationText,
+    "forwardDeclarations" to artifact.forwardDeclarations,
     "declaration" to artifact.declarationText,
     "instantiation" to artifact.instantiationText,
     "path" to artifact.primaryFile?.path.orEmpty(),

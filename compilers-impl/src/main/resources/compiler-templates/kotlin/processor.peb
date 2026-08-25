@@ -1,4 +1,4 @@
-package generated.nodes
+{# File-based node/composite declaration: emits generated.nodes initializer/run functions using current node text and compiled child/link artifacts. #}package generated.nodes
 
 import generated.RuntimeContext
 import generated.runLink
@@ -16,4 +16,3 @@ fun {{ runSymbol }}(context: RuntimeContext) {
 {% endif %}{% endfor %}{% elseif declaration is not empty %}{{ declarationIndent4 }}
 {% else %}    // Node '{{ name }}' has no declaration text yet.
 {% endif %}}
-

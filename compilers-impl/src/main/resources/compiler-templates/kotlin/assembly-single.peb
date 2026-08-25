@@ -1,4 +1,4 @@
-{% if isCompilationRoot %}package generated
+{# composite.single-file: assembles root runtime/main, inline child declarations, and ownDeclaration; isCompilationRoot prevents duplicate entry points. #}{% if isCompilationRoot %}package generated
 
 class RuntimeContext {
     val inputs: MutableMap<String, MutableList<Any?>> = mutableMapOf()
@@ -25,4 +25,3 @@ fun main() {
     {{ runSymbol }}(context)
 }
 {% endif %}
-

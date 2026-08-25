@@ -1,4 +1,4 @@
-function transport(context, linkReference, source, target) {
+{# runtime.support: defines named-link queue transport over shared context inputs, outputs, and link endpoint metadata. #}function transport(context, linkReference, source, target) {
   context.outputs = context.outputs || {};
   context.inputs = context.inputs || {};
   context.links = context.links || {};
@@ -7,4 +7,3 @@ function transport(context, linkReference, source, target) {
   context.inputs[target] = context.inputs[target] || [];
   while (queue.length > 0) context.inputs[target].push(queue.shift());
 }
-

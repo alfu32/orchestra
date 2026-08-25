@@ -24,10 +24,13 @@ class TemplateSetCompilerTest {
             displayName = "Test templates",
             templateSet = CompilerTemplateSet(
                 templates = mapOf(
+                    CompilerTemplateRoles.ProcessorForwardDeclaration to "forward {{ node.name }}",
                     CompilerTemplateRoles.ProcessorDeclaration to "function {{ node.name }}() {}",
                     CompilerTemplateRoles.ProcessorInstantiation to "{{ node.name }}();",
+                    CompilerTemplateRoles.CompositeForwardDeclaration to "forward {{ node.name }}",
                     CompilerTemplateRoles.CompositeDeclaration to "function {{ node.name }}() {\n{{ childInstantiations }}\n}",
                     CompilerTemplateRoles.CompositeSingleFile to """
+                        {{ forwardDeclarations }}
                         {% for child in childArtifacts %}// child {{ child.node.name }}
                         {% endfor %}{{ inlineChildDeclarations }}
 
@@ -49,6 +52,10 @@ class TemplateSetCompilerTest {
         assertTrue(file.content.contains("function consume() {}"))
         assertTrue(file.content.contains("produce();"))
         assertTrue(file.content.contains("consume();"))
+        assertTrue(file.content.indexOf("forward produce") < file.content.indexOf("function produce() {}"))
+        assertTrue(file.content.indexOf("forward consume") < file.content.indexOf("function consume() {}"))
+        assertTrue(file.content.lines().count { it.trim() == "forward produce" } == 1)
+        assertTrue(file.content.lines().count { it.trim() == "forward consume" } == 1)
     }
 
     @Test
