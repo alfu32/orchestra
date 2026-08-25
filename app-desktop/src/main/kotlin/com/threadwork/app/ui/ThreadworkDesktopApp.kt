@@ -109,6 +109,7 @@ import javax.swing.BorderFactory
 import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
+import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
@@ -206,7 +207,15 @@ class ThreadworkDesktopApp(
     private val languageIds = availableLanguageIds(compilerTechnologies)
     private val technologyIds = availableTechnologyIds(compilerTechnologies)
     private val layoutStrategies = availableLayoutStrategies()
-    private val inspector = InspectorPanel(repository, ::refreshAll, languageIds, technologyIds, layoutStrategies)
+    private val compilerCapabilityResolver = CompilerCapabilityResolver(compilerPlugins)
+    private val inspector = InspectorPanel(
+        repository,
+        ::refreshAll,
+        languageIds,
+        technologyIds,
+        layoutStrategies,
+        compilerCapabilityResolver,
+    )
     private val editorTabs = NodeEditorTabs(repository, ::refreshAll, ::checkpointHistory, ::undoDocument, ::redoDocument, languageIds)
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
@@ -4274,6 +4283,7 @@ private class InspectorPanel(
     languageIds: List<String>,
     technologyIds: List<String>,
     layoutStrategies: List<LayoutStrategy>,
+    private val compilerCapabilityResolver: CompilerCapabilityResolver,
 ) : JPanel(BorderLayout()) {
     private val knownLanguageIds = languageIds
         .map { it.trim() }
@@ -4291,15 +4301,16 @@ private class InspectorPanel(
     private val transportDisplayById = LinkTransportKinds.catalog.associate { it.id to "${it.label} (${it.id})" }
     private val transportIdByDisplay = transportDisplayById.entries.associate { (id, display) -> display to id }
     private val transportKindOptions = LinkTransportKinds.catalog.map { transportDisplayById.getValue(it.id) } + OtherTransportChoice
-    private val layoutDisplayById = layoutStrategies.associate { it.id to "${it.displayName} (${it.id})" }
+    private val knownLayoutStrategies = layoutStrategies
+    private val layoutDisplayById = knownLayoutStrategies.associate { it.id to "${it.displayName} (${it.id})" }
     private val layoutIdByDisplay = layoutDisplayById.entries.associate { (id, display) -> display to id }
-    private val layoutStrategyOptions = listOf(NoneLayoutChoice) + layoutStrategies.map { layoutDisplayById.getValue(it.id) }
     private var nodeId: NodeId? = null
     private var boundNodeIsLink = false
     private var boundNodeIsCompiler = false
     private var boundNodeIsRoot = false
     private var boundHasNode = false
     private var binding = false
+    private var unsupportedLayoutSelectionId: String? = null
     private var compilerTechnologyProposal = "generated"
     private val nameField = JTextField()
     private val compilerTemplateNames = (
@@ -4341,8 +4352,9 @@ private class InspectorPanel(
     private val masterRevisionName = JTextField()
     private val masterRevisionDate = JTextField()
     private val linkTransportKind = JComboBox(transportKindOptions.toTypedArray()).apply { isEditable = false }
-    private val layoutStrategy = JComboBox(layoutStrategyOptions.toTypedArray()).apply { isEditable = false }
+    private val layoutStrategy = JComboBox(arrayOf(NoneLayoutChoice)).apply { isEditable = false }
     private val computedLayoutStrategy = JLabel()
+    private val layoutCompilerCapability = JLabel()
     private val linkTypeName = JTextField()
     private val customTransportKind = JTextField()
     private val customTransportKindPanel = JPanel(BorderLayout(0, 4)).apply {
@@ -4363,6 +4375,8 @@ private class InspectorPanel(
             add(layoutStrategy)
             add(Box.createVerticalStrut(4))
             add(computedLayoutStrategy)
+            add(Box.createVerticalStrut(2))
+            add(layoutCompilerCapability)
         },
     )
     private val stateRow = fieldRow("State", state)
@@ -4614,6 +4628,10 @@ private class InspectorPanel(
             repository.updateLinkData(id, it)
         }
         refreshAll()
+        val previousBinding = binding
+        binding = true
+        bindLayoutStrategy(repository.requireNode(id).fileLayoutStrategyId)
+        binding = previousBinding
     }
 
     private fun selectedLanguage(): String =
@@ -4704,13 +4722,43 @@ private class InspectorPanel(
 
     private fun bindLayoutStrategy(layoutStrategyId: String) {
         val value = layoutStrategyId.trim()
+        refreshLayoutStrategyOptions(value)
         val display = layoutDisplayById[value]
         layoutStrategy.selectedItem = when {
-            value.isBlank() || value == VOID_LAYOUT_STRATEGY_ID || display == null -> NoneLayoutChoice
+            value.isBlank() || value == VOID_LAYOUT_STRATEGY_ID -> NoneLayoutChoice
+            value == unsupportedLayoutSelectionId -> unsupportedLayoutDisplay(value)
+            display == null -> NoneLayoutChoice
             else -> display
         }
         refreshLayoutStrategyComputedLabel()
     }
+
+    private fun refreshLayoutStrategyOptions(selectedId: String) {
+        val id = nodeId
+        val document = repository.getDocument()
+        val compiler = id?.let { compilerCapabilityResolver.compilerFor(document, it) }
+        val supportedIds = id?.let { compilerCapabilityResolver.supportedLayoutStrategyIds(document, it) }.orEmpty()
+        val supportedStrategies = knownLayoutStrategies.filter { it.id in supportedIds }
+        val normalizedSelectedId = selectedId.trim()
+        unsupportedLayoutSelectionId = normalizedSelectedId.takeIf {
+            it.isNotBlank() && it != VOID_LAYOUT_STRATEGY_ID && it !in supportedIds
+        }
+        val values = buildList {
+            add(NoneLayoutChoice)
+            addAll(supportedStrategies.map { layoutDisplayById.getValue(it.id) })
+            unsupportedLayoutSelectionId?.let { add(unsupportedLayoutDisplay(it)) }
+        }
+        val previousBinding = binding
+        binding = true
+        layoutStrategy.model = DefaultComboBoxModel(values.toTypedArray())
+        binding = previousBinding
+        layoutStrategy.toolTipText = compiler?.let {
+            "${it.displayName} supports ${supportedStrategies.joinToString { strategy -> strategy.displayName }.ifBlank { "no declared layout strategies" }}"
+        } ?: "No compiler is available for this entity"
+    }
+
+    private fun unsupportedLayoutDisplay(layoutId: String): String =
+        "Unsupported: ${layoutDisplayById[layoutId] ?: layoutId}"
 
     private fun updateConditionalChoiceVisibility() {
         customLanguagePanel.isVisible = languageRow.isVisible && language.selectedItem == OtherLanguageChoice
@@ -4754,17 +4802,26 @@ private class InspectorPanel(
         when (val selected = layoutStrategy.selectedItem?.toString().orEmpty()) {
             "" -> VOID_LAYOUT_STRATEGY_ID
             NoneLayoutChoice -> VOID_LAYOUT_STRATEGY_ID
+            unsupportedLayoutSelectionId?.let(::unsupportedLayoutDisplay) -> unsupportedLayoutSelectionId.orEmpty()
             else -> layoutIdByDisplay[selected] ?: selected.trim()
         }
 
     private fun refreshLayoutStrategyComputedLabel() {
         val node = nodeId?.let(repository::getNode)
         val computed = node?.id?.let { nodeId -> repository.getDocument().effectiveLayoutStrategyId(nodeId) }.orEmpty()
+        val compiler = node?.id?.let { compilerCapabilityResolver.compilerFor(repository.getDocument(), it) }
+        val supportedIds = node?.id?.let {
+            compilerCapabilityResolver.supportedLayoutStrategyIds(repository.getDocument(), it)
+        }.orEmpty()
+        val unsupported = computed.isNotBlank() && computed != VOID_LAYOUT_STRATEGY_ID && computed !in supportedIds
         computedLayoutStrategy.text = when {
             computed.isBlank() || computed == VOID_LAYOUT_STRATEGY_ID -> "effective: none"
+            unsupported -> "effective: ${layoutDisplayById[computed] ?: computed} (unsupported)"
             else -> "effective: ${layoutDisplayById[computed] ?: computed}"
         }
+        layoutCompilerCapability.text = compiler?.let { "compiler: ${it.displayName}" } ?: "compiler: unavailable"
         computedLayoutStrategy.isVisible = layoutStrategyRow.isVisible
+        layoutCompilerCapability.isVisible = layoutStrategyRow.isVisible
     }
 
     private fun metadataText(node: Node?): String =
