@@ -60,7 +60,10 @@ class DocumentationCompilerTest {
 
         assertTrue(result.success)
         val project = assertNotNull(result.generatedProject)
-        assertEquals(setOf("Packet Platform.SPEC.md", "Packet Platform.TECH.md"), project.files.mapTo(linkedSetOf()) { it.path })
+        assertEquals(
+            setOf("Packet Platform.SPEC.md", "Packet Platform.TECH.md", "Packet Platform.COMPONENTS.md"),
+            project.files.mapTo(linkedSetOf()) { it.path },
+        )
         assertTrue(project.files.all { it.elementKind == GeneratedElementKind.Documentation })
         val functional = project.files.single { it.path.endsWith(".SPEC.md") }.content
         assertTrue(functional.contains("Reads queued packets"))
@@ -74,6 +77,10 @@ class DocumentationCompilerTest {
         assertTrue(technical.contains("payload uses the shared `Packet` type contract"))
         val writerSection = technical.substringAfter("### write packets").substringBefore("## Data Contracts")
         assertTrue(writerSection.contains("**Direct technology:** _Not specified directly._"))
+        val components = project.files.single { it.path.endsWith(".COMPONENTS.md") }.content
+        assertTrue(components.contains("## Contents"))
+        assertTrue(components.contains("### Test Data"))
+        assertTrue(components.contains("<!-- threadwork:page-break -->"))
     }
 
     @Test
@@ -92,7 +99,10 @@ class DocumentationCompilerTest {
         )
 
         val project = assertNotNull(result.generatedProject)
-        assertEquals(setOf("Order Processing.SPEC.md", "Order Processing.TECH.md"), project.files.mapTo(linkedSetOf()) { it.path })
+        assertEquals(
+            setOf("Order Processing.SPEC.md", "Order Processing.TECH.md", "Order Processing.COMPONENTS.md"),
+            project.files.mapTo(linkedSetOf()) { it.path },
+        )
         val functional = project.files.single { it.path.endsWith(".SPEC.md") }.content
         assertTrue(functional.contains("Validates the order."))
         assertFalse(functional.contains("Charges the customer."))

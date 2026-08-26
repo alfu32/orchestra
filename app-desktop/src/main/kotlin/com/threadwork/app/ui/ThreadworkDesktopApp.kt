@@ -8,6 +8,7 @@ import com.threadwork.app.fonts.ThreadworkFonts
 import com.threadwork.Version
 import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.CompilerPlugin
+import com.threadwork.compiler.api.GeneratedFile
 import com.threadwork.compiler.c.CCompiler
 import com.threadwork.compiler.documentation.DocumentationCompiler
 import com.threadwork.compiler.api.CompilerTechnology
@@ -172,6 +173,10 @@ import javax.swing.tree.TreePath
 import javax.swing.tree.TreeSelectionModel
 import javax.xml.parsers.DocumentBuilderFactory
 import org.xml.sax.InputSource
+import com.vladsch.flexmark.ext.tables.TablesExtension
+import com.vladsch.flexmark.html.HtmlRenderer
+import com.vladsch.flexmark.parser.Parser
+import com.vladsch.flexmark.util.data.MutableDataSet
 import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -194,6 +199,7 @@ class ThreadworkDesktopApp(
         const val LEGACY_PROJECT_EXTENSION = "json"
         const val DEFAULT_PROJECT_NAME = "document.orch"
         const val MAX_HISTORY_SNAPSHOTS = 100
+        const val DOCUMENTATION_PAGE_BREAK = "<!-- threadwork:page-break -->"
     }
 
     private val frame = JFrame()
@@ -206,6 +212,8 @@ class ThreadworkDesktopApp(
         ::onCanvasModeChanged,
         ::updateTileProgress,
         ::openNodeInEntityEditor,
+        ::exportDocumentationPdf,
+        ::exportDocumentationHtml,
     )
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
@@ -214,6 +222,9 @@ class ThreadworkDesktopApp(
     private var restoringTreeExpansion = false
     private val compilerCompiler = CompilerCompiler()
     private val documentationCompiler = DocumentationCompiler()
+    private val markdownOptions = MutableDataSet().set(Parser.EXTENSIONS, listOf(TablesExtension.create()))
+    private val markdownParser = Parser.builder(markdownOptions).build()
+    private val markdownHtmlRenderer = HtmlRenderer.builder(markdownOptions).build()
     private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + JSCompiler() + PhpCompiler() + CCompiler() + GenericCompiler() + NaiveKotlinCompiler()
     private val compilerTechnologies = availableCompilerTechnologies()
     private val languageIds = availableLanguageIds(compilerTechnologies)
@@ -1016,6 +1027,107 @@ class ThreadworkDesktopApp(
         }
     }
 
+    private fun exportDocumentationPdf(sheetPdf: File) {
+        val directory = sheetPdf.parentFile ?: File(".")
+        val documentation = compileDocumentationFiles()
+        writeDocumentationMarkdown(directory, documentation)
+        documentation.forEach { markdownFile ->
+            val pages = renderMarkdownPages(markdownFile.content)
+            if (pages.isNotEmpty()) {
+                val pdfPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".pdf")
+                RasterPdfWriter.write(
+                    pdfPath,
+                    pages.map { image ->
+                        PdfRasterPage(image, 210.0 * 72.0 / 25.4, 297.0 * 72.0 / 25.4)
+                    },
+                )
+            }
+        }
+    }
+
+    private fun exportDocumentationHtml(sheetSvg: File) {
+        val directory = sheetSvg.parentFile ?: File(".")
+        val documentation = compileDocumentationFiles()
+        writeDocumentationMarkdown(directory, documentation)
+        documentation.forEach { markdownFile ->
+            val htmlPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".html")
+            Files.writeString(htmlPath, markdownToHtml(markdownFile.content))
+        }
+    }
+
+    private fun compileDocumentationFiles(): List<GeneratedFile> {
+        val document = repository.getDocument()
+        val result = documentationCompiler.compile(
+            document,
+            CompilerOptions(projectName = document.projectName()),
+        )
+        check(result.success) { "Documentation compilation failed." }
+        return result.generatedProject?.files.orEmpty()
+    }
+
+    private fun writeDocumentationMarkdown(directory: File, files: List<GeneratedFile>) {
+        Files.createDirectories(directory.toPath())
+        files.forEach { markdownFile ->
+            val markdownPath = directory.toPath().resolve(markdownFile.path)
+            Files.createDirectories(requireNotNull(markdownPath.parent))
+            Files.writeString(markdownPath, markdownFile.content)
+        }
+    }
+
+    private fun renderMarkdownPages(markdown: String): List<BufferedImage> =
+        markdown
+            .split(DOCUMENTATION_PAGE_BREAK)
+            .filter(String::isNotBlank)
+            .flatMap { section -> renderHtmlPages(markdownToHtml(section)) }
+
+    private fun renderHtmlPages(html: String): List<BufferedImage> {
+        val pageWidth = 794
+        val pageHeight = 1123
+        val editor = JEditorPane("text/html", html).apply {
+            isEditable = false
+            border = null
+            setSize(pageWidth, 1_000_000)
+        }
+        val contentHeight = editor.preferredSize.height.coerceAtLeast(pageHeight)
+        return buildList {
+            for (offset in 0 until contentHeight step pageHeight) {
+                val image = BufferedImage(pageWidth, pageHeight, BufferedImage.TYPE_INT_RGB)
+                val graphics = image.createGraphics()
+                try {
+                    graphics.color = Color.WHITE
+                    graphics.fillRect(0, 0, pageWidth, pageHeight)
+                    graphics.clip = Rectangle(0, 0, pageWidth, pageHeight)
+                    graphics.translate(0, -offset)
+                    editor.paint(graphics)
+                } finally {
+                    graphics.dispose()
+                }
+                add(image)
+            }
+        }
+    }
+
+    private fun markdownToHtml(markdown: String): String {
+        val body = markdownHtmlRenderer.render(markdownParser.parse(markdown))
+        return """
+            <html>
+            <head>
+              <style>
+                body { font-family: sans-serif; margin: 36px; color: #222; }
+                h1 { font-size: 24px; } h2 { font-size: 18px; } h3 { font-size: 14px; }
+                p, li { font-size: 11px; line-height: 1.35; }
+                strong, b { font-weight: bold; } em, i { font-style: italic; }
+                code, pre { font-family: monospace; font-size: 9px; }
+                code { background: #f3f3f3; } pre { white-space: pre-wrap; }
+                table { border-collapse: collapse; font-size: 10px; }
+                th, td { border: 1px solid #999; padding: 3px; vertical-align: top; }
+              </style>
+            </head>
+            <body>$body</body>
+            </html>
+        """.trimIndent()
+    }
+
     private fun selectCompiler(document: ThreadworkDocument): CompilerPlugin? {
         val root = document.rootNode()
         val requestedCompilerId = root.technology.compilerId.trim()
@@ -1541,6 +1653,8 @@ class GraphCanvas(
     private val onModeChanged: (CanvasMode) -> Unit,
     private val onTileProgress: (Int, Int, Boolean) -> Unit = { _, _, _ -> },
     private val onNodeDoubleClicked: (NodeId) -> Unit = {},
+    private val onPdfSheetExported: (File) -> Unit = {},
+    private val onSvgSheetExported: (File) -> Unit = {},
 ) : JPanel() {
     var mode: CanvasMode = CanvasMode.Select
         private set
@@ -2733,6 +2847,7 @@ class GraphCanvas(
         svg.appendLine("  </g>")
         svg.appendLine("</svg>")
         Files.writeString(file.toPath(), svg.toString())
+        onSvgSheetExported(file)
     }
 
     private fun svgSheet(svg: StringBuilder, plan: SheetPlan) {
@@ -2883,11 +2998,9 @@ class GraphCanvas(
         svgArrowAlongRoute(svg, route.points, color)
         svgPortMarker(svg, route.source, route.sourceDirection, outgoing = true, color = color)
         svgPortMarker(svg, route.target, route.targetDirection, outgoing = false, color = color)
-        val flowDirection = (route.points.lastOrNull()?.x ?: route.source.x) - route.source.x
         compositeBoundaryIntersections(node, route.points).forEach { point ->
-            val direction = if (flowDirection >= 0) 1 else -1
-            svgPortMarker(svg, point, direction, outgoing = true, color = color)
-            svgPortMarker(svg, point, -direction, outgoing = false, color = color)
+            val (dx, dy) = routeDirectionAt(route.points, point)
+            svgBoundaryPierceMarker(svg, point, dx, dy, color)
         }
         svgEndpointLinkLabels(svg, node, route, color)
     }
@@ -2900,6 +3013,12 @@ class GraphCanvas(
             stroke = color,
             strokeWidth = 1.0,
         )
+    }
+
+    private fun svgBoundaryPierceMarker(svg: StringBuilder, point: Point, dx: Int, dy: Int, color: String) {
+        val arrowCenter = boundaryArrowCenter(point, dx, dy)
+        svgDirectionalArrow(svg, arrowCenter, dx, dy, color)
+        svg.appendLine("    <circle cx=\"${point.x}\" cy=\"${point.y}\" r=\"5\" fill=\"#ffffff\" stroke=\"$color\" stroke-width=\"1.5\"/>")
     }
 
     private fun svgArrowAlongRoute(svg: StringBuilder, points: List<Point>, color: String) {
@@ -3208,79 +3327,7 @@ class GraphCanvas(
             )
         }
         RasterPdfWriter.write(file.toPath(), pages)
-        exportDocumentationPdf(file.parentFile ?: File("."))
-    }
-
-    private fun exportDocumentationPdf(directory: File) {
-        val document = repository.getDocument()
-        val result = documentationCompiler.compile(
-            document,
-            CompilerOptions(projectName = document.projectName(), compilerPlugins = compilerPlugins),
-        )
-        val generated = result.generatedProject ?: return
-        generated.files.forEach { markdownFile ->
-            val markdownPath = directory.toPath().resolve(markdownFile.path)
-            Files.writeString(markdownPath, markdownFile.content)
-            val html = markdownToHtml(markdownFile.content)
-            val pages = renderHtmlPages(html)
-            if (pages.isNotEmpty()) {
-                val pdfPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".pdf")
-                RasterPdfWriter.write(
-                    pdfPath,
-                    pages.map { image ->
-                        PdfRasterPage(image, 210.0 * PDF_POINTS_PER_MM, 297.0 * PDF_POINTS_PER_MM)
-                    },
-                )
-            }
-        }
-    }
-
-    private fun renderHtmlPages(html: String): List<BufferedImage> {
-        val pageWidth = 794
-        val pageHeight = 1123
-        val editor = JEditorPane("text/html", html).apply {
-            isEditable = false
-            border = null
-            // Give the HTML view a finite layout height; the preferred height is
-            // then used to split the rendered document into A4-sized pages.
-            setSize(pageWidth, 1_000_000)
-        }
-        val contentHeight = editor.preferredSize.height.coerceAtLeast(pageHeight)
-        val pages = mutableListOf<BufferedImage>()
-        for (offset in 0 until contentHeight step pageHeight) {
-            val image = BufferedImage(pageWidth, pageHeight, BufferedImage.TYPE_INT_RGB)
-            val graphics = image.createGraphics()
-            graphics.color = Color.WHITE
-            graphics.fillRect(0, 0, pageWidth, pageHeight)
-            graphics.clip = Rectangle(0, 0, pageWidth, pageHeight)
-            graphics.translate(0, -offset)
-            editor.paint(graphics)
-            graphics.dispose()
-            pages += image
-        }
-        return pages
-    }
-
-    private fun markdownToHtml(markdown: String): String {
-        val body = buildString {
-            var inCode = false
-            markdown.lines().forEach { line ->
-                if (line.startsWith("``")) {
-                    if (inCode) appendLine("</pre>") else appendLine("<pre>")
-                    inCode = !inCode
-                } else if (inCode) {
-                    appendLine(escapeHtml(line))
-                } else when {
-                    line.startsWith("### ") -> appendLine("<h3>${escapeHtml(line.drop(4))}</h3>")
-                    line.startsWith("## ") -> appendLine("<h2>${escapeHtml(line.drop(3))}</h2>")
-                    line.startsWith("# ") -> appendLine("<h1>${escapeHtml(line.drop(2))}</h1>")
-                    line.startsWith("- ") -> appendLine("<p>&bull; ${escapeHtml(line.drop(2))}</p>")
-                    line.isBlank() -> appendLine()
-                    else -> appendLine("<p>${escapeHtml(line)}</p>")
-                }
-            }
-        }
-        return "<html><head><style>body{font-family:sans-serif;margin:36px;color:#222}h1{font-size:24px}h2{font-size:18px}p{font-size:11px;line-height:1.35}pre{font-family:monospace;font-size:9px;white-space:pre-wrap}</style></head><body>$body</body></html>"
+        onPdfSheetExported(file)
     }
 
     private fun renderPdfPage(plan: SheetPlan, page: SheetPage): BufferedImage {
@@ -3417,11 +3464,9 @@ class GraphCanvas(
         g2.color = color
         drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
         drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
-        val flowDirection = (route.points.lastOrNull()?.x ?: route.source.x) - route.source.x
         compositeBoundaryIntersections(node, route.points).forEach { point ->
-            val direction = if (flowDirection >= 0) 1 else -1
-            drawPortMarker(g2, point, direction, outgoing = true)
-            drawPortMarker(g2, point, -direction, outgoing = false)
+            val (dx, dy) = routeDirectionAt(route.points, point)
+            drawBoundaryPierceMarker(g2, point, dx, dy)
         }
         drawEndpointLinkLabels(g2, node, route, color)
         g2.font = previousFont
@@ -3543,6 +3588,15 @@ class GraphCanvas(
         }
         g2.draw(shape)
         g2.stroke = previousStroke
+    }
+
+    private fun drawBoundaryPierceMarker(g2: Graphics2D, point: Point, dx: Int, dy: Int) {
+        val color = g2.color
+        drawDirectionalArrow(g2, boundaryArrowCenter(point, dx, dy), dx, dy)
+        g2.color = Color.WHITE
+        g2.fillOval(point.x - 5, point.y - 5, 10, 10)
+        g2.color = color
+        g2.drawOval(point.x - 5, point.y - 5, 10, 10)
     }
 
     private fun drawArrowAlongRoute(g2: Graphics2D, points: List<Point>) {
@@ -3985,6 +4039,30 @@ class GraphCanvas(
                 }
             }
             .distinctBy { it.x to it.y }
+    }
+
+    private fun routeDirectionAt(points: List<Point>, point: Point): Pair<Int, Int> {
+        val segment = points.zipWithNext().firstOrNull { (start, end) ->
+            Line2D.ptSegDist(
+                start.x.toDouble(),
+                start.y.toDouble(),
+                end.x.toDouble(),
+                end.y.toDouble(),
+                point.x.toDouble(),
+                point.y.toDouble(),
+            ) <= 1.0
+        } ?: return 1 to 0
+        return (segment.second.x - segment.first.x) to (segment.second.y - segment.first.y)
+    }
+
+    private fun boundaryArrowCenter(point: Point, dx: Int, dy: Int): Point {
+        val length = hypot(dx.toDouble(), dy.toDouble())
+        if (length <= 0.0) return point
+        val distanceToCenter = 15.0
+        return Point(
+            (point.x - dx / length * distanceToCenter).roundToInt(),
+            (point.y - dy / length * distanceToCenter).roundToInt(),
+        )
     }
 
     private fun segmentIntersectionPoint(a: Point, b: Point, c: Point, d: Point): Point? {

@@ -33,6 +33,7 @@ class DocumentationCompiler : CompilerPlugin {
         val scope = DocumentationScope.resolve(document, options)
         val functional = functionalDocumentation(document, scope)
         val technical = technicalDocumentation(document, scope)
+        val components = componentDocumentation(document, scope)
         val files = listOf(
             GeneratedFile(
                 path = "${scope.fileBaseName}.SPEC.md",
@@ -46,6 +47,13 @@ class DocumentationCompiler : CompilerPlugin {
                 content = technical,
                 originNodeId = scope.anchorNodeId,
                 reason = "Composed technical documentation",
+                elementKind = GeneratedElementKind.Documentation,
+            ),
+            GeneratedFile(
+                path = "${scope.fileBaseName}.COMPONENTS.md",
+                content = components,
+                originNodeId = scope.anchorNodeId,
+                reason = "Composed component dossier",
                 elementKind = GeneratedElementKind.Documentation,
             ),
         )
@@ -62,6 +70,10 @@ class DocumentationCompiler : CompilerPlugin {
             appendLine()
             appendLine("Generated from Threadwork specifications for `${scope.displayPath}`.")
             appendLine()
+            appendTableOfContents(
+                scope.processingNodes.map { it.name.ifBlank { it.id.value } } +
+                    listOfNotNull("Data Flows".takeIf { scope.links.isNotEmpty() }, "Notes".takeIf { scope.notes.isNotEmpty() }),
+            )
             appendLine("## Processing Nodes")
             appendLine()
             scope.processingNodes.forEach { node ->
@@ -102,6 +114,10 @@ class DocumentationCompiler : CompilerPlugin {
             appendLine()
             appendLine("Generated from Threadwork technical metadata and contracts for `${scope.displayPath}`.")
             appendLine()
+            appendTableOfContents(
+                scope.processingNodes.map { it.name.ifBlank { it.id.value } } +
+                    listOf("Shared Types", "Data Contracts"),
+            )
             appendLine("## Processing Nodes")
             appendLine()
             scope.processingNodes.forEach { node ->
@@ -134,6 +150,46 @@ class DocumentationCompiler : CompilerPlugin {
                 scope.links.forEach { linkNode -> appendContract(document, linkNode) }
             }
         }.trimEnd() + "\n"
+
+    private fun componentDocumentation(document: ThreadworkDocument, scope: DocumentationScope): String =
+        buildString {
+            appendLine("# ${scope.title} Component Dossier")
+            appendLine()
+            appendLine("Generated from Threadwork component specifications for `${scope.displayPath}`.")
+            appendLine()
+            appendTableOfContents(scope.processingNodes.map { it.name.ifBlank { it.id.value } })
+            scope.processingNodes.forEach { node ->
+                appendLine(PAGE_BREAK_MARKER)
+                appendLine()
+                appendLine("## ${node.name.ifBlank { node.id.value }}")
+                appendLine()
+                appendLine("- **Path:** `${nodePath(document, node)}`")
+                appendLine("- **Role:** `${node.stereotype(document).name}`")
+                appendLine()
+                appendSpecification(node.text.specification, node.text.specificationLanguageId)
+                appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
+                appendLinkTable("Outputs", dataOutputs(document, node), document, incoming = false)
+                appendLine("### Test Data")
+                appendLine()
+                if (node.text.tests.isBlank()) {
+                    appendLine("_No test data provided._")
+                    appendLine()
+                } else {
+                    appendRichText(node.text.tests, node.text.testsLanguageId)
+                }
+            }
+        }.trimEnd() + "\n"
+
+    private fun StringBuilder.appendTableOfContents(entries: List<String>) {
+        appendLine("## Contents")
+        appendLine()
+        if (entries.isEmpty()) {
+            appendLine("_No components are present in this scope._")
+        } else {
+            entries.forEach { entry -> appendLine("- ${entry.trim()}") }
+        }
+        appendLine()
+    }
 
     private fun StringBuilder.appendSpecification(specification: String, languageId: String) {
         appendLine("#### Specification")
@@ -350,6 +406,10 @@ class DocumentationCompiler : CompilerPlugin {
     private fun escapeInlineCode(value: String): String = value.replace("`", "\\`")
 
     private val dependencyKinds = setOf(LinkStereotype.UsageImport, LinkStereotype.DependencyInjection)
+
+    private companion object {
+        const val PAGE_BREAK_MARKER = "<!-- threadwork:page-break -->"
+    }
 }
 
 private data class DocumentationScope(

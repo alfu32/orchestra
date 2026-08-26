@@ -37,8 +37,7 @@
                 "link_066ebc49-c6b5-44fa-ba93-e2b7029c9aab",
                 "link_6e7c73cc-a766-4cb6-aeb9-715a6476c0d1",
                 "link_336c7a11-7dd5-46fe-a134-cbcd18dde831",
-                "node_9fc8c2eb-538e-4697-9103-91985df0ba1f",
-                "node_5aac9cda-1af1-482c-a08f-f5a9ad70dccf"
+                "node_9fc8c2eb-538e-4697-9103-91985df0ba1f"
             ],
             "incomingLinks": [],
             "outgoingLinks": [],
@@ -79,7 +78,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-26T10:57:04.807767934Z",
+                "date": "2026-08-26T17:32:46.595509692Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -103,8 +102,8 @@
                 "link_18"
             ],
             "layout": {
-                "x": 110.0,
-                "y": 1607.0,
+                "x": -522.0,
+                "y": 1593.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -176,14 +175,14 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 1499.0,
-                "y": 1508.0,
-                "width": 1079.0,
-                "height": 331.0,
+                "x": 1419.0,
+                "y": 1483.0,
+                "width": 1120.0,
+                "height": 522.0,
                 "closedWidth": 276.0,
                 "closedHeight": 138.0,
-                "openWidth": 1079.0,
-                "openHeight": 331.0,
+                "openWidth": 1120.0,
+                "openHeight": 522.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -249,8 +248,8 @@
                 "link_30"
             ],
             "layout": {
-                "x": 1679.0,
-                "y": 1623.0,
+                "x": 2083.0,
+                "y": 1602.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -324,8 +323,8 @@
                 "link_336c7a11-7dd5-46fe-a134-cbcd18dde831"
             ],
             "layout": {
-                "x": 2122.0,
-                "y": 1623.0,
+                "x": 1599.0,
+                "y": 1789.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -464,8 +463,8 @@
                 "link_89bc0a9e-04c3-4100-8267-0be2f650db9f"
             ],
             "layout": {
-                "x": 840.0,
-                "y": 1607.0,
+                "x": 576.0,
+                "y": 1454.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -539,8 +538,8 @@
                 "link_21"
             ],
             "layout": {
-                "x": 1059.0,
-                "y": 1879.0,
+                "x": 450.0,
+                "y": 1924.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -1249,8 +1248,8 @@
                 "link_23"
             ],
             "layout": {
-                "x": 486.0,
-                "y": 1753.0,
+                "x": -23.0,
+                "y": 1674.0,
                 "width": 276.0,
                 "height": 168.0,
                 "closedWidth": 276.0,
@@ -1505,8 +1504,8 @@
                 "link_066ebc49-c6b5-44fa-ba93-e2b7029c9aab"
             ],
             "layout": {
-                "x": 1457.0,
-                "y": 2024.0,
+                "x": 924.0,
+                "y": 1707.0,
                 "width": 276.0,
                 "height": 108.0,
                 "closedWidth": 276.0,
@@ -1733,7 +1732,7 @@
         },
         {
             "id": "link_89bc0a9e-04c3-4100-8267-0be2f650db9f",
-            "name": "rawInfoPackage",
+            "name": "raw_ip",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -1776,7 +1775,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-26T10:31:02.355536350Z",
+                "date": "2026-08-26T17:32:06.627788728Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -1806,8 +1805,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 2648.0,
-                "y": 1555.0,
+                "x": -112.0,
+                "y": 795.0,
                 "width": 228.0,
                 "height": 240.0,
                 "closedWidth": 228.0,
@@ -1908,8 +1907,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 2147.0,
-                "y": 1875.0,
+                "x": 1064.0,
+                "y": 837.0,
                 "width": 220.0,
                 "height": 186.0,
                 "closedWidth": 220.0,
@@ -2193,8 +2192,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 2699.0,
-                "y": 1885.0,
+                "x": 459.0,
+                "y": 805.0,
                 "width": 220.0,
                 "height": 114.0,
                 "closedWidth": 220.0,
@@ -2248,60 +2247,6 @@
                     }
                 ]
             },
-            "metadata": {},
-            "pluginData": {}
-        },
-        {
-            "id": "node_5aac9cda-1af1-482c-a08f-f5a9ad70dccf",
-            "name": "note",
-            "kind": "Processor",
-            "parentId": "root",
-            "children": [],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": 2914.0,
-                "y": 1701.0,
-                "width": 276.0,
-                "height": 90.0,
-                "closedWidth": 276.0,
-                "closedHeight": 90.0,
-                "openWidth": 276.0,
-                "openHeight": 90.0,
-                "isExpanded": true
-            },
-            "fileLayoutStrategyId": "none",
-            "text": {
-                "initialization": "",
-                "initializationLanguageId": "",
-                "source": "",
-                "sourceLanguageId": "",
-                "specification": "",
-                "specificationLanguageId": "markdown",
-                "tests": "",
-                "testsLanguageId": "json",
-                "aiInstructions": "",
-                "aiInstructionsLanguageId": "markdown"
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "revision": {
-                "name": "",
-                "date": ""
-            },
-            "responsible": null,
-            "modified": {
-                "date": "2026-08-26T10:57:14.687120576Z",
-                "user": "devlin"
-            },
-            "ports": [],
-            "link": null,
-            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         }
