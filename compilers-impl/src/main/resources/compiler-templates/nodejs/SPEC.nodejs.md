@@ -40,7 +40,8 @@ notation, for example `node.text.declaration`.
 | `inlineChildArtifacts`, `externalChildArtifacts` | Child artifacts partitioned by whether their effective layout is `single-file`. |
 | `childForwardDeclarations`, `linkForwardDeclarations`, `descendantForwardDeclarations` | Recursively collected prototype blocks. The Node.js set defines no forward-declaration templates, so these are currently empty. |
 | `ownForwardDeclaration`, `forwardDeclarations` | Assembly-only current-entity and complete-subtree prototype text. These support languages such as C without changing Node.js output. |
-| `incomingLinks`, `outgoingLinks`, `dependencyInjectionLinks` | Link descriptors containing variable/type names, type definition, endpoint IDs/ports, argument text, and stereotype. |
+| `incomingDataLinks`, `outgoingDataLinks`, `dependencyInjectionLinks` | Data-link descriptors are separated from library bindings and expose Type, buffer, transport, and endpoint symbols. |
+| `typeFields` | Shared-Type fields with display and sanitized names, resolved type names, and reference semantics. |
 | `ports` | Declared ports with ID, name, direction, data type, and metadata. |
 | `language`, `stereotype` | Effective language ID and classified stereotype name. |
 | `declaration`, `instantiation`, `specification`, `tests`, `usageInstructions` | Current long-text fields. |
@@ -50,9 +51,9 @@ notation, for example `node.text.declaration`.
 | `safeProjectName`, `safePackageName`, `projectIdentifier` | Project name normalized for paths, package metadata, or identifiers. |
 
 For a link node, the context additionally contains `link`, `sourceNode`, and
-`targetNode`. `link` includes `name`, `variableName`, `typeName`,
-`typeDefinition`, endpoint IDs and port names, transport kind, endpoint
-references, and escaped variants for single- and double-quoted literals.
+`targetNode`. `link` includes `name`, `variableName`, `typeName`, `typeSymbol`,
+`typeFields`, A/B buffer symbols, the transport symbol, endpoint IDs and port
+names, transport kind, and endpoint references.
 
 ## Templates
 
@@ -74,17 +75,20 @@ order and links into packet movement.
 
 ### `link-declaration.peb` (`link.declaration`)
 
-Emits a JSDoc block from `link.name`, `link.typeName`, and
-`link.typeDefinition`. Because link files are disabled, parent assembly embeds
-these declarations. The block preserves the wire contract next to generated
-code without assuming a JavaScript runtime type system.
+Declares `link.aPortSymbol` and `link.bPortSymbol` as FIFO arrays and defines the
+named `link.transportSymbol` operation. One call moves at most one packet from A
+to B. Dependency-injection links do not produce data buffers.
 
 ### `link-instantiation.peb` (`link.instantiation`)
 
-Emits `transport(context, linkName, sourceReference, targetReference)`. Escaped
-link values are syntax-safe double-quoted literals. The link name identifies the
-transport instance; endpoint references select the source output and target
-input queues.
+Invokes the link's named transport function with its A and B buffers. Composite
+templates place this call after child processing.
+
+### `type-declaration.peb` (`type.declaration`)
+
+Emits one JSDoc structural typedef from the shared Type entity. Link descriptors
+refer to its sanitized symbol, and selected-scope compilation pulls the Type in
+with its endpoint link.
 
 ### `note.peb` (`note.declaration`)
 
@@ -100,10 +104,9 @@ composites need this declaration to call child functions stored in other files.
 
 ### `runtime.peb` (`runtime.support`)
 
-Emits the local `transport` helper. It initializes `context.inputs`,
-`context.outputs`, and `context.links`, records endpoint metadata, then drains
-the source queue into the target queue. Assembly inserts this support before code
-that invokes link instantiations.
+Emits the runtime context used by generated processors. Per-link transport is
+owned by `link-declaration.peb`, so the runtime no longer infers queues from
+string endpoint references.
 
 ### `assembly-file.peb` (`composite.file-based`)
 

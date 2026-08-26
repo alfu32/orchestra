@@ -7,6 +7,8 @@ import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.TechnologyMetadata
+import com.threadwork.core.model.TypeDefinition
+import com.threadwork.core.model.TypeFieldDefinition
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.newDocument
 import java.nio.file.Files
@@ -18,6 +20,31 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class CCompilerTest {
+    @Test
+    fun `shared type entities declare typed link buffers`() {
+        val repository = cProject()
+        val root = repository.getDocument().rootNodeId
+        val type = repository.createNode(root, "WorkOrder", NodeKind.Type)
+        repository.updateNodeTypeDefinition(
+            type.id,
+            TypeDefinition(mutableListOf(TypeFieldDefinition("id", "number"))),
+        )
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "orders", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "orders", PortDirection.Input))
+        val link = repository.createLink(root, "orders", source.id, "orders", target.id, "orders")
+        repository.updateLinkData(link.id, requireNotNull(link.link).copy(typeDefinitionId = type.id.value))
+
+        val result = CCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val sourceCode = assertNotNull(result.generatedProject).files.single().content
+        assertTrue(sourceCode.contains("typedef struct WorkOrder"))
+        assertTrue(sourceCode.contains(".element_size = sizeof(WorkOrder)"))
+        assertTrue(sourceCode.contains("transport_orders(&orders_a_port, &orders_b_port)"))
+    }
+
     @Test
     fun `single file compiler orders types prototypes definitions and entry point`() {
         val repository = cProject()
@@ -32,7 +59,7 @@ class CCompilerTest {
             producer.text.copy(
                 declaration = """
                     WorkOrder order = { 42 };
-                    if (threadwork_output_write(context, "123_producer.records", &order, sizeof(order)) != THREADWORK_OK) {
+                    if (threadwork_buffer_push(orders_to_validator, &order, sizeof(order)) != THREADWORK_OK) {
                         return THREADWORK_ERROR;
                     }
                 """.trimIndent(),
@@ -56,15 +83,16 @@ class CCompilerTest {
         assertEquals(1, Regex("\\bint main\\(void\\)").findAll(source).count())
         assertEquals(1, source.lines().count { it.trim() == "typedef struct threadwork_context {" })
         assertTrue(source.indexOf("typedef struct WorkOrder") < source.indexOf("static int tw_init_"))
-        val producerPrototype = Regex("static int (tw_init_[A-Za-z0-9_]+)\\(threadwork_context \\*context\\);").find(source)
+        val producerPrototype = Regex("static int (tw_init_[A-Za-z0-9_]+)\\(threadwork_context \\*context[^;]*\\);").find(source)
         assertNotNull(producerPrototype)
         val producerDefinition = source.indexOf(
-            "static int ${producerPrototype.groupValues[1]}(threadwork_context *context)\n{",
+            "static int ${producerPrototype.groupValues[1]}(threadwork_context *context, threadwork_buffer *orders_to_validator)\n{",
         )
         assertTrue(producerDefinition > producerPrototype.range.first)
-        assertTrue(source.contains("\"orders to validator\""))
-        assertTrue(source.contains("\"123_producer.records\""))
-        assertTrue(source.contains("\"switch.records\""))
+        assertTrue(source.contains("static threadwork_buffer orders_to_validator_a_port"))
+        assertTrue(source.contains("static threadwork_buffer orders_to_validator_b_port"))
+        assertTrue(source.contains("static int transport_orders_to_validator("))
+        assertTrue(source.contains("transport_orders_to_validator(&orders_to_validator_a_port, &orders_to_validator_b_port)"))
         assertFalse(source.contains("static int tw_run_switch("))
     }
 
@@ -115,6 +143,11 @@ class CCompilerTest {
         if (!hasNativeCompiler()) return
         val repository = cProject()
         val root = repository.getDocument().rootNodeId
+        val workOrder = repository.createNode(root, "WorkOrder", NodeKind.Type)
+        repository.updateNodeTypeDefinition(
+            workOrder.id,
+            TypeDefinition(mutableListOf(TypeFieldDefinition("id", "number"))),
+        )
         val producer = repository.createNode(root, "producer", NodeKind.Processor)
         val consumer = repository.createNode(root, "consumer", NodeKind.Processor)
         repository.addPort(producer.id, NodePort("out", "records", PortDirection.Output))
@@ -124,15 +157,14 @@ class CCompilerTest {
             producer.text.copy(
                 declaration = """
                     WorkOrder order = { 42 };
-                    if (threadwork_output_write(context, "producer.records", &order, sizeof(order)) != THREADWORK_OK) {
+                    if (threadwork_buffer_push(records, &order, sizeof(order)) != THREADWORK_OK) {
                         return THREADWORK_ERROR;
                     }
                 """.trimIndent(),
             ),
         )
         val link = repository.createLink(root, "records", producer.id, "records", consumer.id, "records")
-        link.link!!.typeName = "WorkOrder"
-        link.link!!.payloadDefinition = "typedef struct WorkOrder { int id; } WorkOrder;"
+        repository.updateLinkData(link.id, requireNotNull(link.link).copy(typeDefinitionId = workOrder.id.value))
         val result = CCompiler().compile(repository.getDocument())
         assertTrue(result.success, result.diagnostics.joinToString { it.message })
         val source = assertNotNull(result.generatedProject).files.single().content

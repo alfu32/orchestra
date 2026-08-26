@@ -1,4 +1,13 @@
-{# link.declaration: records link.name, optional typeName, and complete typeDefinition as PHPDoc in the owning composite. #}/**
- * Link {{ link.name }}:{% if link.typeName is not empty %}{{ link.typeName }}{% else %}{{ link.name }}{% endif %}
- * {{ link.typeDefinition }}
- */
+{# Each data link owns two FIFO arrays and a transport function. #}
+{% if link.stereotype != "UsageImport" and link.stereotype != "DependencyInjection" %}/** @var array<int, {% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}mixed{% endif %}> ${{ link.aPortSymbol }} */
+${{ link.aPortSymbol }} = [];
+/** @var array<int, {% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}mixed{% endif %}> ${{ link.bPortSymbol }} */
+${{ link.bPortSymbol }} = [];
+
+function {{ link.transportSymbol }}(array &$a, array &$b): void
+{
+    if (count($a) > 0) {
+        $b[] = array_shift($a);
+    }
+}
+{% endif %}

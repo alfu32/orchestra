@@ -1,14 +1,22 @@
 {# Defines one terminal processor. Instantiation is setup code; declaration is recurring code. #}
-static int tw_{{ initializerSymbol }}(threadwork_context *context)
+static int tw_{{ initializerSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, void *{{ link.symbol }}{% endfor %})
 {
     (void)context;
+{% for link in incomingDataLinks %}    (void){{ link.symbol }};
+{% endfor %}{% for link in outgoingDataLinks %}    (void){{ link.symbol }};
+{% endfor %}{% for link in dependencyInjectionLinks %}    (void){{ link.symbol }};
+{% endfor %}
 {% if instantiation is not empty %}{{ instantiationIndent4 }}
 {% endif %}    return THREADWORK_OK;
 }
 
-static int tw_{{ runSymbol }}(threadwork_context *context)
+static int tw_{{ runSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, void *{{ link.symbol }}{% endfor %})
 {
     (void)context;
+{% for link in incomingDataLinks %}    (void){{ link.symbol }};
+{% endfor %}{% for link in outgoingDataLinks %}    (void){{ link.symbol }};
+{% endfor %}{% for link in dependencyInjectionLinks %}    (void){{ link.symbol }};
+{% endfor %}
 {% if declaration is not empty %}{{ declarationIndent4 }}
 {% endif %}    return THREADWORK_OK;
 }

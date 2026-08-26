@@ -392,6 +392,7 @@ enum class NodeKind {
     Processor,
     Link,
     Group,
+    Type,
     Note
 }
 ```
@@ -399,6 +400,9 @@ enum class NodeKind {
 The compiler may interpret `NodeKind.Group` with children as a composite.
 
 The compiler may interpret `NodeKind.Processor` with children as a composite processor.
+
+`NodeKind.Type` declares a shared structured payload contract. It is not a normal
+data-flow endpoint.
 
 The model shall allow flexible interpretation.
 
@@ -533,27 +537,24 @@ data class LinkData(
     var targetPortName: String,
     var transportKind: String = "packet",
     var typeName: String = "",
-    var payloadDefinition: String = ""
+    var payloadDefinition: String = "",
+    var typeDefinitionId: String = "",
+    var compositeBoundaryIds: MutableList<NodeId> = mutableListOf()
 )
 ```
 
 Each link connects exactly one output to one input.
 
-`payloadDefinition` is the user-controlled schema or source declaration for the
-transported data. It is the only required type input. A technology-specific
-compiler may derive `typeName`, a suggested link variable name, and an optional
-instantiation expression from it. Derived values remain overridable because a
-type definition does not necessarily contain a nominal type and several links
-may transport the same type under different semantic names.
+The link node name identifies the wire or variable instance.
+`typeDefinitionId` selects a built-in type or a first-class Type node shared by
+all links carrying that structure. Type nodes contain named fields whose types
+are built-ins or other Type IDs, plus a compiler-interpreted reference flag.
+`typeName` and `payloadDefinition` remain legacy compiler fallbacks.
 
-The link node name identifies the wire or variable instance. `typeName`
-identifies the transported payload type. For example, links named
-`requestedOrder` and `validatedOrder` may both reference the inferred type
-`WorkOrder`.
-
-The compiler decides whether `payloadDefinition` is a C struct, Kotlin class,
-JSON schema, CSV header, or another technology-specific declaration. Threadwork
-does not interpret that text independently of the selected compiler.
+The repository owns link topology invariants. It stores each link under its
+endpoints' closest common ancestor and records each crossed composite in
+`compositeBoundaryIds`. Links cannot use links or Type declarations as normal
+data endpoints.
 
 ---
 

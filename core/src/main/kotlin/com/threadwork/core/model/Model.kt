@@ -16,6 +16,7 @@ enum class NodeKind {
     Processor,
     Link,
     Group,
+    Type,
     Note,
 }
 
@@ -106,6 +107,29 @@ data class LinkData(
     var transportKind: String = LinkTransportKinds.Default,
     var typeName: String = "",
     var payloadDefinition: String = "",
+    var typeDefinitionId: String = "",
+    var compositeBoundaryIds: MutableList<NodeId> = mutableListOf(),
+)
+
+object BuiltInTypeIds {
+    const val String = "string"
+    const val Number = "number"
+    const val Date = "date"
+    const val Array = "array"
+
+    val all: List<String> = listOf(String, Number, Date, Array)
+}
+
+@Serializable
+data class TypeFieldDefinition(
+    var name: String = "",
+    var typeId: String = BuiltInTypeIds.String,
+    var isReference: Boolean = false,
+)
+
+@Serializable
+data class TypeDefinition(
+    val fields: MutableList<TypeFieldDefinition> = mutableListOf(),
 )
 
 @Serializable
@@ -126,12 +150,14 @@ data class Node(
     var modified: ModificationMetadata = ModificationMetadata(),
     val ports: MutableList<NodePort> = mutableListOf(),
     var link: LinkData? = null,
+    var typeDefinition: TypeDefinition? = null,
     var metadata: MutableMap<String, String> = mutableMapOf(),
     var pluginData: MutableMap<String, JsonObject> = mutableMapOf(),
 ) {
     val isTerminal: Boolean get() = children.isEmpty()
     val isComposite: Boolean get() = children.isNotEmpty()
     val isLink: Boolean get() = kind == NodeKind.Link || link != null
+    val isType: Boolean get() = kind == NodeKind.Type
 }
 
 @Serializable
@@ -181,6 +207,66 @@ fun ThreadworkDocument.childNodes(node: Node): List<Node> =
 
 fun ThreadworkDocument.linkNodes(): List<Node> =
     nodes.values.filter { it.isLink }
+
+fun ThreadworkDocument.typeNodes(): List<Node> =
+    nodes.values.filter { it.kind == NodeKind.Type }
+
+fun ThreadworkDocument.typeDisplayName(typeId: String): String {
+    val normalized = typeId.trim()
+    if (normalized in BuiltInTypeIds.all) return normalized
+    return nodes[NodeId(normalized)]?.takeIf { it.kind == NodeKind.Type }?.name?.trim().orEmpty()
+        .ifBlank { normalized }
+}
+
+fun ThreadworkDocument.linkTypeDisplayName(linkNode: Node): String {
+    val link = linkNode.link ?: return ""
+    return typeDisplayName(link.typeDefinitionId).ifBlank { link.typeName.trim() }
+}
+
+fun ThreadworkDocument.linksUsingType(typeNodeId: NodeId): List<Node> =
+    linkNodes().filter { it.link?.typeDefinitionId == typeNodeId.value }
+
+/** Returns the nearest node that contains both endpoints in the persisted hierarchy. */
+fun ThreadworkDocument.closestCommonAncestorId(firstId: NodeId, secondId: NodeId): NodeId? {
+    if (firstId == secondId) return nodes[firstId]?.parentId ?: rootNodeId
+    val firstChain = hierarchyChain(firstId).toSet()
+    return hierarchyChain(secondId).firstOrNull { it in firstChain }
+}
+
+/**
+ * Composite boundaries crossed by a link, ordered from the source towards the target.
+ * The common container itself is not crossed and therefore is not included.
+ */
+fun ThreadworkDocument.compositeBoundaryIdsBetween(sourceId: NodeId, targetId: NodeId): List<NodeId> {
+    val commonAncestor = closestCommonAncestorId(sourceId, targetId) ?: return emptyList()
+    val sourceBoundaries = parentChain(sourceId)
+        .takeWhile { it != commonAncestor }
+        .filter(::isCompositeBoundary)
+    val targetBoundaries = parentChain(targetId)
+        .takeWhile { it != commonAncestor }
+        .filter(::isCompositeBoundary)
+        .asReversed()
+    return (sourceBoundaries + targetBoundaries).distinct()
+}
+
+private fun ThreadworkDocument.hierarchyChain(nodeId: NodeId): List<NodeId> =
+    buildList {
+        val visited = mutableSetOf<NodeId>()
+        var current: NodeId? = nodeId
+        while (current != null && visited.add(current)) {
+            add(current)
+            current = nodes[current]?.parentId
+        }
+    }
+
+private fun ThreadworkDocument.parentChain(nodeId: NodeId): List<NodeId> =
+    hierarchyChain(nodeId).drop(1)
+
+private fun ThreadworkDocument.isCompositeBoundary(nodeId: NodeId): Boolean {
+    if (nodeId == rootNodeId) return false
+    val node = nodes[nodeId] ?: return false
+    return node.kind == NodeKind.Group || node.children.any { childId -> nodes[childId]?.isLink == false }
+}
 
 fun ThreadworkDocument.effectiveLanguageId(nodeId: NodeId): String =
     inheritedTechnologyValue(nodeId, VOID_LANGUAGE_ID) { it.languageId }

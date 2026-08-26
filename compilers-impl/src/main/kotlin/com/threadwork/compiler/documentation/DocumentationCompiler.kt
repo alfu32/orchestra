@@ -16,7 +16,9 @@ import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.VOID_TECHNOLOGY_ID
 import com.threadwork.core.model.effectiveLanguageId
+import com.threadwork.core.model.linkTypeDisplayName
 import com.threadwork.core.model.projectName
+import com.threadwork.core.model.typeDisplayName
 
 /** Produces human-readable project documentation without participating in source compiler selection. */
 class DocumentationCompiler : CompilerPlugin {
@@ -78,7 +80,7 @@ class DocumentationCompiler : CompilerPlugin {
                 appendLine()
                 scope.links.forEach { linkNode ->
                     val link = linkNode.link ?: return@forEach
-                    appendLine("### ${linkDisplayName(linkNode)}")
+                    appendLine("### ${linkDisplayName(document, linkNode)}")
                     appendLine()
                     appendLine("- **Link ID:** `${escapeInlineCode(linkNode.id.value)}`")
                     appendLine("- **From:** `${endpoint(document, link.sourceNodeId, link.sourcePortName)}`")
@@ -120,6 +122,8 @@ class DocumentationCompiler : CompilerPlugin {
                     appendRichText(node.text.aiInstructions, node.text.aiInstructionsLanguageId)
                 }
             }
+
+            appendTypeDefinitions(document, scope.types)
 
             appendLine("## Data Contracts")
             appendLine()
@@ -175,7 +179,7 @@ class DocumentationCompiler : CompilerPlugin {
             val endpointPort = if (incoming) link.sourcePortName else link.targetPortName
             val ownPort = if (incoming) link.targetPortName else link.sourcePortName
             appendLine(
-                "| ${tableCell(linkNode.name)} | ${tableCell(link.typeName.ifBlank { "Unspecified" })} | " +
+                "| ${tableCell(linkNode.name)} | ${tableCell(document.linkTypeDisplayName(linkNode).ifBlank { "Unspecified" })} | " +
                     "${tableCell(document.nodes[endpointId]?.name ?: endpointId.value)} | ${tableCell(ownPort.ifBlank { endpointPort })} |",
             )
         }
@@ -205,15 +209,21 @@ class DocumentationCompiler : CompilerPlugin {
 
     private fun StringBuilder.appendContract(document: ThreadworkDocument, linkNode: Node) {
         val link = linkNode.link ?: return
-        appendLine("### ${linkDisplayName(linkNode)}")
+        val typeName = document.linkTypeDisplayName(linkNode)
+        val declaredType = document.nodes[NodeId(link.typeDefinitionId)]?.takeIf(Node::isType)
+        appendLine("### ${linkDisplayName(document, linkNode)}")
         appendLine()
         appendLine("- **Link ID:** `${escapeInlineCode(linkNode.id.value)}`")
+        appendLine("- **Type:** ${markdownCodeOrUnspecified(typeName)}")
         appendLine("- **From:** `${endpoint(document, link.sourceNodeId, link.sourcePortName)}`")
         appendLine("- **To:** `${endpoint(document, link.targetNodeId, link.targetPortName)}`")
         appendLine("- **Transport:** `${escapeInlineCode(link.transportKind)}`")
         appendLine("- **Classification:** `${LinkClassifier.classify(document, linkNode).name}`")
         appendLine()
-        if (link.payloadDefinition.isBlank()) {
+        if (declaredType != null || link.typeDefinitionId.isNotBlank()) {
+            appendLine("The payload uses the shared `${escapeInlineCode(typeName)}` type contract.")
+            appendLine()
+        } else if (link.payloadDefinition.isBlank()) {
             appendLine("_No payload type definition provided._")
             appendLine()
         } else {
@@ -226,6 +236,38 @@ class DocumentationCompiler : CompilerPlugin {
             appendLine("#### Contract Notes")
             appendLine()
             appendRichText(linkNode.text.specification, linkNode.text.specificationLanguageId)
+        }
+    }
+
+    private fun StringBuilder.appendTypeDefinitions(document: ThreadworkDocument, types: List<Node>) {
+        appendLine("## Shared Types")
+        appendLine()
+        if (types.isEmpty()) {
+            appendLine("_No shared custom types are present in this scope._")
+            appendLine()
+            return
+        }
+        types.forEach { type ->
+            appendLine("### ${type.name.ifBlank { type.id.value }}")
+            appendLine()
+            appendLine("- **Type ID:** `${escapeInlineCode(type.id.value)}`")
+            appendLine("- **Path:** `${nodePath(document, type)}`")
+            appendLine()
+            val fields = type.typeDefinition?.fields.orEmpty()
+            if (fields.isEmpty()) {
+                appendLine("_No fields declared._")
+                appendLine()
+            } else {
+                appendLine("| Field | Type | Reference |")
+                appendLine("| --- | --- | --- |")
+                fields.forEach { field ->
+                    appendLine(
+                        "| ${tableCell(field.name)} | ${tableCell(document.typeDisplayName(field.typeId))} | " +
+                            "${if (field.isReference) "Yes" else "No"} |",
+                    )
+                }
+                appendLine()
+            }
         }
     }
 
@@ -278,8 +320,8 @@ class DocumentationCompiler : CompilerPlugin {
     private fun relatedLinks(document: ThreadworkDocument, ids: List<NodeId>): List<Node> =
         ids.mapNotNull(document.nodes::get).filter(Node::isLink).sortedBy { it.name.lowercase() }
 
-    private fun linkDisplayName(linkNode: Node): String {
-        val typeName = linkNode.link?.typeName.orEmpty().trim()
+    private fun linkDisplayName(document: ThreadworkDocument, linkNode: Node): String {
+        val typeName = document.linkTypeDisplayName(linkNode)
         return if (typeName.isBlank()) linkNode.name else "${linkNode.name}:$typeName"
     }
 
@@ -316,6 +358,7 @@ private data class DocumentationScope(
     val displayPath: String,
     val anchorNodeId: NodeId,
     val processingNodes: List<Node>,
+    val types: List<Node>,
     val links: List<Node>,
     val notes: List<Node>,
 ) {
@@ -331,7 +374,7 @@ private data class DocumentationScope(
             requestedRoots.forEach { includeDescendants(document, it, includedIds) }
             val anchor = anchorNode(document, selectedIds, requestedRoots)
             val ordered = orderedNodes(document, requestedRoots, includedIds)
-            val processingNodes = ordered.filter { !it.isLink && it.kind != NodeKind.Note }
+            val processingNodes = ordered.filter { !it.isLink && it.kind !in setOf(NodeKind.Note, NodeKind.Type) }
             val notes = ordered.filter { it.kind == NodeKind.Note }
             val links = document.nodes.values
                 .filter(Node::isLink)
@@ -340,6 +383,10 @@ private data class DocumentationScope(
                     linkNode.id in includedIds ||
                         (link != null && (link.sourceNodeId in includedIds || link.targetNodeId in includedIds))
                 }
+                .sortedWith(compareBy<Node>({ nodeDepth(document, it) }, { it.name.lowercase() }, { it.id.value }))
+            val referencedTypeIds = referencedTypeIds(document, links)
+            val types = document.nodes.values
+                .filter { it.kind == NodeKind.Type && (it.id in includedIds || it.id in referencedTypeIds) }
                 .sortedWith(compareBy<Node>({ nodeDepth(document, it) }, { it.name.lowercase() }, { it.id.value }))
             val title = if (selectedIds.isEmpty()) {
                 options.projectName?.trim().takeUnless(String?::isNullOrBlank) ?: document.projectName()
@@ -352,6 +399,7 @@ private data class DocumentationScope(
                 displayPath = nodePath(document, anchor),
                 anchorNodeId = anchor.id,
                 processingNodes = processingNodes,
+                types = types,
                 links = links,
                 notes = notes,
             )
@@ -384,6 +432,23 @@ private data class DocumentationScope(
         private fun includeDescendants(document: ThreadworkDocument, nodeId: NodeId, included: MutableSet<NodeId>) {
             if (!included.add(nodeId)) return
             document.nodes[nodeId]?.children?.forEach { includeDescendants(document, it, included) }
+        }
+
+        private fun referencedTypeIds(document: ThreadworkDocument, links: List<Node>): Set<NodeId> {
+            val result = linkedSetOf<NodeId>()
+            val pending = ArrayDeque(
+                links.mapNotNull { it.link?.typeDefinitionId?.takeIf(String::isNotBlank) }.map(::NodeId),
+            )
+            while (pending.isNotEmpty()) {
+                val typeId = pending.removeFirst()
+                val type = document.nodes[typeId]?.takeIf(Node::isType) ?: continue
+                if (!result.add(typeId)) continue
+                type.typeDefinition?.fields.orEmpty()
+                    .map { NodeId(it.typeId) }
+                    .filter { document.nodes[it]?.isType == true }
+                    .forEach(pending::addLast)
+            }
+            return result
         }
 
         private fun orderedNodes(

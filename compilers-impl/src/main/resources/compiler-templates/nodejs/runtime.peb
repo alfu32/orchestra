@@ -1,9 +1,4 @@
-{# runtime.support: defines named-link queue transport over shared context inputs, outputs, and link endpoint metadata. #}function transport(context, linkReference, source, target) {
-  context.outputs = context.outputs || {};
-  context.inputs = context.inputs || {};
-  context.links = context.links || {};
-  context.links[linkReference] = { source, target };
-  const queue = context.outputs[source] || [];
-  context.inputs[target] = context.inputs[target] || [];
-  while (queue.length > 0) context.inputs[target].push(queue.shift());
+{# Runtime context is reserved for dependency instances and technology-specific shared services. #}
+function createRuntimeContext() {
+  return { imports: Object.create(null) };
 }

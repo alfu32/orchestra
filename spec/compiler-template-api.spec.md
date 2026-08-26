@@ -22,7 +22,7 @@ This keeps compiler specializations declarative and allows templates to be inspe
 
 Entity roles have declaration and instantiation variants:
 
-- `node.*`, `processor.*`, `link.*`, `group.*`, and `note.*` are `NodeKind` fallbacks.
+- `node.*`, `processor.*`, `link.*`, `group.*`, `type.*`, and `note.*` are `NodeKind` fallbacks.
 - `<stereotype>.declaration` and `<stereotype>.instantiation`, such as `generator.declaration`, take precedence over kind fallbacks.
 - A layout suffix has the highest precedence for entity generation, for example `processor.declaration.single-file` or `primary-file.path.source-set`.
 - `composite.declaration` and `composite.instantiation` apply to any non-link node with children.
@@ -34,91 +34,57 @@ Project files are `TemplateGeneratedFile` entries with independent path and cont
 
 ## Template Context
 
-Every entity template receives `document`, `options`, `node`/`self`, `parent`, `metadata`, `text`, `technology`, `layout`, `children`, `ports`, `incomingLinks`, `outgoingLinks`, and `dependencyInjectionLinks`. Compiled composites additionally receive `childArtifacts`, `inlineChildArtifacts`, `externalChildArtifacts`, declarations, instantiations, imports, the effective layout strategy, and the primary path. Artifact entries expose their generated path, module path, declaration, instantiation, and node symbols. Link templates receive `link`, `sourceNode`, `targetNode`, and qualified endpoint references.
+Every entity template receives `document`, `options`, `node`/`self`, `parent`, `metadata`, `text`, `technology`, `layout`, `children`, `ports`, `incomingDataLinks`, `outgoingDataLinks`, and `dependencyInjectionLinks`. Type templates also receive `typeFields`. Compiled composites additionally receive `childArtifacts`, `inlineChildArtifacts`, `externalChildArtifacts`, declarations, instantiations, imports, the effective layout strategy, and the primary path. Artifact entries expose their generated path, module path, declaration, instantiation, and node symbols. Link templates receive `link`, `sourceNode`, `targetNode`, and qualified endpoint references.
 
-## Wire Type Analysis
+## Shared Types and Typed Links
 
-The payload type is defined by the link's `payloadDefinition`. This is the only
-type-related field that the user must fill in. Its syntax belongs to the
-selected compiler technology. The compiler should infer the nominal type name,
-a default wire name, and an instantiation expression when the language permits
-that inference.
+New designs define payload structures as first-class `NodeKind.Type` entities.
+A link's `typeDefinitionId` selects either a built-in type (`string`, `number`,
+`date`, or `array`) or a Type node ID. The link node name remains the user-defined
+wire and buffer identifier; it is not inferred from the Type name.
 
-The wire name and payload type name are distinct:
+`type.declaration` receives `typeFields` and emits the technology-specific shared
+declaration. Each field exposes `name`, sanitized `symbol`, `typeId`, display
+`typeName`, sanitized `typeSymbol`, and `isReference`. Compilers without a native
+array representation must supply one in `runtime.support`.
 
-- The link node name is the variable, argument, or wire instance name.
-- `LinkData.typeName` is the payload type reference.
-- `LinkData.payloadDefinition` is the complete declaration or schema.
+When a selected compilation scope includes both endpoints of a link, the kernel
+also includes that link's Type and recursively referenced custom Types. This
+ensures that generated endpoint and transport code never loses its contract just
+because the Type is a sibling elsewhere in the hierarchy.
 
-The inferred wire and type names shall be stored so they remain stable, but the
-user may override them. Name inference is a convenience, not a semantic
-guarantee: two links carrying `WorkOrder` may be named `requestedOrder` and
-`validatedOrder`.
+Legacy inline `typeName` and `payloadDefinition` link fields remain available to
+compiler templates as a fallback. They do not replace shared Type declarations.
 
-A compiler that supports type inference should expose the following capability:
+## Double-Buffered Link Transport
 
-```kotlin
-data class LinkTypeAnalysis(
-    val typeName: String,
-    val suggestedLinkName: String,
-    val normalizedDefinition: String,
-    val instantiationExpression: String?,
-    val diagnostics: List<Diagnostic> = emptyList(),
-)
+Every ordinary data link compiles to two FIFO buffers and a named transport
+operation. For a link whose sanitized symbol is `orders`, templates receive:
 
-interface LinkTypeAnalyzer {
-    fun analyzeType(
-        document: ThreadworkDocument,
-        link: Node,
-        definition: String,
-    ): LinkTypeAnalysis
-}
+```text
+link.transportSymbol = transport_orders
+link.aPortSymbol      = orders_a_port
+link.bPortSymbol      = orders_b_port
+link.typeSymbol       = resolved payload type
 ```
 
-`instantiationExpression` is optional. A declaration such as
-`WorkOrder(id: String)` cannot safely produce `WorkOrder()` without constructor
-arguments. The compiler must report uncertainty instead of manufacturing an
-invalid expression.
+Processor invocation uses incoming B buffers and outgoing A buffers. A composite
+executes its child processors and then invokes each link transport operation:
 
-Pebble templates render analyzed values but are not expected to parse arbitrary
-programming languages. Parsing and normalization belong to a
-technology-specific `LinkTypeAnalyzer` or compiler plugin.
-
-## Typed Link Artifacts
-
-Link analysis runs before processor generation. It produces an artifact made
-available to the link and both endpoint node contexts:
-
-```kotlin
-data class CompiledLinkType(
-    val linkId: NodeId,
-    val variableName: String,
-    val typeName: String,
-    val declaration: String,
-    val instantiationExpression: String?,
-    val generatedFile: VirtualFile?,
-)
+```text
+source(..., orders_a_port)
+target(..., orders_b_port)
+transport_orders(orders_a_port, orders_b_port)
 ```
 
-Compilation follows these rules:
+The transport moves at most one packet from A to B per call. Separating endpoint
+buffers prevents a producer and consumer from sharing one mutable queue and
+preserves a path toward parallel processor execution. Dependency-injection links
+remain library bindings and are excluded from data buffers and transport calls.
 
-1. Analyze every in-scope link and diagnose invalid or ambiguous definitions.
-2. Deduplicate equivalent type declarations within their compilation scope.
-3. Expose the resolved type to completions and read-only editor context at both
-   endpoint nodes. Do not copy it into either node's stored declaration.
-4. In a single-file layout, emit each unique type declaration once before the
-   processor declarations. No imports are required.
-5. In a multi-file layout, link compilation owns the generated type module or
-   file. Every generated endpoint file must import or otherwise reference that
-   artifact using technology-specific syntax.
-6. Generate transport declarations and invocations using the resolved wire
-   name and type reference.
-
-Templates receive resolved links through `incomingLinks`, `outgoingLinks`, and
-`dependencyInjectionLinks`. Each descriptor provides `variableName`,
-`typeName`, `typeDefinition`, `argument`, endpoint identifiers, and port names.
-Direct link templates additionally receive `link.sourceReference` and
-`link.targetReference`.
+Templates receive resolved links through `incomingDataLinks`,
+`outgoingDataLinks`, and `dependencyInjectionLinks`. Descriptors also provide
+the original endpoint IDs and port names, Type fields, and source/target symbols.
 
 ## Graphical Overrides
 

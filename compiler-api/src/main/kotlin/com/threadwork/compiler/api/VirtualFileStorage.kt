@@ -6,6 +6,8 @@ import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeText
 import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.PortDirection
+import com.threadwork.core.model.closestCommonAncestorId
+import com.threadwork.core.model.compositeBoundaryIdsBetween
 import com.threadwork.core.model.effectiveLanguageId
 import com.threadwork.core.model.effectiveTextLanguageId
 import com.threadwork.core.model.getElementById
@@ -180,11 +182,20 @@ class ThreadworkDocumentFilesystemStorage(
         }
         document.nodes.values.filter { it.isLink }.forEach { linkNode ->
             val link = linkNode.link ?: return@forEach
-            document.nodes[link.sourceNodeId]?.let { source ->
+            val source = document.nodes[link.sourceNodeId]?.takeUnless { it.isLink } ?: return@forEach
+            val target = document.nodes[link.targetNodeId]?.takeUnless { it.isLink } ?: return@forEach
+            val owningParentId = document.closestCommonAncestorId(source.id, target.id) ?: document.rootNodeId
+            if (linkNode.parentId != owningParentId) {
+                linkNode.parentId?.let { document.nodes[it]?.children?.remove(linkNode.id) }
+                linkNode.parentId = owningParentId
+                document.nodes[owningParentId]?.children?.add(linkNode.id)
+            }
+            link.compositeBoundaryIds = document.compositeBoundaryIdsBetween(source.id, target.id).toMutableList()
+            source.let {
                 ensurePort(source, link.sourcePortName.ifBlank { "out" }, PortDirection.Output)
                 if (linkNode.id !in source.outgoingLinks) source.outgoingLinks += linkNode.id
             }
-            document.nodes[link.targetNodeId]?.let { target ->
+            target.let {
                 ensurePort(target, link.targetPortName.ifBlank { "in" }, PortDirection.Input)
                 if (linkNode.id !in target.incomingLinks) target.incomingLinks += linkNode.id
             }

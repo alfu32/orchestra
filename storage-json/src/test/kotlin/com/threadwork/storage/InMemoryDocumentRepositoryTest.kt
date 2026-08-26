@@ -7,13 +7,62 @@ import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.Revision
+import com.threadwork.core.model.TypeDefinition
+import com.threadwork.core.model.TypeFieldDefinition
 import com.threadwork.core.validation.DocumentValidator
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 class InMemoryDocumentRepositoryTest {
+    @Test
+    fun `declared type can be assigned to a link and validates`() {
+        val repository = InMemoryDocumentRepository(newDocument("typed flow"))
+        val root = repository.getDocument().rootNodeId
+        val record = repository.createNode(root, "WorkOrder", NodeKind.Type)
+        repository.updateNodeTypeDefinition(
+            record.id,
+            TypeDefinition(
+                mutableListOf(
+                    TypeFieldDefinition("id", "number"),
+                    TypeFieldDefinition("parent", record.id.value, isReference = true),
+                ),
+            ),
+        )
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "orders", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "orders", PortDirection.Input))
+        val link = repository.createLink(root, "orders", source.id, "orders", target.id, "orders")
+
+        repository.updateLinkData(
+            link.id,
+            requireNotNull(link.link).copy(typeDefinitionId = record.id.value),
+        )
+
+        assertEquals(record.id.value, repository.requireNode(link.id).link?.typeDefinitionId)
+        assertTrue(DocumentValidator.validate(repository.getDocument()).isEmpty())
+    }
+
+    @Test
+    fun `unknown link type is rejected by validation`() {
+        val repository = InMemoryDocumentRepository(newDocument("typed flow"))
+        val root = repository.getDocument().rootNodeId
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "orders", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "orders", PortDirection.Input))
+        val link = repository.createLink(root, "orders", source.id, "orders", target.id, "orders")
+        repository.updateLinkData(
+            link.id,
+            requireNotNull(link.link).copy(typeDefinitionId = "missing_type"),
+        )
+
+        assertTrue(DocumentValidator.validate(repository.getDocument()).any { it.message.contains("unknown type") })
+    }
+
     @Test
     fun `renaming the root synchronizes the legacy document name`() {
         val repository = InMemoryDocumentRepository(newDocument("Untitled Threadwork"))
@@ -72,7 +121,7 @@ class InMemoryDocumentRepositoryTest {
     }
 
     @Test
-    fun `links can target another link as an endpoint`() {
+    fun `links cannot target another link as an endpoint`() {
         val repository = InMemoryDocumentRepository(newDocument("test"))
         val root = repository.getDocument().rootNodeId
         val source = repository.createNode(root, "source", NodeKind.Processor)
@@ -81,13 +130,49 @@ class InMemoryDocumentRepositoryTest {
         repository.addPort(target.id, NodePort("in", "data", PortDirection.Input))
         val outerLink = repository.createLink(root, "outer", source.id, "data", target.id, "data")
         repository.addPort(source.id, NodePort("out_tap", "tap", PortDirection.Output))
-        repository.addPort(outerLink.id, NodePort("in_tap", "tap", PortDirection.Input))
 
-        val tapLink = repository.createLink(root, "tap outer", source.id, "tap", outerLink.id, "tap")
+        assertFailsWith<IllegalArgumentException> {
+            repository.createLink(root, "tap outer", source.id, "tap", outerLink.id, "tap")
+        }
+    }
 
-        assertEquals(listOf(outerLink.id), repository.requireNode(target.id).incomingLinks)
-        assertTrue(tapLink.id in repository.requireNode(source.id).outgoingLinks)
-        assertEquals(listOf(tapLink.id), repository.requireNode(outerLink.id).incomingLinks)
+    @Test
+    fun `link belongs to endpoint closest common parent and records crossed composites`() {
+        val repository = InMemoryDocumentRepository(newDocument("test"))
+        val root = repository.getDocument().rootNodeId
+        val left = repository.createNode(root, "left", NodeKind.Group)
+        val nested = repository.createNode(left.id, "nested", NodeKind.Group)
+        val source = repository.createNode(nested.id, "source", NodeKind.Processor)
+        val right = repository.createNode(root, "right", NodeKind.Group)
+        val target = repository.createNode(right.id, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "data", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "data", PortDirection.Input))
+
+        val link = repository.createLink(left.id, "data", source.id, "data", target.id, "data")
+
+        assertEquals(root, link.parentId)
+        assertEquals(
+            listOf(nested.id, left.id, right.id),
+            requireNotNull(link.link).compositeBoundaryIds.toList(),
+        )
+        assertTrue(DocumentValidator.validate(repository.getDocument()).isEmpty())
+    }
+
+    @Test
+    fun `reparenting an endpoint updates link ownership and crossed composites`() {
+        val repository = InMemoryDocumentRepository(newDocument("test"))
+        val root = repository.getDocument().rootNodeId
+        val left = repository.createNode(root, "left", NodeKind.Group)
+        val source = repository.createNode(left.id, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "data", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "data", PortDirection.Input))
+        val link = repository.createLink(root, "data", source.id, "data", target.id, "data")
+
+        repository.moveNode(target.id, left.id)
+
+        assertEquals(left.id, link.parentId)
+        assertEquals(emptyList(), requireNotNull(link.link).compositeBoundaryIds.toList())
         assertTrue(DocumentValidator.validate(repository.getDocument()).isEmpty())
     }
 

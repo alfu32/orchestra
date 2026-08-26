@@ -25,6 +25,8 @@ import com.threadwork.core.model.effectiveLanguageId
 import com.threadwork.core.model.effectiveTechnologyId
 import com.threadwork.core.model.getElementById
 import com.threadwork.core.model.projectName
+import com.threadwork.core.model.linkTypeDisplayName
+import com.threadwork.core.model.typeDisplayName
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.validation.DocumentValidator
 import io.pebbletemplates.pebble.PebbleEngine
@@ -49,6 +51,10 @@ object CompilerTemplateRoles {
     const val GroupForwardDeclaration = "group.forward-declaration"
     const val GroupDeclaration = "group.declaration"
     const val GroupInstantiation = "group.instantiation"
+    const val TypeHoistedDeclaration = "type.hoisted-declaration"
+    const val TypeForwardDeclaration = "type.forward-declaration"
+    const val TypeDeclaration = "type.declaration"
+    const val TypeInstantiation = "type.instantiation"
     const val NoteHoistedDeclaration = "note.hoisted-declaration"
     const val NoteForwardDeclaration = "note.forward-declaration"
     const val NoteDeclaration = "note.declaration"
@@ -106,6 +112,10 @@ object CompilerTemplateRoles {
         "@GroupForwardDeclaration" to GroupForwardDeclaration,
         "@GroupDeclaration" to GroupDeclaration,
         "@GroupInstantiation" to GroupInstantiation,
+        "@TypeHoistedDeclaration" to TypeHoistedDeclaration,
+        "@TypeForwardDeclaration" to TypeForwardDeclaration,
+        "@TypeDeclaration" to TypeDeclaration,
+        "@TypeInstantiation" to TypeInstantiation,
         "@NoteHoistedDeclaration" to NoteHoistedDeclaration,
         "@NoteForwardDeclaration" to NoteForwardDeclaration,
         "@NoteDeclaration" to NoteDeclaration,
@@ -379,6 +389,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             reason = "Generated from compiler template '${templateFor(context, declaration = true)?.take(40).orEmpty()}'",
             elementKind = when {
                 context.node.isLink -> GeneratedElementKind.Link
+                context.node.kind == NodeKind.Type -> GeneratedElementKind.Type
                 context.node.children.isNotEmpty() -> GeneratedElementKind.CompositeEntity
                 else -> GeneratedElementKind.TerminalEntity
             },
@@ -409,6 +420,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             NodeKind.Processor -> if (declaration) CompilerTemplateRoles.ProcessorDeclaration else CompilerTemplateRoles.ProcessorInstantiation
             NodeKind.Link -> if (declaration) CompilerTemplateRoles.LinkDeclaration else CompilerTemplateRoles.LinkInstantiation
             NodeKind.Group -> if (declaration) CompilerTemplateRoles.GroupDeclaration else CompilerTemplateRoles.GroupInstantiation
+            NodeKind.Type -> if (declaration) CompilerTemplateRoles.TypeDeclaration else CompilerTemplateRoles.TypeInstantiation
             NodeKind.Note -> if (declaration) CompilerTemplateRoles.NoteDeclaration else CompilerTemplateRoles.NoteInstantiation
         }
         val compositeRole = if (context.node.children.isNotEmpty() && !context.node.isLink) {
@@ -435,6 +447,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             NodeKind.Processor -> CompilerTemplateRoles.ProcessorForwardDeclaration
             NodeKind.Link -> CompilerTemplateRoles.LinkForwardDeclaration
             NodeKind.Group -> CompilerTemplateRoles.GroupForwardDeclaration
+            NodeKind.Type -> CompilerTemplateRoles.TypeForwardDeclaration
             NodeKind.Note -> CompilerTemplateRoles.NoteForwardDeclaration
         }
         val compositeRole = CompilerTemplateRoles.CompositeForwardDeclaration
@@ -458,6 +471,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             NodeKind.Processor -> CompilerTemplateRoles.ProcessorHoistedDeclaration
             NodeKind.Link -> CompilerTemplateRoles.LinkHoistedDeclaration
             NodeKind.Group -> CompilerTemplateRoles.GroupHoistedDeclaration
+            NodeKind.Type -> CompilerTemplateRoles.TypeHoistedDeclaration
             NodeKind.Note -> CompilerTemplateRoles.NoteHoistedDeclaration
         }
         val compositeRole = CompilerTemplateRoles.CompositeHoistedDeclaration
@@ -497,8 +511,11 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
         val technology = effectiveTechnology(document, node)
         val incoming = linkDescriptors(document, node.incomingLinks)
         val outgoing = linkDescriptors(document, node.outgoingLinks)
-        val dependencies = incoming.filter { it["stereotype"] == LinkStereotype.DependencyInjection.name }
+        val dependencies = incoming.filter(::isDependencyDescriptor)
+        val incomingDataLinks = incoming.filterNot(::isDependencyDescriptor)
+        val outgoingDataLinks = outgoing.filterNot(::isDependencyDescriptor)
         val nodeView = nodeView(document, node)
+        val typeFields = typeFieldViews(document, node)
         val symbol = safeIdentifier(node.name, preserveCase = true)
         val kotlinSymbol = indexedNodeSymbol(document, node)
         val isCompilationRoot = node.id == document.rootNodeId || node.id in context.options.scopeNodeIds
@@ -521,10 +538,14 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             "externalChildArtifacts" to context.externalChildArtifacts.map { artifactView(context, it) },
             "incomingLinks" to incoming,
             "outgoingLinks" to outgoing,
+            "incomingDataLinks" to incomingDataLinks,
+            "outgoingDataLinks" to outgoingDataLinks,
             "dependencyInjectionLinks" to dependencies,
             "ports" to node.ports.map { port ->
                 mapOf("id" to port.id, "name" to port.name, "direction" to port.direction.name, "dataType" to port.dataType, "metadata" to port.metadata)
             },
+            "typeFields" to typeFields,
+            "declaredTypes" to document.nodes.values.filter { it.kind == NodeKind.Type }.map { nodeView(document, it) },
             "language" to technology.languageId,
             "stereotype" to stereotypeForTemplateContext(document, node).name,
             "declaration" to node.text.declaration,
@@ -532,14 +553,14 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             "specification" to node.text.specification,
             "tests" to node.text.tests,
             "usageInstructions" to node.text.aiInstructions,
-            "incomingLinkVariables" to incoming.joinToString(",") { it["variableName"].toString() },
-            "outgoingLinkVariables" to outgoing.joinToString(",") { it["variableName"].toString() },
-            "incomingLinkTypes" to incoming.joinToString(",") { it["typeName"].toString() },
-            "outgoingLinkTypes" to outgoing.joinToString(",") { it["typeName"].toString() },
-            "incomingArguments" to incoming.joinToString(", ") { it["argument"].toString() },
-            "outgoingArguments" to outgoing.joinToString(", ") { it["argument"].toString() },
-            "incomingTypeDefinitions" to incoming.joinToString("\n\n") { it["typeDefinition"].toString() },
-            "outgoingTypeDefinitions" to outgoing.joinToString("\n\n") { it["typeDefinition"].toString() },
+            "incomingLinkVariables" to incomingDataLinks.joinToString(",") { it["variableName"].toString() },
+            "outgoingLinkVariables" to outgoingDataLinks.joinToString(",") { it["variableName"].toString() },
+            "incomingLinkTypes" to incomingDataLinks.joinToString(",") { it["typeName"].toString() },
+            "outgoingLinkTypes" to outgoingDataLinks.joinToString(",") { it["typeName"].toString() },
+            "incomingArguments" to incomingDataLinks.joinToString(", ") { it["argument"].toString() },
+            "outgoingArguments" to outgoingDataLinks.joinToString(", ") { it["argument"].toString() },
+            "incomingTypeDefinitions" to incomingDataLinks.joinToString("\n\n") { it["typeDefinition"].toString() },
+            "outgoingTypeDefinitions" to outgoingDataLinks.joinToString("\n\n") { it["typeDefinition"].toString() },
             "dependencyInjectionArguments" to dependencies.joinToString(", ") { it["argument"].toString() },
             "childDeclarations" to context.childDeclarations,
             "inlineChildDeclarations" to context.inlineChildDeclarations,
@@ -637,8 +658,24 @@ open class StringTemplateCompiler(
         DocumentValidator.validate(document)
 
     override fun templatesFor(document: ThreadworkDocument, options: CompilerOptions): CompilerTemplateSet =
-        templateSet
+    templateSet
 }
+
+private fun typeFieldViews(document: ThreadworkDocument, node: Node): List<Map<String, Any?>> =
+    node.typeDefinition?.fields.orEmpty().map { field ->
+        val typeName = document.typeDisplayName(field.typeId)
+        mapOf(
+            "name" to field.name,
+            "symbol" to safeIdentifier(field.name, preserveCase = true),
+            "typeId" to field.typeId,
+            "typeName" to typeName,
+            "typeSymbol" to document.getElementById(field.typeId)
+                ?.let { safeIdentifier(it.name, preserveCase = true) }
+                .orEmpty()
+                .ifBlank { typeName },
+            "isReference" to field.isReference,
+        )
+    }
 
 private fun nodeView(document: ThreadworkDocument, node: Node): Map<String, Any?> = linkedMapOf(
     "id" to node.id.value,
@@ -662,6 +699,7 @@ private fun nodeView(document: ThreadworkDocument, node: Node): Map<String, Any?
             "metadata" to port.metadata,
         )
     },
+    "typeFields" to typeFieldViews(document, node),
     "isComposite" to node.isComposite,
     "isLink" to node.isLink,
     "isTerminal" to node.isTerminal,
@@ -677,7 +715,8 @@ private fun nodeView(document: ThreadworkDocument, node: Node): Map<String, Any?
             "sourcePortName" to link.sourcePortName,
             "targetPortName" to link.targetPortName,
             "transportKind" to link.transportKind,
-            "typeName" to link.typeName,
+            "typeDefinitionId" to link.typeDefinitionId,
+            "typeName" to document.linkTypeDisplayName(node),
             "payloadDefinition" to link.payloadDefinition,
         )
     },
@@ -713,40 +752,64 @@ private fun layoutView(node: Node): Map<String, Any?> = mapOf(
     "height" to node.layout.height,
 )
 
-private fun artifactView(context: NodeCompilerContext, artifact: CompiledNodeArtifact): Map<String, Any?> = mapOf(
-    "node" to nodeView(context.document, artifact.node),
-    "hoistedDeclaration" to artifact.hoistedDeclarationText,
-    "hoistedDeclarations" to artifact.hoistedDeclarations,
-    "forwardDeclaration" to artifact.forwardDeclarationText,
-    "forwardDeclarations" to artifact.forwardDeclarations,
-    "declaration" to artifact.declarationText,
-    "instantiation" to artifact.instantiationText,
-    "path" to artifact.primaryFile?.path.orEmpty(),
-    "layoutStrategyId" to artifact.layoutStrategy.id,
-    "symbol" to safeIdentifier(artifact.node.name, preserveCase = true),
-    "runSymbol" to "run_${indexedNodeSymbol(context.document, artifact.node)}",
-    "initializerSymbol" to "init_${indexedNodeSymbol(context.document, artifact.node)}",
-    "relativePath" to artifact.primaryFile?.let { relativePath(context.primaryPath(), it.path) }.orEmpty(),
-    "relativeModulePath" to artifact.primaryFile?.let { relativeModulePath(context.primaryPath(), it.path, context.extension) }.orEmpty(),
-    "isInline" to (artifact.layoutStrategy.id == SingleFileLayoutStrategy.id),
-)
+private fun artifactView(context: NodeCompilerContext, artifact: CompiledNodeArtifact): Map<String, Any?> {
+    val incoming = linkDescriptors(context.document, artifact.node.incomingLinks)
+    val outgoing = linkDescriptors(context.document, artifact.node.outgoingLinks)
+    return mapOf(
+        "node" to nodeView(context.document, artifact.node),
+        "hoistedDeclaration" to artifact.hoistedDeclarationText,
+        "hoistedDeclarations" to artifact.hoistedDeclarations,
+        "forwardDeclaration" to artifact.forwardDeclarationText,
+        "forwardDeclarations" to artifact.forwardDeclarations,
+        "declaration" to artifact.declarationText,
+        "instantiation" to artifact.instantiationText,
+        "path" to artifact.primaryFile?.path.orEmpty(),
+        "layoutStrategyId" to artifact.layoutStrategy.id,
+        "symbol" to safeIdentifier(artifact.node.name, preserveCase = true),
+        "runSymbol" to "run_${indexedNodeSymbol(context.document, artifact.node)}",
+        "initializerSymbol" to "init_${indexedNodeSymbol(context.document, artifact.node)}",
+        "relativePath" to artifact.primaryFile?.let { relativePath(context.primaryPath(), it.path) }.orEmpty(),
+        "relativeModulePath" to artifact.primaryFile?.let { relativeModulePath(context.primaryPath(), it.path, context.extension) }.orEmpty(),
+        "isInline" to (artifact.layoutStrategy.id == SingleFileLayoutStrategy.id),
+        "incomingDataLinks" to incoming.filterNot(::isDependencyDescriptor),
+        "outgoingDataLinks" to outgoing.filterNot(::isDependencyDescriptor),
+        "dependencyInjectionLinks" to incoming.filter(::isDependencyDescriptor),
+        "link" to linkContext(context.document, artifact.node)["link"],
+    )
+}
 
 private fun linkDescriptors(document: ThreadworkDocument, ids: Iterable<com.threadwork.core.model.NodeId>): List<Map<String, Any?>> =
     ids.mapNotNull { id ->
         val node = document.getElementById(id) ?: return@mapNotNull null
         val link = node.link ?: return@mapNotNull null
-        val typeName = link.typeName
+        val typeName = document.linkTypeDisplayName(node)
+        val declaredType = document.getElementById(link.typeDefinitionId)
+        val symbol = safeIdentifier(node.name, preserveCase = true)
+        val sourceNode = document.getElementById(link.sourceNodeId)
+        val targetNode = document.getElementById(link.targetNodeId)
         mapOf(
             "id" to node.id.value,
             "name" to node.name,
             "variableName" to node.name,
+            "symbol" to symbol,
+            "transportSymbol" to "transport_$symbol",
+            "aPortSymbol" to "${symbol}_a_port",
+            "bPortSymbol" to "${symbol}_b_port",
             "typeName" to typeName,
+            "typeSymbol" to declaredType?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty()
+                .ifBlank { typeName },
+            "typeDefinitionId" to link.typeDefinitionId,
+            "typeFields" to declaredType?.let { typeFieldViews(document, it) }.orEmpty(),
             "typeDefinition" to link.payloadDefinition,
             "payloadDefinition" to link.payloadDefinition,
             "argument" to if (typeName.isBlank()) node.name else "${node.name}:$typeName",
             "stereotype" to LinkClassifier.classify(document, node).name,
             "sourceNodeId" to link.sourceNodeId.value,
+            "sourceNodeName" to sourceNode?.name.orEmpty(),
+            "sourceNodeSymbol" to sourceNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
             "targetNodeId" to link.targetNodeId.value,
+            "targetNodeName" to targetNode?.name.orEmpty(),
+            "targetNodeSymbol" to targetNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
             "sourcePortName" to link.sourcePortName,
             "targetPortName" to link.targetPortName,
         )
@@ -760,18 +823,34 @@ private fun linkContext(document: ThreadworkDocument, node: Node): Map<String, A
     val targetName = targetNode?.name ?: link.targetNodeId.value
     val sourceReference = "${sanitizeReference(sourceName)}.${sanitizeReference(link.sourcePortName)}"
     val targetReference = "${sanitizeReference(targetName)}.${sanitizeReference(link.targetPortName)}"
+    val symbol = safeIdentifier(node.name, preserveCase = true)
     return mapOf(
         "link" to mapOf(
             "id" to node.id.value,
             "name" to node.name,
             "variableName" to node.name,
-            "typeName" to link.typeName,
+            "symbol" to symbol,
+            "transportSymbol" to "transport_$symbol",
+            "aPortSymbol" to "${symbol}_a_port",
+            "bPortSymbol" to "${symbol}_b_port",
+            "typeDefinitionId" to link.typeDefinitionId,
+            "typeName" to document.linkTypeDisplayName(node),
+            "typeSymbol" to link.typeDefinitionId.takeIf(String::isNotBlank)
+                ?.let(document::getElementById)
+                ?.let { safeIdentifier(it.name, preserveCase = true) }
+                .orEmpty()
+                .ifBlank { document.linkTypeDisplayName(node) },
+            "typeFields" to link.typeDefinitionId.takeIf(String::isNotBlank)
+                ?.let(document::getElementById)
+                ?.let { typeFieldViews(document, it) }
+                .orEmpty(),
             "typeDefinition" to link.payloadDefinition,
             "sourceNodeId" to link.sourceNodeId.value,
             "targetNodeId" to link.targetNodeId.value,
             "sourcePortName" to link.sourcePortName,
             "targetPortName" to link.targetPortName,
             "transportKind" to link.transportKind,
+            "stereotype" to LinkClassifier.classify(document, node).name,
             "sourceReference" to sourceReference,
             "targetReference" to targetReference,
             "escapedNameDoubleQuoted" to node.name.escapeDoubleQuoted(),
@@ -785,6 +864,12 @@ private fun linkContext(document: ThreadworkDocument, node: Node): Map<String, A
         "targetNode" to targetNode?.let { nodeView(document, it) },
     )
 }
+
+private fun isDependencyDescriptor(descriptor: Map<String, Any?>): Boolean =
+    descriptor["stereotype"] in setOf(
+        LinkStereotype.UsageImport.name,
+        LinkStereotype.DependencyInjection.name,
+    )
 
 private fun compileScopeIds(document: ThreadworkDocument, requested: Set<com.threadwork.core.model.NodeId>): Set<com.threadwork.core.model.NodeId> {
     if (requested.isEmpty()) return document.nodes.keys

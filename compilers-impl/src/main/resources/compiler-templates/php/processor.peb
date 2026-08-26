@@ -1,6 +1,6 @@
-{# processor/node declaration: emits a by-reference context function with node instantiation followed by recurring declaration text. #}<?php
+{# Processor parameters expose incoming B buffers, outgoing A buffers, then injected libraries. #}<?php
 
-function {{ symbol }}(array &$context = []): void
+function {{ symbol }}(array &$context{% for link in incomingDataLinks %}, array &${{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, array &${{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, mixed ${{ link.symbol }}{% endfor %}): void
 {
 {% if instantiation is not empty %}{{ instantiationIndent4 }}
 {% endif %}{% if declaration is not empty %}{{ declarationIndent4 }}

@@ -37,7 +37,8 @@ only to combine inline declarations, runtime support, and the entry point.
 | `inlineChildArtifacts`, `externalChildArtifacts` | Artifacts partitioned by single-file layout. |
 | `childForwardDeclarations`, `linkForwardDeclarations`, `descendantForwardDeclarations` | Recursively collected prototype blocks. Kotlin does not require or define them, so they are currently empty. |
 | `ownForwardDeclaration`, `forwardDeclarations` | Assembly-only current-entity and complete-subtree prototype text, available for template languages that require declarations before definitions. |
-| `incomingLinks`, `outgoingLinks`, `dependencyInjectionLinks` | Link descriptors with variable/type names, definitions, endpoints, arguments, and stereotype. |
+| `incomingDataLinks`, `outgoingDataLinks`, `dependencyInjectionLinks` | Data links are separated from library bindings and expose resolved Type, A/B queue, transport, and endpoint symbols. |
+| `typeFields` | Shared-Type fields with raw/sanitized names, resolved type symbols, and reference semantics. |
 | `ports` | Port identity, direction, modeled data type, and metadata. |
 | `declaration`, `instantiation`, `specification`, `tests`, `usageInstructions` | Node long-text fields. |
 | `declarationIndent4`, `instantiationIndent4` | User code indented inside generated Kotlin functions. |
@@ -58,8 +59,8 @@ Mapped from processor, node, group, and composite declaration roles. It emits a
 `generated.nodes` file with `init_*` and `run_*` functions. For a terminal, the
 initializer uses `instantiationIndent4` and the runner uses
 `declarationIndent4`. For a composite, those functions invoke child initializer
-and runner symbols and then link instantiations. Imports of `RuntimeContext` and
-`runLink` connect the node file to generated runtime support.
+and runner symbols and then each link's named transport function. Incoming links
+pass their B queue and outgoing links pass their A queue to processors.
 
 ### `processor-single.peb` (single-file node/composite declaration)
 
@@ -70,15 +71,18 @@ inside a mostly single-file project.
 
 ### `link-declaration.peb` (`link.declaration`)
 
-Produces diagnostic metadata text from `node.metadataComment` and `stereotype`.
-With `emitLinkFiles=false` it is not written as a standalone Kotlin file. It
-remains available to assembly/context consumers that need modeled wire metadata.
+Declares two typed `ArrayDeque` values and a named function that moves at most
+one value from the A queue to the B queue. Dependency-injection links are skipped.
 
 ### `link-instantiation.peb` (`link.instantiation`)
 
-Emits a `runLink` call using escaped endpoint references. The source reference
-addresses `RuntimeContext.outputs`; the target reference addresses
-`RuntimeContext.inputs`. This is inserted after child execution in a composite.
+Invokes the named transport function with the link's A and B queues after child
+execution in a composite.
+
+### `type-declaration.peb` (`type.declaration`)
+
+Emits a Kotlin `data class` for the shared Type entity. Built-ins map to Kotlin
+types and custom fields use the sanitized referenced Type symbol.
 
 ### `note.peb` (`note.declaration`)
 
@@ -96,10 +100,9 @@ assemblies omit the root-only runtime and `main` blocks.
 
 ### `runtime-file.peb` (project `Runtime.kt`)
 
-Project-level template defining `RuntimeContext` and `runLink`. The context maps
-model endpoints to mutable queues; `runLink` drains one output queue into an
-input queue. It is omitted in single-file mode because `assembly-single.peb`
-contains equivalent definitions.
+Project-level template defining `RuntimeContext`. Per-link queues and transport
+functions are generated from link artifacts. It is omitted in single-file mode
+because `assembly-single.peb` contains equivalent definitions.
 
 ### `main.peb` (project `Main.kt`)
 

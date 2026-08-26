@@ -1,12 +1,4 @@
-{# runtime.support: records named link endpoints and drains source output packets into the target input queue. #}function transport(array &$context, string $linkReference, string $source, string $target): void
+{# Runtime context is reserved for dependency instances and technology-specific shared services. #}function createRuntimeContext(): array
 {
-    $context['outputs'] ??= [];
-    $context['inputs'] ??= [];
-    $context['links'] ??= [];
-    $context['links'][$linkReference] = ['source' => $source, 'target' => $target];
-    $queue = $context['outputs'][$source] ?? [];
-    $context['inputs'][$target] ??= [];
-    while (count($queue) > 0) {
-        $context['inputs'][$target][] = array_shift($queue);
-    }
+    return ['imports' => []];
 }

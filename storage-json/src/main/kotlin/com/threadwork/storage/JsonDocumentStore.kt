@@ -6,6 +6,8 @@ import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.Revision
+import com.threadwork.core.model.closestCommonAncestorId
+import com.threadwork.core.model.compositeBoundaryIdsBetween
 import com.threadwork.core.model.projectName
 import com.threadwork.core.validation.DocumentValidator
 import java.nio.file.Files
@@ -155,6 +157,17 @@ class KotlinxJsonDocumentStore(
             val link = linkNode.link ?: return@forEach
             val source = document.nodes[link.sourceNodeId]
             val target = document.nodes[link.targetNodeId]
+            if (source != null && target != null && !source.isLink && !target.isLink) {
+                val expectedParentId = document.closestCommonAncestorId(source.id, target.id) ?: document.rootNodeId
+                if (linkNode.parentId != expectedParentId) {
+                    linkNode.parentId?.let { document.nodes[it]?.children?.removeAll { childId -> childId == linkNode.id } }
+                    linkNode.parentId = expectedParentId
+                }
+                document.nodes[expectedParentId]?.children?.let { children ->
+                    if (linkNode.id !in children) children += linkNode.id
+                }
+                link.compositeBoundaryIds = document.compositeBoundaryIdsBetween(source.id, target.id).toMutableList()
+            }
             if (source != null) {
                 val name = link.sourcePortName.ifBlank { "out" }
                 link.sourcePortName = name

@@ -293,6 +293,7 @@ private val legacyTemplateRoles: Map<String, String> = buildMap {
     put(NodeKind.Processor.name, CompilerTemplateRoles.ProcessorDeclaration)
     put(NodeKind.Link.name, CompilerTemplateRoles.LinkDeclaration)
     put(NodeKind.Group.name, CompilerTemplateRoles.GroupDeclaration)
+    put(NodeKind.Type.name, CompilerTemplateRoles.TypeDeclaration)
     put(NodeKind.Note.name, CompilerTemplateRoles.NoteDeclaration)
     NodeStereotype.entries.forEach { stereotype ->
         put(stereotype.name, CompilerTemplateRoles.stereotypeDeclaration(stereotype))

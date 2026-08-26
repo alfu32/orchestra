@@ -29,6 +29,7 @@ import com.threadwork.core.classification.LinkStereotype
 import com.threadwork.core.classification.NodeStereotype
 import com.threadwork.core.classification.stereotype
 import com.threadwork.core.model.ThreadworkDocument
+import com.threadwork.core.model.BuiltInTypeIds
 import com.threadwork.core.model.LinkTransportKinds
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
@@ -40,6 +41,8 @@ import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.Revision
 import com.threadwork.core.model.TechnologyMetadata
+import com.threadwork.core.model.TypeDefinition
+import com.threadwork.core.model.TypeFieldDefinition
 import com.threadwork.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.threadwork.core.model.VOID_LANGUAGE_ID
 import com.threadwork.core.model.VOID_TECHNOLOGY_ID
@@ -49,8 +52,13 @@ import com.threadwork.core.model.effectiveResponsible
 import com.threadwork.core.model.effectiveRevision
 import com.threadwork.core.model.effectiveTechnologyId
 import com.threadwork.core.model.effectiveTextLanguageId
+import com.threadwork.core.model.getElementById
+import com.threadwork.core.model.linkTypeDisplayName
+import com.threadwork.core.model.linksUsingType
 import com.threadwork.core.model.projectName
 import com.threadwork.core.model.rootNode
+import com.threadwork.core.model.typeDisplayName
+import com.threadwork.core.model.typeNodes
 import com.threadwork.storage.DocumentRepository
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.KotlinxJsonDocumentStore
@@ -111,6 +119,7 @@ import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
 import javax.swing.DefaultComboBoxModel
+import javax.swing.DefaultCellEditor
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
@@ -311,6 +320,14 @@ class ThreadworkDesktopApp(
             )
             add(
                 modeButton(
+                    "Type",
+                    CanvasMode.CreateType,
+                    "document",
+                    "Declare a shared structured type at the next canvas click.",
+                ).also(modes::add),
+            )
+            add(
+                modeButton(
                     "Link",
                     CanvasMode.CreateLink,
                     "link",
@@ -486,6 +503,7 @@ class ThreadworkDesktopApp(
         registerCommand(AppCommand("edit.distribute.horizontal", "Edit: Distribute Evenly Horizontally") { alignAndDistribute(AlignmentOperation.DistributeHorizontal) })
         registerCommand(AppCommand("graph.mode.select", "Graph: Select Mode", KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0)) { canvas.setMode(CanvasMode.Select) })
         registerCommand(AppCommand("graph.mode.node", "Graph: Node Mode") { canvas.setMode(CanvasMode.CreateNode) })
+        registerCommand(AppCommand("graph.mode.type", "Graph: Type Mode") { canvas.setMode(CanvasMode.CreateType) })
         registerCommand(AppCommand("graph.mode.link", "Graph: Link Mode") { canvas.setMode(CanvasMode.CreateLink) })
         registerCommand(AppCommand("graph.deleteSelection", "Graph: Delete Selection", KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0)) {
             if (graphShortcutEnabled()) deleteSelection()
@@ -1310,6 +1328,7 @@ class ThreadworkDesktopApp(
     private fun treeCategory(node: Node): TreeItemCategory = when {
         node.isLink -> TreeItemCategory.Link
         node.isComposite || node.id == repository.getDocument().rootNodeId -> TreeItemCategory.Composite
+        node.isType -> TreeItemCategory.Type
         else -> TreeItemCategory.Processing
     }
 
@@ -1448,9 +1467,10 @@ class ThreadworkDesktopApp(
 
 private enum class TreeItemCategory(val sortOrder: Int, val marker: Color) {
     Composite(0, Color(0xffcc33)),
-    Processing(1, Color(0x2f6bdc)),
-    Link(2, Color(0xf39c12)),
-    Feature(3, Color.WHITE),
+    Type(1, Color(0x00897b)),
+    Processing(2, Color(0x2f6bdc)),
+    Link(3, Color(0xf39c12)),
+    Feature(4, Color.WHITE),
 }
 
 private class TreeNodeRef(
@@ -1496,6 +1516,7 @@ private class MarkerIcon(private val color: Color) : Icon {
 enum class CanvasMode {
     Select,
     CreateNode,
+    CreateType,
     CreateLink,
 }
 
@@ -1568,7 +1589,6 @@ class GraphCanvas(
         val targetDirection: Int,
         val points: List<Point>,
     )
-    private data class LinkEndpoint(val point: Point, val xDirection: Int)
     private data class SheetFormat(val id: String, val widthMm: Double, val heightMm: Double, val roll: Boolean = false)
     private data class BomRow(
         val index: Int,
@@ -1631,7 +1651,6 @@ class GraphCanvas(
         const val PORT_BOTTOM_SPACING = 20
         const val PORT_STUB_LENGTH = 46
         const val PORT_OUTSIDE_OFFSET = 20
-        const val LINK_ENDPOINT_INSET = 20
         const val ROUTING_STEP = 40
         const val ROUTING_CHAMFER = 22
         const val ROUTING_OBSTACLE_PADDING = 24
@@ -1708,7 +1727,20 @@ class GraphCanvas(
     override fun getToolTipText(event: MouseEvent): String? {
         val linkId = hitLink(modelPoint(event.point)) ?: return null
         val link = repository.getNode(linkId) ?: return null
-        val definition = link.link?.payloadDefinition?.trim().orEmpty()
+        val linkData = link.link ?: return null
+        val declaredType = repository.getDocument().getElementById(linkData.typeDefinitionId)?.takeIf(Node::isType)
+        val definition = declaredType?.let { type ->
+            buildString {
+                append(type.name)
+                type.typeDefinition?.fields.orEmpty().forEach { field ->
+                    append("\n  ")
+                    append(field.name)
+                    append(": ")
+                    if (field.isReference) append("ref ")
+                    append(repository.getDocument().typeDisplayName(field.typeId))
+                }
+            }
+        } ?: linkData.payloadDefinition.trim()
         if (definition.isBlank()) return null
         return "<html><pre>${escapeHtml(definition)}</pre></html>"
     }
@@ -1935,7 +1967,7 @@ class GraphCanvas(
 
     private fun ensureLayoutCanHoldPortsAndLabels(node: Node) {
         val terminalWidth = max(node.layout.closedWidth, requiredNodeWidth(node))
-        val terminalHeight = max(node.layout.closedHeight, requiredPortHeight(node, PORT_TOP_SPACING))
+        val terminalHeight = maxOf(node.layout.closedHeight, requiredPortHeight(node, PORT_TOP_SPACING), requiredTypeHeight(node))
         node.layout.closedWidth = max(node.layout.closedWidth, terminalWidth)
         node.layout.closedHeight = max(node.layout.closedHeight, terminalHeight)
         if (!node.isComposite) {
@@ -1959,11 +1991,21 @@ class GraphCanvas(
             add(node.name)
             add(nodeStereotype(node).name)
             technologyLabel(node)?.let(::add)
+            typeFieldLabels(node).forEach(::add)
         }
         val contentWidth = labels.maxOfOrNull { monospaceTextWidth(it, 8, 28) } ?: 0
         val portWidth = node.ports.maxOfOrNull { monospaceTextWidth(it.name, 8, 68) } ?: 0
         return maxOf(200, contentWidth, portWidth).toDouble()
     }
+
+    private fun requiredTypeHeight(node: Node): Double =
+        if (node.isType) (78 + typeFieldLabels(node).size * 18).toDouble() else 0.0
+
+    private fun typeFieldLabels(node: Node): List<String> =
+        node.typeDefinition?.fields.orEmpty().map { field ->
+            val reference = if (field.isReference) "ref " else ""
+            "${field.name}: $reference${repository.getDocument().typeDisplayName(field.typeId)}"
+        }
 
     private fun requiredOpenCompositeLabelWidth(
         node: Node,
@@ -2275,6 +2317,7 @@ class GraphCanvas(
             .forEach { drawNode(g2, it) }
         links.filterNot(::isDependencyAnnotation).forEach { drawLink(g2, it) }
         drawDependencyAnnotations(g2, links.filter(::isDependencyAnnotation))
+        drawTypeUsageAnnotations(g2, links, scopeIds)
     }
 
     private fun linkMayIntersectViewport(linkNode: Node, viewport: Rectangle): Boolean {
@@ -2767,6 +2810,7 @@ class GraphCanvas(
         orderedVisibleNodes(scopeIds).forEach { svgNode(svg, it) }
         links.filterNot(::isDependencyAnnotation).forEach { svgLink(svg, it) }
         svgDependencyAnnotations(svg, links.filter(::isDependencyAnnotation))
+        svgTypeUsageAnnotations(svg, links, scopeIds)
     }
 
     private fun svgNode(svg: StringBuilder, node: Node) {
@@ -2801,6 +2845,11 @@ class GraphCanvas(
             svgText(svg, node.name, r.x + 12, r.y + 22 + headerOffset, if (compact) 13 else 12, "#222222")
             svgText(svg, stereotype.name, r.x + 12, r.y + 42 + headerOffset, 12, "#555555")
             technologyLabel(node)?.let { svgText(svg, it, r.x + 12, r.y + 58 + headerOffset, 11, "#666666") }
+            if (node.isType) {
+                typeFieldLabels(node).forEachIndexed { index, label ->
+                    svgText(svg, label, r.x + 12, r.y + 64 + index * 18, 11, "#00695c")
+                }
+            }
         }
         svgCompositeToggle(svg, node)
     }
@@ -2821,7 +2870,10 @@ class GraphCanvas(
         svgArrowAlongRoute(svg, route.points, color)
         svgPortMarker(svg, route.source, route.sourceDirection, outgoing = true, color = color)
         svgPortMarker(svg, route.target, route.targetDirection, outgoing = false, color = color)
-        svgLinkLabel(svg, node.name, route.points, color)
+        compositeBoundaryIntersections(node, route.points).forEach { point ->
+            svgCircle(svg, point.x, point.y, 5, color)
+        }
+        svgLinkLabel(svg, linkLabel(node), route.points, color)
     }
 
     private fun svgPortMarker(svg: StringBuilder, point: Point, side: Int, outgoing: Boolean, color: String) {
@@ -2951,6 +3003,25 @@ class GraphCanvas(
             svgCircle(svg, x, y, 5, color)
             svgLine(svg, x, y, x + width, y, color, strokeWidth = 1.5)
             svgText(svg, label, x + 14, y - 4, 12, color)
+        }
+    }
+
+    private fun svgTypeUsageAnnotations(svg: StringBuilder, links: List<Node>, scopeIds: Set<NodeId>?) {
+        links.groupBy { it.link?.typeDefinitionId?.takeIf(String::isNotBlank) }.forEach { (typeId, usages) ->
+            val type = typeId?.let(::NodeId)?.let(repository::getNode)?.takeIf(Node::isType) ?: return@forEach
+            if (scopeIds != null && type.id !in scopeIds) return@forEach
+            val r = type.layout.rect()
+            usages.forEachIndexed { index, link ->
+                val label = linkLabel(link).take(32)
+                val width = max(110, label.length * 8 + 24)
+                val y = r.y + 10 + index * 32
+                val x = r.x + r.width + 34
+                val anchorY = y + 12
+                svgLine(svg, r.x + r.width, anchorY, x, anchorY, "#00897b", strokeWidth = 1.5)
+                svgCircle(svg, r.x + r.width, anchorY, 4, "#00897b")
+                svgRect(svg, Rectangle(x, y, width, 24), fill = "#f1fbf9", stroke = "#00897b", strokeWidth = 1.5)
+                svgText(svg, label, x + 10, y + 17, 12, "#00695c")
+            }
         }
     }
 
@@ -3180,6 +3251,13 @@ class GraphCanvas(
                 g2.font = g2.font.deriveFont(11f)
                 g2.drawString(it, r.x + 12, r.y + 58 + headerOffset)
             }
+            if (node.isType) {
+                g2.color = Color(0x00695c)
+                g2.font = designerFont.deriveFont(11f)
+                typeFieldLabels(node).forEachIndexed { index, label ->
+                    g2.drawString(label, r.x + 12, r.y + 64 + index * 18)
+                }
+            }
         }
         drawCompositeToggle(g2, node)
         g2.stroke = previousStroke
@@ -3230,6 +3308,9 @@ class GraphCanvas(
         g2.color = color
         drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
         drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
+        compositeBoundaryIntersections(node, route.points).forEach { point ->
+            g2.fillOval(point.x - 5, point.y - 5, 10, 10)
+        }
         drawEndpointLinkLabels(g2, linkLabel(node), route, color)
         g2.font = previousFont
         g2.stroke = previousStroke
@@ -3239,7 +3320,7 @@ class GraphCanvas(
         routeCache[id]
 
     private fun linkLabel(node: Node): String {
-        val typeName = node.link?.typeName?.trim().orEmpty()
+        val typeName = repository.getDocument().linkTypeDisplayName(node)
         return if (typeName.isBlank()) node.name else "${node.name}:$typeName"
     }
 
@@ -3529,6 +3610,37 @@ class GraphCanvas(
         g2.stroke = previousStroke
     }
 
+    private fun drawTypeUsageAnnotations(g2: Graphics2D, links: List<Node>, scopeIds: Set<NodeId>?) {
+        links.groupBy { it.link?.typeDefinitionId?.takeIf(String::isNotBlank) }.forEach { (typeId, usages) ->
+            val type = typeId?.let(::NodeId)?.let(repository::getNode)?.takeIf(Node::isType) ?: return@forEach
+            if (scopeIds != null && type.id !in scopeIds) return@forEach
+            val r = type.layout.rect()
+            val previousStroke = g2.stroke
+            val previousFont = g2.font
+            g2.font = designerFont.deriveFont(12f)
+            usages.forEachIndexed { index, link ->
+                val label = linkLabel(link).take(32)
+                val width = max(110, monospaceTextWidth(label, 8, 24))
+                val y = r.y + 10 + index * 32
+                val x = r.x + r.width + 34
+                val anchorY = y + 12
+                val selected = link.id in selection
+                val color = if (selected) Color(0x1565c0) else Color(0x00897b)
+                g2.color = color
+                g2.stroke = BasicStroke(if (selected) 2.4f else 1.5f)
+                g2.drawLine(r.x + r.width, anchorY, x, anchorY)
+                g2.fillOval(r.x + r.width - 4, anchorY - 4, 8, 8)
+                g2.color = Color(0xf1fbf9)
+                g2.fillRect(x, y, width, 24)
+                g2.color = color
+                g2.drawRect(x, y, width, 24)
+                g2.drawString(label, x + 10, y + 17)
+            }
+            g2.stroke = previousStroke
+            g2.font = previousFont
+        }
+    }
+
     private fun isDependencyAnnotation(linkNode: Node): Boolean =
         when (LinkClassifier.classify(repository.getDocument(), linkNode)) {
             LinkStereotype.UsageImport,
@@ -3713,6 +3825,7 @@ class GraphCanvas(
 
     private fun routeObstacles(linkNode: Node, sourceId: NodeId, targetId: NodeId): List<Rectangle> {
         val ignoredIds = mutableSetOf(sourceId, targetId)
+        ignoredIds += linkNode.link?.compositeBoundaryIds.orEmpty()
         var ancestorId = linkNode.parentId
         while (ancestorId != null) {
             ignoredIds += ancestorId
@@ -3729,6 +3842,48 @@ class GraphCanvas(
                     r.height + ROUTING_OBSTACLE_PADDING * 2,
                 )
             }
+    }
+
+    private fun compositeBoundaryIntersections(linkNode: Node, points: List<Point>): List<Point> {
+        val document = repository.getDocument()
+        return linkNode.link?.compositeBoundaryIds.orEmpty()
+            .mapNotNull(document.nodes::get)
+            .flatMap { boundary ->
+                val rect = boundary.layout.rect()
+                val topLeft = Point(rect.x, rect.y)
+                val topRight = Point(rect.x + rect.width, rect.y)
+                val bottomRight = Point(rect.x + rect.width, rect.y + rect.height)
+                val bottomLeft = Point(rect.x, rect.y + rect.height)
+                val edges = listOf(
+                    topLeft to topRight,
+                    topRight to bottomRight,
+                    bottomRight to bottomLeft,
+                    bottomLeft to topLeft,
+                )
+                points.zipWithNext().flatMap { (start, end) ->
+                    edges.mapNotNull { (edgeStart, edgeEnd) ->
+                        segmentIntersectionPoint(start, end, edgeStart, edgeEnd)
+                    }
+                }
+            }
+            .distinctBy { it.x to it.y }
+    }
+
+    private fun segmentIntersectionPoint(a: Point, b: Point, c: Point, d: Point): Point? {
+        val denominator = (a.x - b.x).toDouble() * (c.y - d.y) -
+            (a.y - b.y).toDouble() * (c.x - d.x)
+        if (abs(denominator) < 0.000001) return null
+        val firstDeterminant = a.x.toDouble() * b.y - a.y.toDouble() * b.x
+        val secondDeterminant = c.x.toDouble() * d.y - c.y.toDouble() * d.x
+        val x = (firstDeterminant * (c.x - d.x) - (a.x - b.x) * secondDeterminant) / denominator
+        val y = (firstDeterminant * (c.y - d.y) - (a.y - b.y) * secondDeterminant) / denominator
+        val epsilon = 0.001
+        if (x < min(a.x, b.x) - epsilon || x > max(a.x, b.x) + epsilon ||
+            y < min(a.y, b.y) - epsilon || y > max(a.y, b.y) + epsilon ||
+            x < min(c.x, d.x) - epsilon || x > max(c.x, d.x) + epsilon ||
+            y < min(c.y, d.y) - epsilon || y > max(c.y, d.y) + epsilon
+        ) return null
+        return Point(x.roundToInt(), y.roundToInt())
     }
 
     private fun routingContainer(linkNode: Node): Rectangle? {
@@ -3781,7 +3936,7 @@ class GraphCanvas(
 
     private fun portAnchor(node: Node, linkNode: Node, outgoing: Boolean): PortAnchor? {
         linkNode.link ?: return null
-        if (node.isLink) return linkEndpointAnchor(node, linkNode, outgoing)
+        if (node.isLink) return null
         val r = node.layout.rect()
         val side = linkSide(node, linkNode, outgoing)
         val sorted = normalLinksOnSide(node, side)
@@ -3796,43 +3951,6 @@ class GraphCanvas(
         val y = r.y + portTopSpacing(node) + index * PORT_SPACING
         return PortAnchor(Point(x, y), side)
     }
-
-    private fun linkEndpointAnchor(endpointLink: Node, ownerLink: Node, outgoing: Boolean): PortAnchor? {
-        if (endpointLink.id == ownerLink.id) return null
-        val route = routeCache[endpointLink.id] ?: routeLink(endpointLink)
-        val referencePoint = ownerLinkCounterpartReferencePoint(endpointLink, ownerLink, outgoing)
-            ?: endpointLink.layout.center()
-        val endpoint = route?.nearestEndpoint(referencePoint)
-            ?: LinkEndpoint(endpointLink.layout.center(), if (outgoing) -1 else 1)
-        val insideDirection = horizontalDirection(endpoint.point, referencePoint) ?: endpoint.xDirection
-        return PortAnchor(
-            Point(endpoint.point.x + LINK_ENDPOINT_INSET * insideDirection, endpoint.point.y),
-            insideDirection,
-        )
-    }
-
-    private fun LinkRoute.nearestEndpoint(referencePoint: Point): LinkEndpoint =
-        if (source.distance(referencePoint) <= target.distance(referencePoint)) {
-            LinkEndpoint(source, sourceDirection)
-        } else {
-            LinkEndpoint(target, targetDirection)
-        }
-
-    private fun ownerLinkCounterpartReferencePoint(endpointLink: Node, ownerLink: Node, outgoing: Boolean): Point? {
-        val owner = ownerLink.link ?: return null
-        val otherId = if (outgoing) owner.targetNodeId else owner.sourceNodeId
-        val other = repository.getNode(otherId) ?: return null
-        if (!other.isLink) return other.layout.center()
-        val route = routeCache[other.id] ?: routeLink(other) ?: return other.layout.center()
-        return route.nearestEndpoint(endpointLink.layout.center()).point
-    }
-
-    private fun horizontalDirection(from: Point, to: Point): Int? =
-        when {
-            to.x > from.x -> 1
-            to.x < from.x -> -1
-            else -> null
-        }
 
     private fun routeDirectionNear(points: List<Point>, point: Point): Int {
         val segment = points.zipWithNext().minByOrNull { (a, b) -> distanceToSegment(point, a, b) }
@@ -3878,9 +3996,7 @@ class GraphCanvas(
         val link = linkNode.link ?: return fallback
         val otherId = if (outgoingFromNode) link.targetNodeId else link.sourceNodeId
         val other = repository.getNode(otherId) ?: return fallback
-        if (!other.isLink) return other.layout.center()
-        val route = routeCache[other.id] ?: routeLink(other)
-        return route?.nearestEndpoint(fallback)?.point ?: other.layout.center()
+        return other.layout.center()
     }
 
     private fun compact(points: List<Point>): List<Point> =
@@ -3958,7 +4074,9 @@ class GraphCanvas(
         val hitLink = if (pickSelectionEnabled) hitLink(point) else null
         when (mode) {
             CanvasMode.CreateNode -> {
-                val parent = hit?.takeIf { repository.getNode(it)?.isLink != true }
+                val parent = hit?.takeIf { candidate ->
+                    repository.getNode(candidate)?.let { !it.isLink && !it.isType } == true
+                }
                     ?: repository.getDocument().rootNodeId
                 val node = repository.createNode(parent, "New Node", NodeKind.Processor)
                 repository.updateNodeLayout(
@@ -3978,9 +4096,44 @@ class GraphCanvas(
                 invalidateRoutesFor(listOf(node.id))
                 refreshAll()
             }
+            CanvasMode.CreateType -> {
+                val parent = hit?.takeIf { candidate ->
+                    repository.getNode(candidate)?.let { !it.isLink && !it.isType } == true
+                } ?: repository.getDocument().rootNodeId
+                val node = repository.createNode(parent, "New Type", NodeKind.Type)
+                repository.updateNodeLayout(
+                    node.id,
+                    NodeLayout(
+                        x = point.x.toDouble(),
+                        y = point.y.toDouble(),
+                        width = 220.0,
+                        height = 96.0,
+                        closedWidth = 220.0,
+                        closedHeight = 96.0,
+                        openWidth = 220.0,
+                        openHeight = 96.0,
+                        isExpanded = true,
+                    ),
+                )
+                invalidateRoutesFor(listOf(node.id))
+                refreshAll()
+            }
             CanvasMode.CreateLink -> {
-                val endpoint = hit ?: hitLink
-                if (endpoint != null) {
+                val clickedType = hit?.let(repository::getNode)?.takeIf(Node::isType)
+                if (linkSource?.let(repository::getNode)?.isType == true && hitLink != null) {
+                    assignTypeToLink(linkSource!!, hitLink)
+                    linkSource = null
+                    onSelectionChanged()
+                } else if (linkSource?.let(repository::getNode)?.isType == true) {
+                    // A Type gesture only assigns an existing link; it never creates a data-flow edge.
+                } else if (clickedType != null) {
+                    linkSource = clickedType.id
+                    selection.clear()
+                    selection += clickedType.id
+                    onSelectionChanged()
+                } else {
+                    val endpoint = hit?.takeIf { repository.getNode(it)?.isType != true }
+                    if (endpoint == null) return
                     if (linkSource == null) {
                         linkSource = endpoint
                         selection.clear()
@@ -4081,8 +4234,7 @@ class GraphCanvas(
         ensureDefaultPort(targetId, PortDirection.Input, "in")
         val source = repository.requireNode(sourceId)
         val target = repository.requireNode(targetId)
-        val parentId = nearestCommonParent(sourceId, targetId) ?: repository.getDocument().rootNodeId
-        val link = repository.createLink(parentId, "${source.name} -> ${target.name}", sourceId, "out", targetId, "in")
+        val link = repository.createLink(null, "${source.name} -> ${target.name}", sourceId, "out", targetId, "in")
         link.link?.transportKind = LinkTransportKinds.Default
         selection.clear()
         selection += link.id
@@ -4091,19 +4243,19 @@ class GraphCanvas(
         repository.markDirty()
     }
 
-    private fun nearestCommonParent(first: NodeId, second: NodeId): NodeId? {
-        val firstParents = parentChain(first).toSet()
-        return parentChain(second).firstOrNull { it in firstParents }
-    }
-
-    private fun parentChain(id: NodeId): List<NodeId> {
-        val chain = mutableListOf<NodeId>()
-        var current = repository.getNode(id)?.parentId
-        while (current != null) {
-            chain += current
-            current = repository.getNode(current)?.parentId
+    private fun assignTypeToLink(typeId: NodeId, linkId: NodeId) {
+        val type = repository.requireNode(typeId)
+        val linkNode = repository.requireNode(linkId)
+        if (!type.isType || !linkNode.isLink) return
+        linkNode.link?.copy()?.let { link ->
+            link.typeDefinitionId = type.id.value
+            repository.updateLinkData(linkNode.id, link)
         }
-        return chain
+        selection.clear()
+        selection += linkNode.id
+        routeCache.remove(linkNode.id)
+        invalidateRenderCache()
+        refreshAll()
     }
 
     private fun ensureDefaultPort(nodeId: NodeId, direction: PortDirection, name: String) {
@@ -4262,6 +4414,7 @@ class GraphCanvas(
     private fun modelPoint(point: Point): Point = Point(((point.x / zoom) - panX).toInt(), ((point.y / zoom) - panY).toInt())
 
     private fun fillFor(node: Node): Color = when {
+        node.isType -> Color(0xf1fbf9)
         nodeStereotype(node) in compilerDesignStereotypes -> Color(0xfff4dc)
         node.children.isNotEmpty() -> Color(0xfafafa)
         nodeStereotype(node) == NodeStereotype.ServiceLibrary -> Color(0xf6f7ff)
@@ -4272,6 +4425,7 @@ class GraphCanvas(
 
     private fun strokeFor(node: Node, selected: Boolean): Color = when {
         selected -> Color(0x3366cc)
+        node.isType -> Color(0x00897b)
         nodeStereotype(node) in compilerDesignStereotypes -> Color(0xaa6a00)
         nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> Color(0xcc3333)
         nodeStereotype(node) in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> Color(0x33aa33)
@@ -4281,6 +4435,7 @@ class GraphCanvas(
 
     private fun nodeStroke(node: Node, selected: Boolean): Stroke = when {
         selected -> BasicStroke(3f, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER)
+        node.isType -> BasicStroke(2.2f)
         nodeStereotype(node) in compilerDesignStereotypes -> BasicStroke(2.4f)
         node.children.isNotEmpty() -> BasicStroke(2.2f, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10f, floatArrayOf(24f, 8f, 4f, 8f), 0f)
         nodeStereotype(node) == NodeStereotype.ServiceLibrary -> BasicStroke(2.2f)
@@ -4356,6 +4511,7 @@ private class InspectorPanel(
     private val layoutIdByDisplay = layoutDisplayById.entries.associate { (id, display) -> display to id }
     private var nodeId: NodeId? = null
     private var boundNodeIsLink = false
+    private var boundNodeIsType = false
     private var boundNodeIsCompiler = false
     private var boundNodeIsRoot = false
     private var boundHasNode = false
@@ -4405,14 +4561,24 @@ private class InspectorPanel(
     private val layoutStrategy = JComboBox(arrayOf(NoneLayoutChoice)).apply { isEditable = false }
     private val computedLayoutStrategy = JLabel()
     private val layoutCompilerCapability = JLabel()
-    private val linkTypeName = JTextField()
+    private val linkTypeDefinition = JComboBox(arrayOf(NoneTypeChoice)).apply { isEditable = false }
+    private var typeIdByDisplay = emptyMap<String, String>()
+    private var typeDisplayById = emptyMap<String, String>()
+    private val typeFieldsModel = object : DefaultTableModel(arrayOf("Name", "Type", "Reference"), 0) {
+        override fun getColumnClass(columnIndex: Int): Class<*> =
+            if (columnIndex == 2) java.lang.Boolean::class.java else String::class.java
+    }
+    private val typeFields = JTable(typeFieldsModel).apply {
+        rowHeight = 24
+        fillsViewportHeight = true
+        preferredScrollableViewportSize = Dimension(320, 150)
+    }
     private val customTransportKind = JTextField()
     private val customTransportKindPanel = JPanel(BorderLayout(0, 4)).apply {
         add(JLabel("Custom transport identifier"), BorderLayout.NORTH)
         add(customTransportKind, BorderLayout.CENTER)
         isVisible = false
     }
-    private val payloadDefinition = JTextArea(5, 24)
     private val metadata = JTextArea(5, 24)
     private val nameRow = fieldRow("Name", nameField)
     private val languageRow = fieldRow("Language", language)
@@ -4447,8 +4613,30 @@ private class InspectorPanel(
     private val masterRevisionNameRow = fieldRow("Master revision", masterRevisionName)
     private val masterRevisionDateRow = fieldRow("Master revision date", masterRevisionDate)
     private val linkTransportKindRow = fieldRow("Link transport kind", linkTransportKind)
-    private val linkTypeNameRow = fieldRow("Link type name", linkTypeName)
-    private val payloadDefinitionRow = fieldRow("Link type definition", JScrollPane(payloadDefinition))
+    private val linkTypeDefinitionRow = fieldRow("Link Type Definition", linkTypeDefinition)
+    private val typeFieldsRow = fieldRow(
+        "Type fields",
+        JPanel(BorderLayout(0, 4)).apply {
+            add(JScrollPane(typeFields), BorderLayout.CENTER)
+            add(
+                JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+                    add(JButton("Add field").apply {
+                        addActionListener {
+                            typeFieldsModel.addRow(arrayOf<Any>("field_${typeFieldsModel.rowCount + 1}", BuiltInTypeIds.String, false))
+                            apply()
+                        }
+                    })
+                    add(JButton("Remove field").apply {
+                        addActionListener {
+                            typeFields.selectedRows.sortedDescending().forEach(typeFieldsModel::removeRow)
+                            apply()
+                        }
+                    })
+                },
+                BorderLayout.SOUTH,
+            )
+        },
+    )
     private val metadataRow = fieldRow("Metadata key=value", JScrollPane(metadata))
 
     init {
@@ -4459,7 +4647,6 @@ private class InspectorPanel(
             customTechnology,
             state,
             responsible,
-            linkTypeName,
             customTransportKind,
             masterRevisionName,
             masterRevisionDate,
@@ -4468,7 +4655,8 @@ private class InspectorPanel(
         applyOnCommit(technology)
         applyOnCommit(layoutStrategy)
         applyOnCommit(linkTransportKind)
-        listOf(metadata, payloadDefinition).forEach(::applyOnFocusLost)
+        applyOnCommit(linkTypeDefinition)
+        applyOnFocusLost(metadata)
         val form = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
@@ -4487,9 +4675,9 @@ private class InspectorPanel(
             add(masterRevisionNameRow)
             add(masterRevisionDateRow)
             add(linkTransportKindRow)
-            add(linkTypeNameRow)
+            add(linkTypeDefinitionRow)
             add(customTransportKindPanel)
-            add(payloadDefinitionRow)
+            add(typeFieldsRow)
             add(metadataRow)
             add(JButton("Apply").apply { addActionListener { apply() } })
         }
@@ -4504,6 +4692,7 @@ private class InspectorPanel(
         val node = id?.let(repository::getNode)
         boundHasNode = node != null
         boundNodeIsLink = node?.isLink == true
+        boundNodeIsType = node?.isType == true
         boundNodeIsCompiler = node?.name?.trim()?.equals("@Compiler", ignoreCase = true) == true
         boundNodeIsRoot = node?.id == repository.getDocument().rootNodeId
         compilerTechnologyProposal = proposedCompilerTechnologyId()
@@ -4522,8 +4711,8 @@ private class InspectorPanel(
         masterRevisionDate.text = if (boundNodeIsRoot) repository.getDocument().masterRevision.date else ""
         refreshResponsibleComputedLabel()
         bindTransportKind(node?.link?.transportKind.orEmpty())
-        linkTypeName.text = node?.link?.typeName.orEmpty()
-        payloadDefinition.text = node?.link?.payloadDefinition.orEmpty()
+        refreshTypeChoices(node?.link?.typeDefinitionId.orEmpty())
+        bindTypeFields(node)
         metadata.text = metadataText(node)
         updateEntityFieldVisibility()
         binding = false
@@ -4640,9 +4829,10 @@ private class InspectorPanel(
             masterRevisionName.hasFocus() ||
             masterRevisionDate.hasFocus() ||
             linkTransportKind.hasFocus() ||
-            linkTypeName.hasFocus() ||
+            linkTypeDefinition.hasFocus() ||
+            typeFields.hasFocus() ||
+            typeFields.isEditing ||
             customTransportKind.hasFocus() ||
-            payloadDefinition.hasFocus() ||
             metadata.hasFocus()
 
     private fun parseMetadata(includeState: Boolean): MutableMap<String, String> {
@@ -4659,6 +4849,7 @@ private class InspectorPanel(
     private fun apply() {
         if (binding) return
         val id = nodeId ?: return
+        if (typeFields.isEditing) typeFields.cellEditor?.stopCellEditing()
         val node = repository.requireNode(id)
         if (boundNodeIsRoot) {
             repository.updateMasterRevision(Revision(masterRevisionName.text.trim(), masterRevisionDate.text.trim()))
@@ -4671,10 +4862,10 @@ private class InspectorPanel(
         repository.updateNodeFileLayoutStrategy(id, selectedLayoutStrategy())
         repository.updateNodeMetadata(id, parseMetadata(includeState = !isLink))
         repository.updateNodeResponsible(id, responsible.text)
+        if (node.isType) repository.updateNodeTypeDefinition(id, typeDefinitionFromTable())
         if (isLink) node.link?.copy()?.let {
             it.transportKind = selectedTransportKind().ifBlank { LinkTransportKinds.Default }
-            it.typeName = linkTypeName.text.trim()
-            it.payloadDefinition = payloadDefinition.text
+            it.typeDefinitionId = selectedTypeDefinitionId()
             repository.updateLinkData(id, it)
         }
         refreshAll()
@@ -4707,6 +4898,43 @@ private class InspectorPanel(
             OtherTransportChoice -> customTransportKind.text.trim()
             else -> transportIdByDisplay[selected].orEmpty()
         }
+
+    private fun selectedTypeDefinitionId(): String =
+        typeIdByDisplay[linkTypeDefinition.selectedItem?.toString().orEmpty()].orEmpty()
+
+    private fun typeDefinitionFromTable(): TypeDefinition = TypeDefinition(
+        fields = (0 until typeFieldsModel.rowCount).map { row ->
+            val displayType = typeFieldsModel.getValueAt(row, 1)?.toString().orEmpty()
+            TypeFieldDefinition(
+                name = typeFieldsModel.getValueAt(row, 0)?.toString().orEmpty().trim(),
+                typeId = typeIdByDisplay[displayType] ?: displayType.ifBlank { BuiltInTypeIds.String },
+                isReference = typeFieldsModel.getValueAt(row, 2) as? Boolean ?: false,
+            )
+        }.toMutableList(),
+    )
+
+    private fun refreshTypeChoices(selectedTypeId: String) {
+        val document = repository.getDocument()
+        val choices = linkedMapOf(NoneTypeChoice to "")
+        BuiltInTypeIds.all.forEach { choices[it] = it }
+        document.typeNodes()
+            .sortedBy { it.name.lowercase() }
+            .forEach { type -> choices["${type.name} (${type.id.value})"] = type.id.value }
+        typeIdByDisplay = choices
+        typeDisplayById = choices.entries.associate { (display, id) -> id to display }
+        linkTypeDefinition.model = DefaultComboBoxModel(choices.keys.toTypedArray())
+        linkTypeDefinition.selectedItem = typeDisplayById[selectedTypeId].orEmpty().ifBlank { NoneTypeChoice }
+        val fieldChoices = choices.filterValues(String::isNotBlank).keys.toTypedArray()
+        typeFields.columnModel.getColumn(1).cellEditor = DefaultCellEditor(JComboBox(fieldChoices))
+    }
+
+    private fun bindTypeFields(node: Node?) {
+        typeFieldsModel.rowCount = 0
+        node?.typeDefinition?.fields.orEmpty().forEach { field ->
+            val display = typeDisplayById[field.typeId] ?: repository.getDocument().typeDisplayName(field.typeId)
+            typeFieldsModel.addRow(arrayOf<Any>(field.name, display, field.isReference))
+        }
+    }
 
     private fun bindLanguage(languageId: String) {
         val value = languageId.trim()
@@ -4838,8 +5066,8 @@ private class InspectorPanel(
         masterRevisionNameRow.isVisible = boundNodeIsRoot
         masterRevisionDateRow.isVisible = boundNodeIsRoot
         linkTransportKindRow.isVisible = showLinkFields
-        linkTypeNameRow.isVisible = showLinkFields
-        payloadDefinitionRow.isVisible = showLinkFields
+        linkTypeDefinitionRow.isVisible = showLinkFields
+        typeFieldsRow.isVisible = boundNodeIsType
         updateConditionalChoiceVisibility()
     }
 
@@ -4902,6 +5130,7 @@ private class InspectorPanel(
         private const val OtherTechnologyChoice = "Other"
         private const val OtherTransportChoice = "Other"
         private const val NoneLayoutChoice = "None"
+        private const val NoneTypeChoice = "None"
     }
 }
 

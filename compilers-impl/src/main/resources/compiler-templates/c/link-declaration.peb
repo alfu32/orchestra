@@ -1,2 +1,13 @@
-{# Preserves the user-authored C wire type definition verbatim in the translation-unit type prelude. #}
-{% if link.typeDefinition is not empty %}{{ link.typeDefinition }}{% endif %}
+{# Each C data link owns two buffers and a dedicated transport function. #}
+{% if link.stereotype != "UsageImport" and link.stereotype != "DependencyInjection" %}static threadwork_buffer {{ link.aPortSymbol }} = {
+    .element_size = sizeof({% if link.typeSymbol == "string" %}char *{% elseif link.typeSymbol == "number" %}double{% elseif link.typeSymbol == "date" %}int64_t{% elseif link.typeSymbol == "array" %}ThreadworkArray{% elseif link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}void *{% endif %})
+};
+static threadwork_buffer {{ link.bPortSymbol }} = {
+    .element_size = sizeof({% if link.typeSymbol == "string" %}char *{% elseif link.typeSymbol == "number" %}double{% elseif link.typeSymbol == "date" %}int64_t{% elseif link.typeSymbol == "array" %}ThreadworkArray{% elseif link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}void *{% endif %})
+};
+
+static int {{ link.transportSymbol }}(threadwork_buffer *a, threadwork_buffer *b)
+{
+    return threadwork_buffer_transport(a, b);
+}
+{% endif %}

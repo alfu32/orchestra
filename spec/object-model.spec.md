@@ -1,448 +1,123 @@
-# Single-Node Object Model Specification
+# Threadwork Object Model Specification
 
-## 1. Core Principle
+## 1. Universal Entity
 
-The entire document model is built from one object type:
+`Node` is the document's universal entity. Processors, composites, links, shared
+types, and notes use one serializable structure and are distinguished by
+`NodeKind` plus optional role-specific data.
+
+```text
+NodeKind = Node | Processor | Link | Group | Type | Note
+```
+
+Hierarchy is structural: a node with children is composite and a node without
+children is terminal. Semantic classification remains independent and may also
+consider names, ports, links, and compiler metadata.
+
+## 2. Node Data
+
+A node contains stable identity and hierarchy, text, technology, drawing, and
+accountability data:
 
 ```text
 Node
-```
-
-Every object in the application is a node.
-
-A node may behave as:
-
-```text
-- a composite
-- a terminal source-code unit
-- a link
-- a visual container
-- a workflow step
-- a generated-project unit
-```
-
-But these are roles, not separate structural classes.
-
-The node object should be flexible enough to represent all of them.
-
----
-
-## 2. Node Structure
-
-A node contains:
-
-```text
-Node
-- id
-- parent_id
-- name
-- kind
-- metadata
-- children
-- source_text
-- specification_text
-- tests_text
-- ai_instruction_text
-- x
-- y
-- width
-- height
-- link_data
+- id, parentId, name, kind
+- children, incomingLinks, outgoingLinks
+- layout, fileLayoutStrategyId
+- text, technology, metadata, pluginData
+- revision, responsible, modified
 - ports
+- link?              // Link only
+- typeDefinition?    // Type only
 ```
 
-Where:
+`NodeLayout` persists open and closed composite dimensions and expansion state.
+Position changes affect presentation but do not change the node revision.
+
+## 3. Text Sections
+
+`NodeText` stores declaration, instantiation, specification, tests, and usage
+instructions. Every section has its own syntax/language identifier. Declaration
+and instantiation may inherit their programming language from ancestors; the
+other sections default to their content formats.
+
+Historical JSON field names remain mapped by serialization, but application and
+compiler code use declaration and instantiation terminology.
+
+## 4. Ports and Data Links
+
+A processor-like node exposes named input and output `NodePort` entries. A data
+link connects one output port to one input port. Links cannot use another Link or
+a Type declaration as a normal endpoint.
 
 ```text
-children
+LinkData
+- sourceNodeId, sourcePortName
+- targetNodeId, targetPortName
+- transportKind
+- typeDefinitionId
+- compositeBoundaryIds
 ```
 
-may be empty.
+The link node name is the wire/buffer variable name. `typeDefinitionId` is either
+a built-in type identifier or the stable ID of a Type node. Legacy `typeName` and
+`payloadDefinition` data may be read by existing compilers, but new designs use
+shared Type entities.
 
-If `children.length == 0`, the node is terminal from the hierarchy point of view.
+## 5. Link Ownership and Composite Boundaries
 
-If `children.length > 0`, the node is composite from the hierarchy point of view.
+A link is owned by the closest common ancestor of its two endpoint nodes. The
+repository computes this parent when the link is created and recomputes it when
+an endpoint is reparented.
 
-This does not necessarily prevent a node with children from also having source text.
+`compositeBoundaryIds` lists, in source-to-target order, every composite boundary
+that the direct link crosses. The canvas renders one continuous route, marks each
+boundary crossing, and does not treat those listed composites as routing
+obstacles. Persisted boundary data is normalized when a document is loaded.
 
----
+## 6. Shared Type Declarations
 
-## 3. Terminal vs Composite
-
-A node is terminal when:
+A Type node defines an ordered list of fields:
 
 ```text
-children.length == 0
+TypeDefinition
+- fields[]
+  - name
+  - typeId
+  - isReference
 ```
 
-A node is composite when:
+Built-in type IDs are `string`, `number`, `date`, and `array`. `typeId` may also
+refer to another Type node, allowing a project-owned object model. `isReference`
+states that a custom field refers to another value rather than embedding it;
+the exact representation is compiler-specific.
+
+Type names and fields are edited in the Entities Edit view. Type boxes list the
+links that use them. In Link mode, selecting a Type and then an existing Link
+assigns the Type to that link without creating another graph edge.
+
+The validator rejects blank or duplicate fields, unknown field types, unknown
+link types, and Type nodes without a `TypeDefinition`.
+
+## 7. Link Type Presentation
+
+The canvas labels both ends of a typed link as:
 
 ```text
-children.length > 0
+<link-name>:<type-name>
 ```
 
-This is a structural distinction.
-
-It is independent from semantic kind.
-
-For example, the following are all allowed by the model:
-
-```text
-- terminal processor node
-- composite processor node
-- terminal link node
-- composite node with source code
-- node with no source code and no children
-```
-
-The compiler decides what is meaningful.
-
----
-
-## 4. Four Text Fields
-
-Each node has four main text fields:
-
-```text
-source_text
-specification_text
-tests_text
-ai_instruction_text
-```
-
-### 4.1 Source Text
-
-The implementation body, source code, script, generated template, or manual procedure body.
-
-### 4.2 Specification Text
-
-The human-readable or machine-readable description of what the node is supposed to do.
-
-### 4.3 Tests Text
-
-Tests, validation rules, expected examples, manual test cases, or generated test templates.
-
-### 4.4 AI Instruction Text
-
-Instructions intended for AI coding agents or other AI-based generation tools.
-
-This field should be used to tell an AI agent how to implement, modify, test, or reason about the node.
-
----
-
-## 5. Canvas Layout Data
-
-Each node stores its own two-dimensional canvas placement:
-
-```text
-x
-y
-width
-height
-```
-
-This means graphical layout is part of the document model.
-
-That is acceptable and useful because the model is not merely abstract code; it is also an editable visual artifact.
-
-The GUI can render the node directly using these fields.
-
-Example:
-
-```text
-Node visual rectangle:
-- x: 120
-- y: 80
-- width: 240
-- height: 140
-```
-
----
-
-## 6. Node Kind
-
-The `kind` field describes the intended semantic role of the node.
-
-Recommended initial values:
-
-```text
-NodeKind
-- node
-- processor
-- link
-- group
-- note
-```
-
-For the strict MVP, this can be reduced to:
-
-```text
-NodeKind
-- processor
-- link
-- group
-```
-
-However, the core model should not become too dependent on this enum.
-
-A compiler may use `kind`, metadata, children, ports, or links to decide what the node means.
-
----
-
-## 7. Link Representation Inside a Node
-
-Since links are also nodes, a link node should store its link-specific data inside optional fields.
-
-```text
-link_data
-- source_node_id
-- source_port_name
-- target_node_id
-- target_port_name
-- transport_kind
-- payload_definition
-```
-
-A link node still has:
-
-```text
-- children
-- text fields
-- metadata
-- canvas coordinates
-```
-
-Even if most compilers ignore some of those fields for links.
-
-This keeps the model uniform.
-
-`payload_definition` stores the user-defined shape of the data transported by
-the link. Its syntax is technology/compiler-specific. Examples include a C
-struct, Kotlin data class, JSON schema, CSV header, protobuf message, or any
-other textual contract that a compiler plugin knows how to interpret.
-
----
-
-## 8. Ports
-
-A processor-like node may define ports.
-
-```text
-ports
-- name
-- direction
-- data_type
-- metadata
-```
-
-Where direction is:
-
-```text
-- input
-- output
-```
-
-A link connects one output port to one input port.
-
----
-
-## 9. Metadata
-
-Metadata remains generic.
-
-```text
-metadata
-- programming_language
-- technology
-- compiler
-- runtime
-- user_properties
-```
-
-This lets the same node be interpreted differently by different compilers.
-
----
-
-## 10. Important Architectural Decision
-
-The node class is not just a data structure for source code.
-
-It is the universal document atom.
-
-It carries:
-
-```text
-- hierarchy
-- implementation
-- specification
-- tests
-- AI instructions
-- visual position
-- compiler metadata
-- communication information
-- revision, responsibility, and modification audit information
-```
-
-This is the heart of the application.
-
-### Revision and responsibility
-
-The document owns a master revision (`name` and `date`). A semantic repository mutation copies that revision to every affected node or link and records the modification timestamp and operating-system user. Text, hierarchy, port, and link-reference changes are semantic; visual position and size changes are not.
-
-Each entity may declare its own responsible person and revision. Effective-value accessors walk the parent chain when the local value is absent. Responsibility falls back to `none`; revision falls back to no revision. The root inspector is the only place where the project master revision is edited.
-
----
-
-## 11. Consequence for the Rewrite
-
-The rewrite should not begin by designing many model classes.
-
-The first coding-agent task should be:
-
-```text
-Implement a robust single Node model and repository around it.
-```
-
-The model can later expose helper functions such as:
-
-```text
-is_terminal(node)
-is_composite(node)
-is_link(node)
-is_processor(node)
-get_child_nodes(node)
-get_link_nodes(node)
-get_processor_nodes(node)
-```
-
-But these should be derived interpretations, not separate base classes.
-
----
-
-## 12. Recommended Core API
-
-The core model package should expose operations like:
-
-```text
-create_node(parent_id, name)
-delete_node(node_id)
-move_node(node_id, new_parent_id)
-rename_node(node_id, new_name)
-
-set_node_text(node_id, text_kind, value)
-get_node_text(node_id, text_kind)
-
-set_node_layout(node_id, x, y, width, height)
-get_node_layout(node_id)
-
-add_child(parent_id, child_id)
-remove_child(parent_id, child_id)
-
-set_node_kind(node_id, kind)
-
-set_link_endpoints(
-    link_node_id,
-    source_node_id,
-    source_port_name,
-    target_node_id,
-    target_port_name
-)
-```
-
----
-
-## 13. Compiler Interpretation
-
-The compiler should receive the same generic node structure.
-
-It should classify nodes by interpretation:
-
-```text
-if node.kind == "link":
-    compile as link
-
-else if node.children.length > 0:
-    compile as composite
-
-else:
-    compile as terminal processor
-```
-
-This is a simple default rule.
-
-More advanced compilers may override it.
-
----
-
-## 14. Minimal JSON Shape
-
-A practical serialized node may look like:
-
-```json
-{
-  "id": "node_001",
-  "parent_id": null,
-  "name": "Root Application",
-  "kind": "group",
-  "metadata": {
-    "programming_language": null,
-    "technology": null,
-    "compiler": null,
-    "runtime": null,
-    "user_properties": {}
-  },
-  "text": {
-    "source": "",
-    "specification": "",
-    "tests": "",
-    "ai_instructions": ""
-  },
-  "layout": {
-    "x": 0,
-    "y": 0,
-    "width": 240,
-    "height": 120
-  },
-  "ports": [],
-  "link": null,
-  "children": []
-}
-```
-
-A link node:
-
-```json
-{
-  "id": "link_001",
-  "parent_id": "root",
-  "name": "A.output -> B.input",
-  "kind": "link",
-  "metadata": {},
-  "text": {
-    "source": "",
-    "specification": "Move packets from A.output to B.input.",
-    "tests": "",
-    "ai_instructions": ""
-  },
-  "layout": {
-    "x": 300,
-    "y": 160,
-    "width": 120,
-    "height": 40
-  },
-  "ports": [],
-  "link": {
-    "source_node_id": "node_a",
-    "source_port_name": "output",
-    "target_node_id": "node_b",
-    "target_port_name": "input"
-  },
-  "children": []
-}
-```
-
----
-
-## 15. Updated System Definition
-
-The application is based on a single recursive node class. Every node may contain children, four editable text fields, metadata, link information, ports, and two-dimensional canvas layout. Terminal nodes are simply nodes without children. Composite nodes are nodes with children. Link nodes are ordinary nodes whose metadata describes a connection between one output and one input. The GUI edits and visualizes this node graph, while compiler plugins interpret the same node hierarchy into source-code projects, executables, documentation, AI-agent tasks, tests, or human workflows.
+Hovering the route shows the selected Type and its fields. Editors at both
+endpoint processors receive the link name and resolved Type through completion
+context, so code can refer to the same contract without copying declarations.
+
+## 8. Document Root
+
+`ThreadworkDocument` owns a stable node map and identifies one node as its root.
+The root is also the project entity: its node name is the effective project name,
+and its technology, revision, responsibility, and layout defaults may be
+inherited by descendants.
+
+All mutation must go through `DocumentRepository`. Repository operations maintain
+parent/child symmetry, endpoint link lists, link ownership, boundary traversal,
+modification metadata, and revision propagation before persistence.

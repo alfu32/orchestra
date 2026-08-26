@@ -1,8 +1,4 @@
-{# Moves all packets on this distinct modeled link after child execution. #}
-    if (threadwork_transport(
-            context,
-            "{{ link.escapedNameDoubleQuoted }}",
-            "{{ link.escapedSourceReferenceDoubleQuoted }}",
-            "{{ link.escapedTargetReferenceDoubleQuoted }}") != THREADWORK_OK) {
+{# Advances one modeled data link after processor execution. #}
+{% if link.stereotype != "UsageImport" and link.stereotype != "DependencyInjection" %}    if ({{ link.transportSymbol }}(&{{ link.aPortSymbol }}, &{{ link.bPortSymbol }}) != THREADWORK_OK) {
         return THREADWORK_ERROR;
-    }
+    }{% endif %}

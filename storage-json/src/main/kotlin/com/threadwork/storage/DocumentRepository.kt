@@ -11,6 +11,9 @@ import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.NodeText
 import com.threadwork.core.model.Revision
 import com.threadwork.core.model.TechnologyMetadata
+import com.threadwork.core.model.TypeDefinition
+import com.threadwork.core.model.closestCommonAncestorId
+import com.threadwork.core.model.compositeBoundaryIdsBetween
 import java.util.UUID
 import java.time.Instant
 
@@ -31,6 +34,7 @@ interface DocumentRepository {
     fun updateNodeFileLayoutStrategy(id: NodeId, strategyId: String)
     fun updateNodeMetadata(id: NodeId, metadata: Map<String, String>)
     fun updateNodeResponsible(id: NodeId, responsible: String?)
+    fun updateNodeTypeDefinition(id: NodeId, definition: TypeDefinition)
     fun updateLinkData(id: NodeId, linkData: LinkData)
     fun updateMasterRevision(revision: Revision)
     fun touchNode(id: NodeId)
@@ -66,6 +70,7 @@ class InMemoryDocumentRepository(
 
     override fun replaceDocument(document: ThreadworkDocument) {
         this.document = document
+        synchronizeAllLinks()
         dirty = false
     }
 
@@ -76,7 +81,13 @@ class InMemoryDocumentRepository(
 
     override fun createNode(parentId: NodeId?, name: String, kind: NodeKind): Node {
         parentId?.let(::requireNode)
-        val node = Node(id = nextNodeId("node"), name = name, kind = kind, parentId = parentId)
+        val node = Node(
+            id = nextNodeId("node"),
+            name = name,
+            kind = kind,
+            parentId = parentId,
+            typeDefinition = TypeDefinition().takeIf { kind == NodeKind.Type },
+        )
         document.nodes[node.id] = node
         parentId?.let {
             val parent = requireNode(it)
@@ -161,12 +172,38 @@ class InMemoryDocumentRepository(
         markDirty()
     }
 
+    override fun updateNodeTypeDefinition(id: NodeId, definition: TypeDefinition) {
+        val node = requireNode(id)
+        require(node.kind == NodeKind.Type) { "Node '$id' is not a type" }
+        if (node.typeDefinition == definition) return
+        node.typeDefinition = definition.copy(fields = definition.fields.map { it.copy() }.toMutableList())
+        touchNodes(listOf(id))
+        markDirty()
+    }
+
     override fun updateLinkData(id: NodeId, linkData: LinkData) {
         val node = requireNode(id)
         require(node.isLink) { "Node '$id' is not a link" }
         if (node.link == linkData) return
-        node.link = linkData
-        touchNodes(listOf(id))
+        requireValidEndpoint(linkData.sourceNodeId, "source")
+        requireValidEndpoint(linkData.targetNodeId, "target")
+        val oldLink = node.link
+        oldLink?.let {
+            document.nodes[it.sourceNodeId]?.outgoingLinks?.removeAll { linkId -> linkId == id }
+            document.nodes[it.targetNodeId]?.incomingLinks?.removeAll { linkId -> linkId == id }
+        }
+        node.link = linkData.copy(compositeBoundaryIds = linkData.compositeBoundaryIds.toMutableList())
+        synchronizeLink(node)
+        touchNodes(
+            listOfNotNull(
+                id,
+                oldLink?.sourceNodeId,
+                oldLink?.targetNodeId,
+                linkData.sourceNodeId,
+                linkData.targetNodeId,
+                node.parentId,
+            ),
+        )
         markDirty()
     }
 
@@ -205,25 +242,31 @@ class InMemoryDocumentRepository(
         targetPortName: String,
     ): Node {
         parentId?.let(::requireNode)
-        requireNode(sourceNodeId)
-        requireNode(targetNodeId)
+        requireValidEndpoint(sourceNodeId, "source")
+        requireValidEndpoint(targetNodeId, "target")
+        val owningParentId = document.closestCommonAncestorId(sourceNodeId, targetNodeId)
+            ?: document.rootNodeId
         val node = Node(
             id = nextNodeId("link"),
             name = name,
             kind = NodeKind.Link,
-            parentId = parentId,
-            link = LinkData(sourceNodeId, sourcePortName, targetNodeId, targetPortName),
+            parentId = owningParentId,
+            link = LinkData(
+                sourceNodeId,
+                sourcePortName,
+                targetNodeId,
+                targetPortName,
+                compositeBoundaryIds = document.compositeBoundaryIdsBetween(sourceNodeId, targetNodeId).toMutableList(),
+            ),
         )
         document.nodes[node.id] = node
-        parentId?.let {
-            val parent = requireNode(it)
-            if (node.id !in parent.children) parent.children += node.id
-        }
+        val parent = requireNode(owningParentId)
+        if (node.id !in parent.children) parent.children += node.id
         val source = requireNode(sourceNodeId)
         val target = requireNode(targetNodeId)
         if (node.id !in source.outgoingLinks) source.outgoingLinks += node.id
         if (node.id !in target.incomingLinks) target.incomingLinks += node.id
-        touchNodes(listOfNotNull(node.id, parentId, sourceNodeId, targetNodeId))
+        touchNodes(listOf(node.id, owningParentId, sourceNodeId, targetNodeId))
         markDirty()
         return node
     }
@@ -241,6 +284,7 @@ class InMemoryDocumentRepository(
             if (id !in parent.children) parent.children += id
         }
         touchNodes(listOfNotNull(id, oldParentId, newParentId))
+        synchronizeAllLinks()
         markDirty()
     }
 
@@ -266,6 +310,41 @@ class InMemoryDocumentRepository(
         document.nodes[link.sourceNodeId]?.outgoingLinks?.removeAll { it == linkNode.id }
         document.nodes[link.targetNodeId]?.incomingLinks?.removeAll { it == linkNode.id }
         touchNodes(listOf(link.sourceNodeId, link.targetNodeId))
+    }
+
+    private fun requireValidEndpoint(id: NodeId, role: String): Node =
+        requireNode(id).also { endpoint ->
+            require(!endpoint.isLink) { "Link $role '$id' cannot be another link" }
+            require(!endpoint.isType) { "Link $role '$id' cannot be a type declaration" }
+        }
+
+    private fun synchronizeAllLinks() {
+        document.nodes.values.forEach { node ->
+            node.incomingLinks.clear()
+            node.outgoingLinks.clear()
+        }
+        document.nodes.values.filter(Node::isLink).forEach(::synchronizeLink)
+    }
+
+    private fun synchronizeLink(linkNode: Node) {
+        val link = linkNode.link ?: return
+        val source = document.nodes[link.sourceNodeId] ?: return
+        val target = document.nodes[link.targetNodeId] ?: return
+        if (source.isLink || target.isLink || source.isType || target.isType) return
+
+        val expectedParentId = document.closestCommonAncestorId(source.id, target.id) ?: document.rootNodeId
+        if (linkNode.parentId != expectedParentId) {
+            linkNode.parentId?.let { oldParentId ->
+                document.nodes[oldParentId]?.children?.removeAll { it == linkNode.id }
+            }
+            linkNode.parentId = expectedParentId
+        }
+        document.nodes[expectedParentId]?.children?.let { children ->
+            if (linkNode.id !in children) children += linkNode.id
+        }
+        link.compositeBoundaryIds = document.compositeBoundaryIdsBetween(source.id, target.id).toMutableList()
+        if (linkNode.id !in source.outgoingLinks) source.outgoingLinks += linkNode.id
+        if (linkNode.id !in target.incomingLinks) target.incomingLinks += linkNode.id
     }
 
     private fun touchNodes(ids: Iterable<NodeId>) {

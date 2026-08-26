@@ -7,6 +7,8 @@ import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.NodeText
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.TechnologyMetadata
+import com.threadwork.core.model.TypeDefinition
+import com.threadwork.core.model.TypeFieldDefinition
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.newDocument
 import kotlin.test.Test
@@ -39,9 +41,16 @@ class DocumentationCompilerTest {
         )
         repository.addPort(reader.id, NodePort("out", "packets", PortDirection.Output))
         repository.addPort(writer.id, NodePort("in", "packets", PortDirection.Input))
+        val packetType = repository.createNode(root, "Packet", NodeKind.Type)
+        repository.updateNodeTypeDefinition(
+            packetType.id,
+            TypeDefinition(mutableListOf(TypeFieldDefinition("id", "string"))),
+        )
         val link = repository.createLink(root, "packets", reader.id, "packets", writer.id, "packets")
-        link.link!!.typeName = "Packet"
-        link.link!!.payloadDefinition = "type Packet = { id: string };"
+        repository.updateLinkData(
+            link.id,
+            requireNotNull(link.link).copy(typeDefinitionId = packetType.id.value),
+        )
         link.text.specification = "Carries one validated packet per message."
 
         val result = DocumentationCompiler().compile(
@@ -60,7 +69,9 @@ class DocumentationCompilerTest {
         val technical = project.files.single { it.path.endsWith(".TECH.md") }.content
         assertTrue(technical.contains("**Direct technology:** `nodejs`"))
         assertTrue(technical.contains("Run with `threadwork-reader"))
-        assertTrue(technical.contains("type Packet = { id: string };"))
+        assertTrue(technical.contains("## Shared Types"))
+        assertTrue(technical.contains("| id | string | No |"))
+        assertTrue(technical.contains("payload uses the shared `Packet` type contract"))
         val writerSection = technical.substringAfter("### write packets").substringBefore("## Data Contracts")
         assertTrue(writerSection.contains("**Direct technology:** _Not specified directly._"))
     }

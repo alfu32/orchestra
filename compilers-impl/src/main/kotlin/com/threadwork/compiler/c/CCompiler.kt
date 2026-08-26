@@ -13,10 +13,12 @@ import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.diagnostics.DiagnosticSeverity
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
+import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.threadwork.core.model.effectiveLayoutStrategyId
 import com.threadwork.core.model.effectiveTechnologyId
+import com.threadwork.core.model.getElementById
 import com.threadwork.core.validation.DocumentValidator
 
 class CCompiler : TemplateSetCompiler() {
@@ -58,14 +60,11 @@ class CCompiler : TemplateSetCompiler() {
 
     override fun hoistedDeclarationFor(context: NodeCompilerContext): String {
         val node = context.node
+        if (node.kind == NodeKind.Type) return super.hoistedDeclarationFor(context)
         if (node.isLink) {
-            val typeName = node.link?.typeName?.trim().orEmpty()
-            if (typeName.isBlank() || node.link?.payloadDefinition.isNullOrBlank()) return ""
-            return if (node.id == firstDeclarationNodeId(context.document, typeName)) {
-                super.hoistedDeclarationFor(context)
-            } else {
-                ""
-            }
+            // Type declarations are deduplicated separately. Every data link still owns
+            // a distinct pair of buffers and a distinct transport function.
+            return super.hoistedDeclarationFor(context)
         }
         return (node.incomingLinks + node.outgoingLinks)
             .mapNotNull(context.document.nodes::get)
@@ -108,6 +107,18 @@ class CCompiler : TemplateSetCompiler() {
 
         val typedLinks = cNodes.filter(Node::isLink).filter { linkNode ->
             val link = linkNode.link
+            val declaredType = link?.typeDefinitionId
+                ?.takeIf(String::isNotBlank)
+                ?.let { document.getElementById(it) }
+            if (declaredType != null) {
+                if (!C_IDENTIFIER.matches(declaredType.name.trim())) {
+                    diagnostics += error(
+                        linkNode.id,
+                        "C type name '${declaredType.name}' is not a valid C identifier.",
+                    )
+                }
+                return@filter false
+            }
             val hasTypeName = !link?.typeName.isNullOrBlank()
             val hasDefinition = !link?.payloadDefinition.isNullOrBlank()
             if (hasTypeName != hasDefinition) {

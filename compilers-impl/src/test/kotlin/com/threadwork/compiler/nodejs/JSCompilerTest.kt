@@ -10,6 +10,8 @@ import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.TechnologyMetadata
+import com.threadwork.core.model.TypeDefinition
+import com.threadwork.core.model.TypeFieldDefinition
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.newDocument
 import kotlin.test.Test
@@ -18,6 +20,60 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class JSCompilerTest {
+    @Test
+    fun `declared link type is generated and used by transport`() {
+        val repository = InMemoryDocumentRepository(newDocument("Typed JS"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
+        val type = repository.createNode(root, "WorkOrder", NodeKind.Type)
+        repository.updateNodeTypeDefinition(
+            type.id,
+            TypeDefinition(mutableListOf(TypeFieldDefinition("id", "number"))),
+        )
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "orders", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "orders", PortDirection.Input))
+        val link = repository.createLink(root, "orders", source.id, "orders", target.id, "orders")
+        repository.updateLinkData(link.id, requireNotNull(link.link).copy(typeDefinitionId = type.id.value))
+
+        val result = JSCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
+        assertTrue(generated.contains("@typedef {Object} WorkOrder"))
+        assertTrue(generated.contains("const orders_a_port = [];"))
+        assertTrue(generated.contains("transport_orders(orders_a_port, orders_b_port);"))
+    }
+
+    @Test
+    fun `selected endpoints include their referenced sibling type`() {
+        val repository = InMemoryDocumentRepository(newDocument("Scoped Typed JS"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
+        val type = repository.createNode(root, "Envelope", NodeKind.Type)
+        repository.updateNodeTypeDefinition(
+            type.id,
+            TypeDefinition(mutableListOf(TypeFieldDefinition("payload", "string"))),
+        )
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "packet", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "packet", PortDirection.Input))
+        val link = repository.createLink(root, "packet", source.id, "packet", target.id, "packet")
+        repository.updateLinkData(link.id, requireNotNull(link.link).copy(typeDefinitionId = type.id.value))
+
+        val result = JSCompiler().compile(
+            repository.getDocument(),
+            CompilerOptions(scopeNodeIds = setOf(source.id, target.id)),
+        )
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
+        assertTrue(generated.contains("@typedef {Object} Envelope"))
+        assertTrue(generated.contains("function transport_packet(a, b)"))
+    }
+
     @Test
     fun `compiler facade provides every layout variant`() {
         assertTrue(
@@ -94,7 +150,7 @@ class JSCompilerTest {
     }
 
     @Test
-    fun `resource templates preserve link identity and qualified endpoints`() {
+    fun `resource templates generate named double buffered transport`() {
         val repository = InMemoryDocumentRepository(newDocument("Template JS"))
         val root = repository.getDocument().rootNodeId
         repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
@@ -107,10 +163,12 @@ class JSCompilerTest {
         val result = JSCompiler().compile(repository.getDocument())
 
         assertTrue(result.success)
-        assertTrue(
-            assertNotNull(result.generatedProject).files.any {
-                it.content.contains("transport(context, \"record_pipe\", \"reader.records\", \"writer.records\");")
-            },
-        )
+        val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
+        assertTrue(generated.contains("const record_pipe_a_port = [];"))
+        assertTrue(generated.contains("const record_pipe_b_port = [];"))
+        assertTrue(generated.contains("function transport_record_pipe(a, b)"))
+        assertTrue(generated.contains("reader(context, record_pipe_a_port);"))
+        assertTrue(generated.contains("writer(context, record_pipe_b_port);"))
+        assertTrue(generated.contains("transport_record_pipe(record_pipe_a_port, record_pipe_b_port);"))
     }
 }

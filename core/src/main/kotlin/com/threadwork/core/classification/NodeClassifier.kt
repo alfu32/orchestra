@@ -23,6 +23,7 @@ enum class NodeStereotype {
     TestSuite,
     InputPort,
     OutputPort,
+    Type,
     StaticFile,
     CompilerTemplate,
 }
@@ -53,6 +54,7 @@ object NodeClassifier {
         val name = node.name.trim()
         return when {
             node.kind == NodeKind.Link || node.link != null -> NodeStereotype.Link
+            node.kind == NodeKind.Type -> NodeStereotype.Type
             node.kind == NodeKind.Node -> NodeStereotype.Node
             name.isStaticFileTemplateName() -> NodeStereotype.StaticFile
             name.isCompilerTemplateName() -> NodeStereotype.CompilerTemplate

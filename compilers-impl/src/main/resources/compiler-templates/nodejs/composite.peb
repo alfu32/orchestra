@@ -1,7 +1,8 @@
-{# composite.declaration: emits the composite symbol function, own setup/body, child calls, link transport calls, and CommonJS export. #}function {{ symbol }}(context = {}) {
+{# A composite executes children with link-owned ports, then advances every owned data link once. #}
+function {{ symbol }}(context = {}{% for link in incomingDataLinks %}, {{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, {{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, {{ link.symbol }}{% endfor %}) {
 {% if instantiation is not empty %}{{ instantiationIndent2 }}
 {% endif %}{% if declaration is not empty %}{{ declarationIndent2 }}
-{% endif %}{% for child in childArtifacts %}{% if child.node.kind.name != "Note" %}  {{ child.symbol }}(context);
+{% endif %}{% for child in childArtifacts %}{% if child.node.kind.name != "Note" and child.node.kind.name != "Type" %}  {{ child.symbol }}(context{% for link in child.incomingDataLinks %}, {{ link.bPortSymbol }}{% endfor %}{% for link in child.outgoingDataLinks %}, {{ link.aPortSymbol }}{% endfor %}{% for link in child.dependencyInjectionLinks %}, context.imports?.["{{ link.symbol }}"]{% endfor %});
 {% endif %}{% endfor %}{% for linkArtifact in linkArtifacts %}{% if linkArtifact.instantiation is not empty %}  {{ linkArtifact.instantiation }}
 {% endif %}{% endfor %}}
 

@@ -1,4 +1,5 @@
-{# processor/node declaration: wraps instantiation and recurring declaration text in a context-aware function and exports symbol. #}function {{ symbol }}(context = {}) {
+{# Processor parameters expose incoming B buffers, outgoing A buffers, then injected libraries under modeled link names. #}
+function {{ symbol }}(context = {}{% for link in incomingDataLinks %}, {{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, {{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, {{ link.symbol }}{% endfor %}) {
 {% if instantiation is not empty %}{{ instantiationIndent2 }}
 {% endif %}{% if declaration is not empty %}{{ declarationIndent2 }}
 {% else %}  // {{ name }} has no declaration text yet.

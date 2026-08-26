@@ -22,6 +22,7 @@ enum class GeneratedElementKind {
     TerminalEntity,
     CompositeEntity,
     Link,
+    Type,
     MagicFile,
     StaticFile,
     CompilerTemplate,
@@ -379,6 +380,7 @@ abstract class StructuredCompiler : CompilerPlugin {
             NodeKind.Processor -> getProcessorDeclaration(context)
             NodeKind.Link -> getLinkDeclaration(context)
             NodeKind.Group -> getGroupDeclaration(context)
+            NodeKind.Type -> getTypeDeclaration(context)
             NodeKind.Note -> getNoteDeclaration(context)
         }
 
@@ -392,6 +394,7 @@ abstract class StructuredCompiler : CompilerPlugin {
             NodeKind.Processor -> getProcessorInstantiation(context)
             NodeKind.Link -> getLinkInstantiation(context)
             NodeKind.Group -> getGroupInstantiation(context)
+            NodeKind.Type -> getTypeInstantiation(context)
             NodeKind.Note -> getNoteInstantiation(context)
         }
 
@@ -418,6 +421,11 @@ abstract class StructuredCompiler : CompilerPlugin {
 
     protected open fun getGroupInstantiation(context: NodeCompilerContext): String =
         context.node.text.instantiation
+
+    protected open fun getTypeDeclaration(context: NodeCompilerContext): String =
+        context.node.text.declaration
+
+    protected open fun getTypeInstantiation(context: NodeCompilerContext): String = ""
 
     protected open fun getNoteDeclaration(context: NodeCompilerContext): String =
         defaultDeclaration(context)
@@ -594,6 +602,21 @@ abstract class StructuredCompiler : CompilerPlugin {
         document.nodes.values.filter { it.isLink }.forEach { linkNode ->
             val link = linkNode.link ?: return@forEach
             if (link.sourceNodeId in selectedNodes && link.targetNodeId in selectedNodes) result += linkNode.id
+        }
+        val pendingTypeIds = ArrayDeque(
+            result.mapNotNull(document::getElementById)
+                .mapNotNull { it.link?.typeDefinitionId?.takeIf(String::isNotBlank) }
+                .map(::NodeId),
+        )
+        while (pendingTypeIds.isNotEmpty()) {
+            val typeId = pendingTypeIds.removeFirst()
+            val typeNode = document.getElementById(typeId) ?: continue
+            if (typeNode.kind != NodeKind.Type || !result.add(typeId)) continue
+            typeNode.typeDefinition?.fields.orEmpty()
+                .map { NodeId(it.typeId) }
+                .filter { referencedId -> document.getElementById(referencedId)?.kind == NodeKind.Type }
+                .forEach(pendingTypeIds::addLast)
+            if (includeAncestors) includeAncestors(typeId)
         }
         return result
     }

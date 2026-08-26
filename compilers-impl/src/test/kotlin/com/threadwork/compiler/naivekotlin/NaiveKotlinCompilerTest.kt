@@ -11,6 +11,8 @@ import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.TechnologyMetadata
 import com.threadwork.core.model.PortDirection
+import com.threadwork.core.model.TypeDefinition
+import com.threadwork.core.model.TypeFieldDefinition
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.newDocument
 import kotlin.test.Test
@@ -19,6 +21,33 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class NaiveKotlinCompilerTest {
+    @Test
+    fun `declared types are generated for typed links`() {
+        val repository = InMemoryDocumentRepository(newDocument("Typed Kotlin"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "kotlin", technologyId = "kotlin-jvm"))
+        val type = repository.createNode(root, "WorkOrder", NodeKind.Type)
+        repository.updateNodeTypeDefinition(
+            type.id,
+            TypeDefinition(mutableListOf(TypeFieldDefinition("id", "number"))),
+        )
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "orders", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "orders", PortDirection.Input))
+        val link = repository.createLink(root, "orders", source.id, "orders", target.id, "orders")
+        repository.updateLinkData(link.id, requireNotNull(link.link).copy(typeDefinitionId = type.id.value))
+
+        val result = NaiveKotlinCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
+        assertTrue(generated.contains("data class WorkOrder"))
+        assertTrue(generated.contains("val id: Double"))
+        assertTrue(generated.contains("ArrayDeque<WorkOrder>"))
+        assertTrue(generated.contains("transport_orders(orders_a_port, orders_b_port)"))
+    }
+
     @Test
     fun `single file kotlin layout emits runtime nodes and entry point together`() {
         val repository = InMemoryDocumentRepository(newDocument("Single Kotlin"))
@@ -56,7 +85,13 @@ class NaiveKotlinCompilerTest {
         assertTrue(result.success)
         val project = assertNotNull(result.generatedProject)
         assertTrue(project.files.any { it.path == "src/main/kotlin/generated/Runtime.kt" })
-        assertTrue(project.files.any { it.content.contains("runLink(context") })
+        val generated = project.files.joinToString("\n") { it.content }
+        assertTrue(generated.contains("val transfer_a_port = ArrayDeque"))
+        assertTrue(generated.contains("val transfer_b_port = ArrayDeque"))
+        assertTrue(generated.contains("fun transport_transfer("))
+        assertTrue(generated.contains("run_producer_") && generated.contains("transfer_a_port"))
+        assertTrue(generated.contains("run_consumer_") && generated.contains("transfer_b_port"))
+        assertTrue(generated.contains("transport_transfer(transfer_a_port, transfer_b_port)"))
     }
 
     @Test

@@ -7,6 +7,9 @@ import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.PortDirection
+import com.threadwork.core.model.BuiltInTypeIds
+import com.threadwork.core.model.closestCommonAncestorId
+import com.threadwork.core.model.compositeBoundaryIdsBetween
 
 object DocumentValidator {
     fun validate(document: ThreadworkDocument): List<Diagnostic> {
@@ -21,6 +24,7 @@ object DocumentValidator {
             validateChildren(document, node, diagnostics)
             validateLinks(document, node, diagnostics)
             validatePorts(node, diagnostics)
+            validateType(document, node, diagnostics)
         }
 
         return diagnostics
@@ -67,6 +71,26 @@ object DocumentValidator {
         val target = document.nodes[link.targetNodeId]
         if (source == null) diagnostics += error("Link source '${link.sourceNodeId}' does not exist", node.id)
         if (target == null) diagnostics += error("Link target '${link.targetNodeId}' does not exist", node.id)
+        if (source?.isLink == true) diagnostics += error("Link source '${link.sourceNodeId}' cannot be another link", node.id)
+        if (target?.isLink == true) diagnostics += error("Link target '${link.targetNodeId}' cannot be another link", node.id)
+        if (source?.isType == true) diagnostics += error("Link source '${link.sourceNodeId}' cannot be a type declaration", node.id)
+        if (target?.isType == true) diagnostics += error("Link target '${link.targetNodeId}' cannot be a type declaration", node.id)
+
+        if (source != null && target != null && !source.isLink && !target.isLink && !source.isType && !target.isType) {
+            val expectedParentId = document.closestCommonAncestorId(source.id, target.id) ?: document.rootNodeId
+            if (node.parentId != expectedParentId) {
+                diagnostics += error("Link '${node.id}' must belong to closest common parent '$expectedParentId'", node.id)
+            }
+            val expectedBoundaries = document.compositeBoundaryIdsBetween(source.id, target.id)
+            if (link.compositeBoundaryIds != expectedBoundaries) {
+                diagnostics += error("Link '${node.id}' has stale composite boundary traversal", node.id)
+            }
+        }
+
+        val typeId = link.typeDefinitionId.trim()
+        if (typeId.isNotBlank() && !isKnownType(document, typeId)) {
+            diagnostics += error("Link '${node.id}' references unknown type '$typeId'", node.id)
+        }
 
         source?.ports?.find { it.name == link.sourcePortName && it.direction == PortDirection.Output }
             ?: diagnostics.add(error("Source output port '${link.sourcePortName}' does not exist", node.id))
@@ -78,6 +102,31 @@ object DocumentValidator {
         node.ports.groupingBy { it.direction to it.name }.eachCount().filterValues { it > 1 }.keys.forEach { (_, name) ->
             diagnostics += error("Duplicate port name '$name' for same direction", node.id)
         }
+    }
+
+    private fun validateType(document: ThreadworkDocument, node: Node, diagnostics: MutableList<Diagnostic>) {
+        if (node.kind != NodeKind.Type) return
+        val definition = node.typeDefinition
+        if (definition == null) {
+            diagnostics += error("Type node '${node.id}' has no type definition", node.id)
+            return
+        }
+        definition.fields.groupingBy { it.name.trim() }.eachCount()
+            .filter { (name, count) -> name.isNotBlank() && count > 1 }
+            .keys
+            .forEach { diagnostics += error("Duplicate type field '$it'", node.id) }
+        definition.fields.forEach { field ->
+            if (field.name.isBlank()) diagnostics += error("Type field name cannot be blank", node.id)
+            if (!isKnownType(document, field.typeId)) {
+                diagnostics += error("Type field '${field.name}' references unknown type '${field.typeId}'", node.id)
+            }
+        }
+    }
+
+    private fun isKnownType(document: ThreadworkDocument, typeId: String): Boolean {
+        val normalized = typeId.trim()
+        if (normalized in BuiltInTypeIds.all) return true
+        return document.nodes[NodeId(normalized)]?.kind == NodeKind.Type
     }
 
     private fun error(message: String, nodeId: NodeId? = null): Diagnostic =

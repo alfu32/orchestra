@@ -1,0 +1,5 @@
+{# type.declaration: emits a JavaScript/JSDoc structural type shared by every link that selects this type entity. #}
+/**
+ * @typedef {Object} {{ symbol }}
+{% for field in typeFields %} * @property {{ "{" }}{% if field.typeName == "string" %}string{% elseif field.typeName == "number" %}number{% elseif field.typeName == "date" %}Date{% elseif field.typeName == "array" %}Array{% else %}{{ field.typeSymbol }}{% endif %}{{ "}" }} {{ field.symbol }}{% if field.isReference %} reference{% endif %}
+{% endfor %} */

@@ -38,7 +38,8 @@ All node templates receive a common context:
 | `inlineChildArtifacts`, `externalChildArtifacts` | Child artifacts split by single-file versus external layout. |
 | `childForwardDeclarations`, `linkForwardDeclarations`, `descendantForwardDeclarations` | Recursively collected prototype blocks. PHP currently defines no forward-declaration templates, so these values are empty. |
 | `ownForwardDeclaration`, `forwardDeclarations` | Assembly-only prototype text for the current entity and complete subtree; retained for template sets that require prototypes. |
-| `incomingLinks`, `outgoingLinks`, `dependencyInjectionLinks` | Wire descriptors with names, type information, endpoint data, and stereotype. |
+| `incomingDataLinks`, `outgoingDataLinks`, `dependencyInjectionLinks` | Data links are separated from library bindings and expose Type, A/B buffer, transport, and endpoint symbols. |
+| `typeFields` | Shared-Type fields with raw/sanitized names, resolved type symbols, and reference semantics. |
 | `ports` | Port ID, name, direction, data type, and metadata. |
 | `declaration`, `instantiation`, `specification`, `tests`, `usageInstructions` | Current node text fields. |
 | `declarationIndent4`, `instantiationIndent4` | User text indented for a PHP function body. |
@@ -67,16 +68,19 @@ an executable sequence while retaining the same `$context` across children.
 
 ### `link-declaration.peb` (`link.declaration`)
 
-Produces a PHPDoc comment containing `link.name`, the optional `link.typeName`,
-and `link.typeDefinition`. Parent assembly embeds it because individual link
-files are disabled. This keeps the modeled packet contract visible in generated
-source without imposing a specific PHP class representation.
+Creates two typed FIFO arrays and the link-specific transport function. The
+function shifts at most one packet from the A-side array to the B-side array.
+Dependency-injection links remain bindings and do not emit transport state.
 
 ### `link-instantiation.peb` (`link.instantiation`)
 
-Calls `transport($context, linkName, sourceReference, targetReference)` using the
-single-quote-safe link fields. The link name is the transport identity; source
-and target references address the appropriate output and input queues.
+Calls the named transport function with its A and B arrays after child execution.
+
+### `type-declaration.peb` (`type.declaration`)
+
+Generates a PHP value class whose promoted constructor properties correspond to
+the shared Type fields. Built-ins map to native PHP types; custom fields use the
+referenced Type symbol.
 
 ### `note.peb` (`note.declaration`)
 
@@ -91,9 +95,8 @@ calling functions declared in child translation files.
 
 ### `runtime.peb` (`runtime.support`)
 
-Defines `transport`: initialize the shared input/output/link maps, record the
-wire endpoints, and drain queued values from source to target. Assembly must emit
-this helper before link instantiation calls.
+Defines the shared runtime context used by generated processor wrappers. Link
+queues and transport functions are emitted per modeled link.
 
 ### `assembly-file.peb` (`composite.file-based`)
 

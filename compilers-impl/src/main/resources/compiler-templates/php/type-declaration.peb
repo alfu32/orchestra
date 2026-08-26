@@ -1,0 +1,7 @@
+{# type.declaration: emits a PHP value object for a declared Threadwork type. #}
+final class {{ symbol }}
+{
+    public function __construct(
+{% for field in typeFields %}        public {% if field.typeName == "string" %}string{% elseif field.typeName == "number" %}float{% elseif field.typeName == "date" %}\DateTimeImmutable{% elseif field.typeName == "array" %}array{% else %}{{ field.typeSymbol }}{% endif %} ${{ field.symbol }}{% if not loop.last %},{% endif %}
+{% endfor %}    ) {}
+}
