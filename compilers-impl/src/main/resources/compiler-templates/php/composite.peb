@@ -1,9 +1,9 @@
-{# A composite executes children with link-owned ports, then advances every owned data link once. #}function {{ symbol }}(array &$context{% for link in incomingDataLinks %}, array &${{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, array &${{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, mixed ${{ link.symbol }}{% endfor %}): void
+{# A composite executes children with link-owned ports, then advances every owned data link once. #}function {{ symbol }}(array &$context{% for link in incomingDataLinks %}, array &${{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, array &${{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, mixed ${{ link.dependencySymbol }}{% endfor %}): void
 {
 {% for linkArtifact in linkArtifacts %}{% if linkArtifact.link is not empty and linkArtifact.link.stereotype != "UsageImport" and linkArtifact.link.stereotype != "DependencyInjection" %}    global ${{ linkArtifact.link.aPortSymbol }}, ${{ linkArtifact.link.bPortSymbol }};
 {% endif %}{% endfor %}
 {% if instantiation is not empty %}{{ instantiationIndent4 }}
 {% endif %}{% if declaration is not empty %}{{ declarationIndent4 }}
-{% endif %}{% for child in childArtifacts %}{% if child.node.kind.name != "Note" and child.node.kind.name != "Type" %}    {{ child.symbol }}($context{% for link in child.incomingDataLinks %}, ${{ link.bPortSymbol }}{% endfor %}{% for link in child.outgoingDataLinks %}, ${{ link.aPortSymbol }}{% endfor %}{% for link in child.dependencyInjectionLinks %}, $context['imports']['{{ link.symbol }}'] ?? null{% endfor %});
-{% endif %}{% endfor %}{% for linkArtifact in linkArtifacts %}{% if linkArtifact.instantiation is not empty %}    {{ linkArtifact.instantiation }}
+{% endif %}{% for child in childArtifacts %}{% if child.node.kind.name != "Note" and child.node.kind.name != "Type" %}    {{ child.symbol }}($context{% for link in child.incomingDataLinks %}, ${{ link.bPortSymbol }}{% endfor %}{% for link in child.outgoingDataLinks %}, ${{ link.aPortSymbol }}{% endfor %}{% for link in child.dependencyInjectionLinks %}, ${{ link.dependencySymbol }}{% endfor %});
+{% endif %}{% endfor %}{% for linkArtifact in linkArtifacts %}{% if linkArtifact.instantiation is not empty and linkArtifact.link.stereotype != "DependencyInjection" %}    {{ linkArtifact.instantiation }}
 {% endif %}{% endfor %}}

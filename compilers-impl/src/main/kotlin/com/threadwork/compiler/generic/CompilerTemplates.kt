@@ -787,6 +787,8 @@ private fun linkDescriptors(document: ThreadworkDocument, ids: Iterable<com.thre
         val symbol = safeIdentifier(node.name, preserveCase = true)
         val sourceNode = document.getElementById(link.sourceNodeId)
         val targetNode = document.getElementById(link.targetNodeId)
+        val dependencyIndex = dependencyLinkIndex(document, node, sourceNode)
+        val dependencySymbol = "${symbol}${dependencyIndex.coerceAtLeast(1)}"
         mapOf(
             "id" to node.id.value,
             "name" to node.name,
@@ -807,6 +809,12 @@ private fun linkDescriptors(document: ThreadworkDocument, ids: Iterable<com.thre
             "sourceNodeId" to link.sourceNodeId.value,
             "sourceNodeName" to sourceNode?.name.orEmpty(),
             "sourceNodeSymbol" to sourceNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
+            "sourceNodeType" to sourceNode?.name.orEmpty(),
+            "sourceNodeTypeSymbol" to sourceNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
+            "sourceNodeInstantiation" to sourceNode?.text?.instantiation.orEmpty(),
+            "libraryInstantiation" to sourceNode?.text?.instantiation.orEmpty(),
+            "dependencyIndex" to dependencyIndex,
+            "dependencySymbol" to dependencySymbol,
             "targetNodeId" to link.targetNodeId.value,
             "targetNodeName" to targetNode?.name.orEmpty(),
             "targetNodeSymbol" to targetNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
@@ -824,6 +832,8 @@ private fun linkContext(document: ThreadworkDocument, node: Node): Map<String, A
     val sourceReference = "${sanitizeReference(sourceName)}.${sanitizeReference(link.sourcePortName)}"
     val targetReference = "${sanitizeReference(targetName)}.${sanitizeReference(link.targetPortName)}"
     val symbol = safeIdentifier(node.name, preserveCase = true)
+    val dependencyIndex = dependencyLinkIndex(document, node, sourceNode)
+    val dependencySymbol = "${symbol}${dependencyIndex.coerceAtLeast(1)}"
     return mapOf(
         "link" to mapOf(
             "id" to node.id.value,
@@ -845,6 +855,12 @@ private fun linkContext(document: ThreadworkDocument, node: Node): Map<String, A
                 ?.let { typeFieldViews(document, it) }
                 .orEmpty(),
             "typeDefinition" to link.payloadDefinition,
+            "sourceNodeType" to sourceNode?.name.orEmpty(),
+            "sourceNodeTypeSymbol" to sourceNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
+            "sourceNodeInstantiation" to sourceNode?.text?.instantiation.orEmpty(),
+            "libraryInstantiation" to sourceNode?.text?.instantiation.orEmpty(),
+            "dependencyIndex" to dependencyIndex,
+            "dependencySymbol" to dependencySymbol,
             "sourceNodeId" to link.sourceNodeId.value,
             "targetNodeId" to link.targetNodeId.value,
             "sourcePortName" to link.sourcePortName,
@@ -870,6 +886,17 @@ private fun isDependencyDescriptor(descriptor: Map<String, Any?>): Boolean =
         LinkStereotype.UsageImport.name,
         LinkStereotype.DependencyInjection.name,
     )
+
+private fun dependencyLinkIndex(document: ThreadworkDocument, linkNode: Node, sourceNode: Node?): Int {
+    val dependencies = sourceNode?.outgoingLinks.orEmpty().mapNotNull(document::getElementById)
+        .filter { candidate ->
+            candidate.link != null && LinkClassifier.classify(document, candidate) in setOf(
+                LinkStereotype.UsageImport,
+                LinkStereotype.DependencyInjection,
+            )
+        }
+    return dependencies.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 }?.plus(1) ?: 1
+}
 
 private fun compileScopeIds(document: ThreadworkDocument, requested: Set<com.threadwork.core.model.NodeId>): Set<com.threadwork.core.model.NodeId> {
     if (requested.isEmpty()) return document.nodes.keys

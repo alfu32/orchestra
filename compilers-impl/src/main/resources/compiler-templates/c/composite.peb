@@ -1,21 +1,21 @@
 {# Defines a composite: own setup, child setup, own execution, child execution, then link transport. #}
-static int tw_{{ initializerSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, void *{{ link.symbol }}{% endfor %})
+static int tw_{{ initializerSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, {% if link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.dependencySymbol }}{% endfor %})
 {
     (void)context;
 {% if instantiation is not empty %}{{ instantiationIndent4 }}
-{% endif %}{% for child in childArtifacts %}{% if child.declaration is not empty and child.node.kind.name != "Note" and child.node.kind.name != "Type" %}    if (tw_{{ child.initializerSymbol }}(context{% for link in child.incomingDataLinks %}, &{{ link.bPortSymbol }}{% endfor %}{% for link in child.outgoingDataLinks %}, &{{ link.aPortSymbol }}{% endfor %}{% for link in child.dependencyInjectionLinks %}, NULL{% endfor %}) != THREADWORK_OK) {
+{% endif %}{% for child in childArtifacts %}{% if child.declaration is not empty and child.node.kind.name != "Note" and child.node.kind.name != "Type" %}    if (tw_{{ child.initializerSymbol }}(context{% for link in child.incomingDataLinks %}, &{{ link.bPortSymbol }}{% endfor %}{% for link in child.outgoingDataLinks %}, &{{ link.aPortSymbol }}{% endfor %}{% for link in child.dependencyInjectionLinks %}, {{ link.dependencySymbol }}{% endfor %}) != THREADWORK_OK) {
         return THREADWORK_ERROR;
     }
 {% endif %}{% endfor %}    return THREADWORK_OK;
 }
 
-static int tw_{{ runSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, void *{{ link.symbol }}{% endfor %})
+static int tw_{{ runSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, {% if link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.dependencySymbol }}{% endfor %})
 {
     (void)context;
 {% if declaration is not empty %}{{ declarationIndent4 }}
-{% endif %}{% for child in childArtifacts %}{% if child.declaration is not empty and child.node.kind.name != "Note" and child.node.kind.name != "Type" %}    if (tw_{{ child.runSymbol }}(context{% for link in child.incomingDataLinks %}, &{{ link.bPortSymbol }}{% endfor %}{% for link in child.outgoingDataLinks %}, &{{ link.aPortSymbol }}{% endfor %}{% for link in child.dependencyInjectionLinks %}, NULL{% endfor %}) != THREADWORK_OK) {
+{% endif %}{% for child in childArtifacts %}{% if child.declaration is not empty and child.node.kind.name != "Note" and child.node.kind.name != "Type" %}    if (tw_{{ child.runSymbol }}(context{% for link in child.incomingDataLinks %}, &{{ link.bPortSymbol }}{% endfor %}{% for link in child.outgoingDataLinks %}, &{{ link.aPortSymbol }}{% endfor %}{% for link in child.dependencyInjectionLinks %}, {{ link.dependencySymbol }}{% endfor %}) != THREADWORK_OK) {
         return THREADWORK_ERROR;
     }
-{% endif %}{% endfor %}{% for linkArtifact in linkArtifacts %}{% if linkArtifact.instantiation is not empty %}{{ linkArtifact.instantiation }}
+{% endif %}{% endfor %}{% for linkArtifact in linkArtifacts %}{% if linkArtifact.instantiation is not empty and linkArtifact.link.stereotype != "DependencyInjection" %}{{ linkArtifact.instantiation }}
 {% endif %}{% endfor %}    return THREADWORK_OK;
 }

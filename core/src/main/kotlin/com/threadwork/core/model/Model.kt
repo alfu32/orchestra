@@ -112,12 +112,13 @@ data class LinkData(
 )
 
 object BuiltInTypeIds {
-    const val String = "string"
+    const val Boolean = "boolean"
     const val Number = "number"
     const val Date = "date"
+    const val String = "string"
     const val Array = "array"
 
-    val all: List<String> = listOf(String, Number, Date, Array)
+    val all: List<String> = listOf(Boolean, Number, Date,String, Array)
 }
 
 @Serializable

@@ -1,5 +1,6 @@
 {# Each C data link owns two buffers and a dedicated transport function. #}
-{% if link.stereotype != "UsageImport" and link.stereotype != "DependencyInjection" %}static threadwork_buffer {{ link.aPortSymbol }} = {
+{% if link.stereotype == "DependencyInjection" %}{% if link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.dependencySymbol }} = {% if link.libraryInstantiation is not empty %}{{ link.libraryInstantiation }}{% else %}NULL{% endif %};
+{% elseif link.stereotype != "UsageImport" %}static threadwork_buffer {{ link.aPortSymbol }} = {
     .element_size = sizeof({% if link.typeSymbol == "string" %}char *{% elseif link.typeSymbol == "number" %}double{% elseif link.typeSymbol == "date" %}int64_t{% elseif link.typeSymbol == "array" %}ThreadworkArray{% elseif link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}void *{% endif %})
 };
 static threadwork_buffer {{ link.bPortSymbol }} = {

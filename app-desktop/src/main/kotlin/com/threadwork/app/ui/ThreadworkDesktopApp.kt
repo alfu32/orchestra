@@ -126,6 +126,7 @@ import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComponent
 import javax.swing.JDialog
+import javax.swing.JEditorPane
 import javax.swing.DropMode
 import javax.swing.Icon
 import javax.swing.JFrame
@@ -1867,6 +1868,12 @@ class GraphCanvas(
             repository.updateNodeFileLayoutStrategy(copy.id, node.fileLayoutStrategyId)
             repository.updateNodeMetadata(copy.id, node.metadata)
             repository.updateNodeResponsible(copy.id, node.responsible)
+            node.typeDefinition?.let { definition ->
+                repository.updateNodeTypeDefinition(
+                    copy.id,
+                    definition.copy(fields = definition.fields.map { it.copy() }.toMutableList()),
+                )
+            }
             node.ports.forEach { repository.addPort(copy.id, it.copy(id = "${it.id}_copy_$index")) }
             pasted += copy.id
         }
@@ -2310,21 +2317,27 @@ class GraphCanvas(
     }
 
     private fun drawGraph(g2: Graphics2D, scopeIds: Set<NodeId>? = null, viewport: Rectangle? = null) {
-        val links = visibleLinks(scopeIds)
+        val allLinks = visibleLinks(scopeIds)
+        val links = allLinks
             .filter { viewport == null || linkMayIntersectViewport(it, viewport) }
         orderedVisibleNodes(scopeIds)
             .filter { viewport == null || it.id in selection || it.layout.rect().intersects(viewport) }
             .forEach { drawNode(g2, it) }
         links.filterNot(::isDependencyAnnotation).forEach { drawLink(g2, it) }
         drawDependencyAnnotations(g2, links.filter(::isDependencyAnnotation))
-        drawTypeUsageAnnotations(g2, links, scopeIds)
+        // Type annotations belong to the type node and must survive route tile culling.
+        drawTypeUsageAnnotations(g2, allLinks, scopeIds)
     }
 
     private fun linkMayIntersectViewport(linkNode: Node, viewport: Rectangle): Boolean {
         if (isDependencyAnnotation(linkNode)) {
             return dependencyAnnotationBounds(linkNode).any { it.intersects(viewport) }
         }
-        cachedRoute(linkNode.id)?.let { return it.bounds().intersects(viewport) }
+        cachedRoute(linkNode.id)?.let {
+            // Endpoint labels are rendered outside the route itself. Keep a generous
+            // model-space margin so long names remain visible at tile boundaries.
+            return it.bounds().apply { grow(320, 80) }.intersects(viewport)
+        }
         val link = linkNode.link ?: return false
         val source = repository.getNode(link.sourceNodeId)?.layout?.rect() ?: return false
         val target = repository.getNode(link.targetNodeId)?.layout?.rect() ?: return false
@@ -2870,10 +2883,13 @@ class GraphCanvas(
         svgArrowAlongRoute(svg, route.points, color)
         svgPortMarker(svg, route.source, route.sourceDirection, outgoing = true, color = color)
         svgPortMarker(svg, route.target, route.targetDirection, outgoing = false, color = color)
+        val flowDirection = (route.points.lastOrNull()?.x ?: route.source.x) - route.source.x
         compositeBoundaryIntersections(node, route.points).forEach { point ->
-            svgCircle(svg, point.x, point.y, 5, color)
+            val direction = if (flowDirection >= 0) 1 else -1
+            svgPortMarker(svg, point, direction, outgoing = true, color = color)
+            svgPortMarker(svg, point, -direction, outgoing = false, color = color)
         }
-        svgLinkLabel(svg, linkLabel(node), route.points, color)
+        svgEndpointLinkLabels(svg, node, route, color)
     }
 
     private fun svgPortMarker(svg: StringBuilder, point: Point, side: Int, outgoing: Boolean, color: String) {
@@ -2941,15 +2957,31 @@ class GraphCanvas(
         )
     }
 
-    private fun svgLinkLabel(svg: StringBuilder, label: String, points: List<Point>, color: String) {
-        val text = label.take(24)
-        if (text.isBlank()) return
-        val anchor = pointAlongRoute(points, 0.5) ?: return
-        val width = monospaceTextWidth(text, 8, 20)
-        val x = anchor.x - width / 2
+    private fun svgEndpointLinkLabels(svg: StringBuilder, node: Node, route: LinkRoute, color: String) {
+        val (name, typeName) = linkLabelParts(node)
+        if (name.isBlank() && typeName == null) return
+        svgEndpointLinkLabel(svg, name, typeName, route.source, route.sourceDirection, color)
+        svgEndpointLinkLabel(svg, name, typeName, route.target, route.targetDirection, color)
+    }
+
+    private fun svgEndpointLinkLabel(
+        svg: StringBuilder,
+        name: String,
+        typeName: String?,
+        anchor: Point,
+        side: Int,
+        color: String,
+    ) {
+        val separator = if (typeName == null) "" else ":"
+        val full = name + separator + typeName.orEmpty()
+        val width = monospaceTextWidth(full, 8, 0)
+        val x = if (side < 0) anchor.x - width - 8 else anchor.x + 8
         val y = anchor.y - 14
-        svgRect(svg, Rectangle(x - 3, y - 10, width + 6, 14), fill = "#fdfdfd", stroke = "none")
-        svgText(svg, text, x, y, 10, color)
+        svgText(svg, name, x, y, 10, color)
+        typeName?.let {
+            val offset = monospaceTextWidth(name + separator, 8, 0)
+            svgText(svg, ":$it", x + offset, y, 10, "#008c4a")
+        }
     }
 
     private fun svgDependencyAnnotations(svg: StringBuilder, links: List<Node>) {
@@ -3012,7 +3044,8 @@ class GraphCanvas(
             if (scopeIds != null && type.id !in scopeIds) return@forEach
             val r = type.layout.rect()
             usages.forEachIndexed { index, link ->
-                val label = linkLabel(link).take(32)
+                val (name, typeName) = linkLabelParts(link)
+                val label = name + typeName.orEmpty().let { if (it.isEmpty()) "" else ":$it" }
                 val width = max(110, label.length * 8 + 24)
                 val y = r.y + 10 + index * 32
                 val x = r.x + r.width + 34
@@ -3020,7 +3053,10 @@ class GraphCanvas(
                 svgLine(svg, r.x + r.width, anchorY, x, anchorY, "#00897b", strokeWidth = 1.5)
                 svgCircle(svg, r.x + r.width, anchorY, 4, "#00897b")
                 svgRect(svg, Rectangle(x, y, width, 24), fill = "#f1fbf9", stroke = "#00897b", strokeWidth = 1.5)
-                svgText(svg, label, x + 10, y + 17, 12, "#00695c")
+                svgText(svg, name, x + 10, y + 17, 12, "#00695c")
+                typeName?.let {
+                    svgText(svg, ":$it", x + 10 + monospaceTextWidth(name + ":", 8, 0), y + 17, 12, "#008c4a")
+                }
             }
         }
     }
@@ -3172,6 +3208,79 @@ class GraphCanvas(
             )
         }
         RasterPdfWriter.write(file.toPath(), pages)
+        exportDocumentationPdf(file.parentFile ?: File("."))
+    }
+
+    private fun exportDocumentationPdf(directory: File) {
+        val document = repository.getDocument()
+        val result = documentationCompiler.compile(
+            document,
+            CompilerOptions(projectName = document.projectName(), compilerPlugins = compilerPlugins),
+        )
+        val generated = result.generatedProject ?: return
+        generated.files.forEach { markdownFile ->
+            val markdownPath = directory.toPath().resolve(markdownFile.path)
+            Files.writeString(markdownPath, markdownFile.content)
+            val html = markdownToHtml(markdownFile.content)
+            val pages = renderHtmlPages(html)
+            if (pages.isNotEmpty()) {
+                val pdfPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".pdf")
+                RasterPdfWriter.write(
+                    pdfPath,
+                    pages.map { image ->
+                        PdfRasterPage(image, 210.0 * PDF_POINTS_PER_MM, 297.0 * PDF_POINTS_PER_MM)
+                    },
+                )
+            }
+        }
+    }
+
+    private fun renderHtmlPages(html: String): List<BufferedImage> {
+        val pageWidth = 794
+        val pageHeight = 1123
+        val editor = JEditorPane("text/html", html).apply {
+            isEditable = false
+            border = null
+            // Give the HTML view a finite layout height; the preferred height is
+            // then used to split the rendered document into A4-sized pages.
+            setSize(pageWidth, 1_000_000)
+        }
+        val contentHeight = editor.preferredSize.height.coerceAtLeast(pageHeight)
+        val pages = mutableListOf<BufferedImage>()
+        for (offset in 0 until contentHeight step pageHeight) {
+            val image = BufferedImage(pageWidth, pageHeight, BufferedImage.TYPE_INT_RGB)
+            val graphics = image.createGraphics()
+            graphics.color = Color.WHITE
+            graphics.fillRect(0, 0, pageWidth, pageHeight)
+            graphics.clip = Rectangle(0, 0, pageWidth, pageHeight)
+            graphics.translate(0, -offset)
+            editor.paint(graphics)
+            graphics.dispose()
+            pages += image
+        }
+        return pages
+    }
+
+    private fun markdownToHtml(markdown: String): String {
+        val body = buildString {
+            var inCode = false
+            markdown.lines().forEach { line ->
+                if (line.startsWith("``")) {
+                    if (inCode) appendLine("</pre>") else appendLine("<pre>")
+                    inCode = !inCode
+                } else if (inCode) {
+                    appendLine(escapeHtml(line))
+                } else when {
+                    line.startsWith("### ") -> appendLine("<h3>${escapeHtml(line.drop(4))}</h3>")
+                    line.startsWith("## ") -> appendLine("<h2>${escapeHtml(line.drop(3))}</h2>")
+                    line.startsWith("# ") -> appendLine("<h1>${escapeHtml(line.drop(2))}</h1>")
+                    line.startsWith("- ") -> appendLine("<p>&bull; ${escapeHtml(line.drop(2))}</p>")
+                    line.isBlank() -> appendLine()
+                    else -> appendLine("<p>${escapeHtml(line)}</p>")
+                }
+            }
+        }
+        return "<html><head><style>body{font-family:sans-serif;margin:36px;color:#222}h1{font-size:24px}h2{font-size:18px}p{font-size:11px;line-height:1.35}pre{font-family:monospace;font-size:9px;white-space:pre-wrap}</style></head><body>$body</body></html>"
     }
 
     private fun renderPdfPage(plan: SheetPlan, page: SheetPage): BufferedImage {
@@ -3308,10 +3417,13 @@ class GraphCanvas(
         g2.color = color
         drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
         drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
+        val flowDirection = (route.points.lastOrNull()?.x ?: route.source.x) - route.source.x
         compositeBoundaryIntersections(node, route.points).forEach { point ->
-            g2.fillOval(point.x - 5, point.y - 5, 10, 10)
+            val direction = if (flowDirection >= 0) 1 else -1
+            drawPortMarker(g2, point, direction, outgoing = true)
+            drawPortMarker(g2, point, -direction, outgoing = false)
         }
-        drawEndpointLinkLabels(g2, linkLabel(node), route, color)
+        drawEndpointLinkLabels(g2, node, route, color)
         g2.font = previousFont
         g2.stroke = previousStroke
     }
@@ -3322,6 +3434,11 @@ class GraphCanvas(
     private fun linkLabel(node: Node): String {
         val typeName = repository.getDocument().linkTypeDisplayName(node)
         return if (typeName.isBlank()) node.name else "${node.name}:$typeName"
+    }
+
+    private fun linkLabelParts(node: Node): Pair<String, String?> {
+        val typeName = repository.getDocument().linkTypeDisplayName(node).trim()
+        return node.name to typeName.takeIf { it.isNotEmpty() }
     }
 
     private fun visibleNodes(scopeIds: Set<NodeId>? = null): List<Node> {
@@ -3555,7 +3672,7 @@ class GraphCanvas(
             val link = linkNode.link ?: return@forEachIndexed
             val dependent = repository.getNode(link.targetNodeId) ?: return@forEachIndexed
             val selected = linkNode.id in selection
-            val label = dependencyInjectionLabel(linkNode, library).take(32)
+            val label = dependencyInjectionLabel(linkNode, library)
             val metrics = g2.fontMetrics
             val labelWidth = max(96, monospaceTextWidth(label, 8, 22))
             val labelHeight = 24
@@ -3582,7 +3699,7 @@ class GraphCanvas(
         val rows = links.mapNotNull { linkNode ->
             val link = linkNode.link ?: return@mapNotNull null
             val source = repository.getNode(link.sourceNodeId) ?: return@mapNotNull null
-            linkNode to dependencyInjectionLabel(linkNode, source).take(32)
+            linkNode to dependencyInjectionLabel(linkNode, source)
         }
         if (rows.isEmpty()) return
 
@@ -3619,7 +3736,8 @@ class GraphCanvas(
             val previousFont = g2.font
             g2.font = designerFont.deriveFont(12f)
             usages.forEachIndexed { index, link ->
-                val label = linkLabel(link).take(32)
+                val (name, typeName) = linkLabelParts(link)
+                val label = name + typeName.orEmpty().let { if (it.isEmpty()) "" else ":$it" }
                 val width = max(110, monospaceTextWidth(label, 8, 24))
                 val y = r.y + 10 + index * 32
                 val x = r.x + r.width + 34
@@ -3634,7 +3752,7 @@ class GraphCanvas(
                 g2.fillRect(x, y, width, 24)
                 g2.color = color
                 g2.drawRect(x, y, width, 24)
-                g2.drawString(label, x + 10, y + 17)
+                drawColoredLinkLabel(g2, name, typeName, x + 10, y + 17, color)
             }
             g2.stroke = previousStroke
             g2.font = previousFont
@@ -4005,22 +4123,49 @@ class GraphCanvas(
             acc
         }
 
-    private fun drawEndpointLinkLabels(g2: Graphics2D, label: String, route: LinkRoute, color: Color) {
-        val text = label.take(24)
-        if (text.isBlank()) return
+    private fun drawEndpointLinkLabels(g2: Graphics2D, node: Node, route: LinkRoute, color: Color) {
+        val (name, typeName) = linkLabelParts(node)
+        if (name.isBlank() && typeName == null) return
         g2.font = g2.font.deriveFont(10f)
-        g2.color = color
-        drawEndpointLinkLabel(g2, text, route.source, route.sourceDirection)
-        drawEndpointLinkLabel(g2, text, route.target, route.targetDirection)
+        drawEndpointLinkLabel(g2, name, typeName, route.source, route.sourceDirection, color)
+        drawEndpointLinkLabel(g2, name, typeName, route.target, route.targetDirection, color)
     }
 
-    private fun drawEndpointLinkLabel(g2: Graphics2D, text: String, anchor: Point, side: Int) {
+    private fun drawEndpointLinkLabel(
+        g2: Graphics2D,
+        name: String,
+        typeName: String?,
+        anchor: Point,
+        side: Int,
+        color: Color,
+    ) {
         val metrics = g2.fontMetrics
-        val width = metrics.stringWidth(text)
+        val separator = if (typeName == null) "" else ":"
+        val width = metrics.stringWidth(name + separator + typeName.orEmpty())
         val spacing = 8
         val x = if (side < 0) anchor.x - width - spacing else anchor.x + spacing
         val y = anchor.y - metrics.height - 4
-        g2.drawString(text, x, y + metrics.ascent)
+        drawColoredLinkLabel(g2, name, typeName, x, y + metrics.ascent, color)
+    }
+
+    private fun drawColoredLinkLabel(
+        g2: Graphics2D,
+        name: String,
+        typeName: String?,
+        x: Int,
+        baseline: Int,
+        color: Color,
+    ) {
+        var cursor = x
+        g2.color = color
+        g2.drawString(name, cursor, baseline)
+        cursor += g2.fontMetrics.stringWidth(name)
+        typeName?.let {
+            g2.drawString(":", cursor, baseline)
+            cursor += g2.fontMetrics.stringWidth(":")
+            g2.color = Color(0x008c4a)
+            g2.drawString(it, cursor, baseline)
+        }
     }
 
     private fun pointAlongRoute(points: List<Point>, fraction: Double): Point? {

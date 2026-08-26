@@ -1,5 +1,7 @@
 {# Each data link owns two FIFO arrays and a transport function. #}
-{% if link.stereotype != "UsageImport" and link.stereotype != "DependencyInjection" %}/** @var array<int, {% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}mixed{% endif %}> ${{ link.aPortSymbol }} */
+{% if link.stereotype == "DependencyInjection" %}/** @var {{ link.sourceNodeTypeSymbol }} ${{ link.dependencySymbol }} */
+${{ link.dependencySymbol }} = {% if link.libraryInstantiation is not empty %}{{ link.libraryInstantiation }}{% else %}null{% endif %};
+{% elseif link.stereotype != "UsageImport" %}/** @var array<int, {% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}mixed{% endif %}> ${{ link.aPortSymbol }} */
 ${{ link.aPortSymbol }} = [];
 /** @var array<int, {% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}mixed{% endif %}> ${{ link.bPortSymbol }} */
 ${{ link.bPortSymbol }} = [];

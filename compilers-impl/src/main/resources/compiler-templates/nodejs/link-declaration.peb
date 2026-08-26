@@ -1,5 +1,6 @@
 {# A data link owns two FIFO buffers so processors can execute independently before the transport phase. #}
-{% if link.stereotype != "UsageImport" and link.stereotype != "DependencyInjection" %}/** @type {Array<{% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}*{% endif %}>} */
+{% if link.stereotype == "DependencyInjection" %}const {{ link.dependencySymbol }} = {% if link.libraryInstantiation is not empty %}{{ link.libraryInstantiation }}{% else %}undefined{% endif %};
+{% elseif link.stereotype != "UsageImport" %}/** @type {Array<{% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}*{% endif %}>} */
 const {{ link.aPortSymbol }} = [];
 /** @type {Array<{% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}*{% endif %}>} */
 const {{ link.bPortSymbol }} = [];
