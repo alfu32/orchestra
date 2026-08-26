@@ -8,6 +8,7 @@ import com.threadwork.compiler.api.GeneratedFile
 import com.threadwork.compiler.api.GeneratedProject
 import com.threadwork.core.classification.LinkClassifier
 import com.threadwork.core.classification.LinkStereotype
+import com.threadwork.core.classification.NodeStereotype
 import com.threadwork.core.classification.stereotype
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.model.Node
@@ -15,7 +16,6 @@ import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.VOID_TECHNOLOGY_ID
-import com.threadwork.core.model.effectiveLanguageId
 import com.threadwork.core.model.linkTypeDisplayName
 import com.threadwork.core.model.projectName
 import com.threadwork.core.model.typeDisplayName
@@ -31,22 +31,14 @@ class DocumentationCompiler : CompilerPlugin {
 
     override fun compile(document: ThreadworkDocument, options: CompilerOptions): CompilationResult {
         val scope = DocumentationScope.resolve(document, options)
-        val functional = functionalDocumentation(document, scope)
-        val technical = technicalDocumentation(document, scope)
+        val documentation = projectDocumentation(document, scope)
         val components = componentDocumentation(document, scope)
         val files = listOf(
             GeneratedFile(
                 path = "${scope.fileBaseName}.SPEC.md",
-                content = functional,
+                content = documentation,
                 originNodeId = scope.anchorNodeId,
-                reason = "Composed functional specification",
-                elementKind = GeneratedElementKind.Documentation,
-            ),
-            GeneratedFile(
-                path = "${scope.fileBaseName}.TECH.md",
-                content = technical,
-                originNodeId = scope.anchorNodeId,
-                reason = "Composed technical documentation",
+                reason = "Composed project documentation",
                 elementKind = GeneratedElementKind.Documentation,
             ),
             GeneratedFile(
@@ -64,15 +56,19 @@ class DocumentationCompiler : CompilerPlugin {
         )
     }
 
-    private fun functionalDocumentation(document: ThreadworkDocument, scope: DocumentationScope): String =
+    private fun projectDocumentation(document: ThreadworkDocument, scope: DocumentationScope): String =
         buildString {
-            appendLine("# ${scope.title} Functional Specification")
+            appendLine("# ${scope.title} Functional and Technical Specification")
             appendLine()
-            appendLine("Generated from Threadwork specifications for `${scope.displayPath}`.")
+            appendLine("Generated from Threadwork functional and technical specifications for `${scope.displayPath}`.")
             appendLine()
             appendTableOfContents(
                 scope.processingNodes.map { it.name.ifBlank { it.id.value } } +
-                    listOfNotNull("Data Flows".takeIf { scope.links.isNotEmpty() }, "Notes".takeIf { scope.notes.isNotEmpty() }),
+                    listOfNotNull(
+                        "Shared Types".takeIf { scope.types.isNotEmpty() },
+                        "Service Libraries".takeIf { scope.serviceLibraries(document).isNotEmpty() },
+                        "Notes".takeIf { scope.notes.isNotEmpty() },
+                    ),
             )
             appendLine("## Processing Nodes")
             appendLine()
@@ -82,73 +78,17 @@ class DocumentationCompiler : CompilerPlugin {
                 appendLine("- **Path:** `${nodePath(document, node)}`")
                 appendLine("- **Role:** `${node.stereotype(document).name}`")
                 appendLine()
+                appendDirectTechnology(node)
                 appendSpecification(node.text.specification, node.text.specificationLanguageId)
                 appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
                 appendLinkTable("Outputs", dataOutputs(document, node), document, incoming = false)
-            }
-
-            if (scope.links.isNotEmpty()) {
-                appendLine("## Data Flows")
-                appendLine()
-                scope.links.forEach { linkNode ->
-                    val link = linkNode.link ?: return@forEach
-                    appendLine("### ${linkDisplayName(document, linkNode)}")
-                    appendLine()
-                    appendLine("- **Link ID:** `${escapeInlineCode(linkNode.id.value)}`")
-                    appendLine("- **From:** `${endpoint(document, link.sourceNodeId, link.sourcePortName)}`")
-                    appendLine("- **To:** `${endpoint(document, link.targetNodeId, link.targetPortName)}`")
-                    appendLine("- **Classification:** `${LinkClassifier.classify(document, linkNode).name}`")
-                    appendLine()
-                    if (linkNode.text.specification.isNotBlank()) {
-                        appendRichText(linkNode.text.specification, linkNode.text.specificationLanguageId)
-                    }
-                }
-            }
-
-            appendNotes(scope.notes, document)
-        }.trimEnd() + "\n"
-
-    private fun technicalDocumentation(document: ThreadworkDocument, scope: DocumentationScope): String =
-        buildString {
-            appendLine("# ${scope.title} Technical Documentation")
-            appendLine()
-            appendLine("Generated from Threadwork technical metadata and contracts for `${scope.displayPath}`.")
-            appendLine()
-            appendTableOfContents(
-                scope.processingNodes.map { it.name.ifBlank { it.id.value } } +
-                    listOf("Shared Types", "Data Contracts"),
-            )
-            appendLine("## Processing Nodes")
-            appendLine()
-            scope.processingNodes.forEach { node ->
-                appendLine("### ${node.name.ifBlank { node.id.value }}")
-                appendLine()
-                appendLine("- **Path:** `${nodePath(document, node)}`")
-                appendLine("- **Role:** `${node.stereotype(document).name}`")
-                appendDirectTechnology(node)
-                appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
-                appendLinkTable("Outputs", dataOutputs(document, node), document, incoming = false)
                 appendDependencies(document, node)
-                appendLine("#### Running and Compiling Instructions")
-                appendLine()
-                if (node.text.aiInstructions.isBlank()) {
-                    appendLine("_No instructions provided._")
-                    appendLine()
-                } else {
-                    appendRichText(node.text.aiInstructions, node.text.aiInstructionsLanguageId)
-                }
+                appendDirectChildren(document, node)
+                appendUsageInstructions(node)
+                appendTestData(node)
             }
-
-            appendTypeDefinitions(document, scope.types)
-
-            appendLine("## Data Contracts")
-            appendLine()
-            if (scope.links.isEmpty()) {
-                appendLine("_No data contracts are present in this scope._")
-                appendLine()
-            } else {
-                scope.links.forEach { linkNode -> appendContract(document, linkNode) }
-            }
+            appendSpecificationAnnexes(document, scope)
+            appendNotes(scope.notes, document)
         }.trimEnd() + "\n"
 
     private fun componentDocumentation(document: ThreadworkDocument, scope: DocumentationScope): String =
@@ -166,17 +106,17 @@ class DocumentationCompiler : CompilerPlugin {
                 appendLine("- **Path:** `${nodePath(document, node)}`")
                 appendLine("- **Role:** `${node.stereotype(document).name}`")
                 appendLine()
+                appendDirectTechnology(node)
                 appendSpecification(node.text.specification, node.text.specificationLanguageId)
                 appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
+                appendComponentLinkDocumentation(document, dataInputs(document, node), "Incoming Link Contracts")
                 appendLinkTable("Outputs", dataOutputs(document, node), document, incoming = false)
-                appendLine("### Test Data")
-                appendLine()
-                if (node.text.tests.isBlank()) {
-                    appendLine("_No test data provided._")
-                    appendLine()
-                } else {
-                    appendRichText(node.text.tests, node.text.testsLanguageId)
-                }
+                appendComponentLinkDocumentation(document, dataOutputs(document, node), "Outgoing Link Contracts")
+                appendUsedTypes(document, node)
+                appendComponentDependencies(document, node)
+                appendDirectChildren(document, node)
+                appendUsageInstructions(node)
+                appendTestData(node)
             }
         }.trimEnd() + "\n"
 
@@ -263,67 +203,204 @@ class DocumentationCompiler : CompilerPlugin {
         appendLine()
     }
 
-    private fun StringBuilder.appendContract(document: ThreadworkDocument, linkNode: Node) {
-        val link = linkNode.link ?: return
-        val typeName = document.linkTypeDisplayName(linkNode)
-        val declaredType = document.nodes[NodeId(link.typeDefinitionId)]?.takeIf(Node::isType)
-        appendLine("### ${linkDisplayName(document, linkNode)}")
+    private fun StringBuilder.appendComponentDependencies(document: ThreadworkDocument, node: Node) {
+        val dependencies = dependencyInputs(document, node)
+        appendLine("#### Used Libraries")
         appendLine()
-        appendLine("- **Link ID:** `${escapeInlineCode(linkNode.id.value)}`")
-        appendLine("- **Type:** ${markdownCodeOrUnspecified(typeName)}")
-        appendLine("- **From:** `${endpoint(document, link.sourceNodeId, link.sourcePortName)}`")
-        appendLine("- **To:** `${endpoint(document, link.targetNodeId, link.targetPortName)}`")
-        appendLine("- **Transport:** `${escapeInlineCode(link.transportKind)}`")
-        appendLine("- **Classification:** `${LinkClassifier.classify(document, linkNode).name}`")
-        appendLine()
-        if (declaredType != null || link.typeDefinitionId.isNotBlank()) {
-            appendLine("The payload uses the shared `${escapeInlineCode(typeName)}` type contract.")
-            appendLine()
-        } else if (link.payloadDefinition.isBlank()) {
-            appendLine("_No payload type definition provided._")
-            appendLine()
-        } else {
-            val languageId = linkNode.text.declarationLanguageId.trim().ifBlank {
-                document.effectiveLanguageId(linkNode.id)
-            }
-            appendCodeBlock(link.payloadDefinition.trim(), languageId)
-        }
-        if (linkNode.text.specification.isNotBlank()) {
-            appendLine("#### Contract Notes")
-            appendLine()
-            appendRichText(linkNode.text.specification, linkNode.text.specificationLanguageId)
-        }
-    }
-
-    private fun StringBuilder.appendTypeDefinitions(document: ThreadworkDocument, types: List<Node>) {
-        appendLine("## Shared Types")
-        appendLine()
-        if (types.isEmpty()) {
-            appendLine("_No shared custom types are present in this scope._")
+        if (dependencies.isEmpty()) {
+            appendLine("_None._")
             appendLine()
             return
         }
-        types.forEach { type ->
-            appendLine("### ${type.name.ifBlank { type.id.value }}")
+        dependencies.forEach { linkNode ->
+            val link = linkNode.link ?: return@forEach
+            val library = document.nodes[link.sourceNodeId]
+            appendLine("##### ${linkNode.name.ifBlank { linkNode.id.value }}")
             appendLine()
-            appendLine("- **Type ID:** `${escapeInlineCode(type.id.value)}`")
-            appendLine("- **Path:** `${nodePath(document, type)}`")
-            appendLine()
-            val fields = type.typeDefinition?.fields.orEmpty()
-            if (fields.isEmpty()) {
-                appendLine("_No fields declared._")
+            appendLine("- **Library:** `${library?.name ?: link.sourceNodeId.value}`")
+            appendLine("- **Library path:** `${library?.let { nodePath(document, it) } ?: link.sourceNodeId.value}`")
+            appendLine("- **Classification:** `${LinkClassifier.classify(document, linkNode).name}`")
+            if (library != null) appendDirectTechnology(library)
+            if (library?.text?.specification?.isNotBlank() == true) {
+                appendLine("**Library specification**")
                 appendLine()
-            } else {
-                appendLine("| Field | Type | Reference |")
-                appendLine("| --- | --- | --- |")
-                fields.forEach { field ->
-                    appendLine(
-                        "| ${tableCell(field.name)} | ${tableCell(document.typeDisplayName(field.typeId))} | " +
-                            "${if (field.isReference) "Yes" else "No"} |",
-                    )
+                appendRichText(library.text.specification, library.text.specificationLanguageId)
+            }
+            if (library?.text?.aiInstructions?.isNotBlank() == true) {
+                appendLine("**Library usage instructions**")
+                appendLine()
+                appendRichText(library.text.aiInstructions, library.text.aiInstructionsLanguageId)
+            }
+        }
+    }
+
+    private fun StringBuilder.appendComponentLinkDocumentation(
+        document: ThreadworkDocument,
+        links: List<Node>,
+        heading: String,
+    ) {
+        appendLine("#### $heading")
+        appendLine()
+        if (links.isEmpty()) {
+            appendLine("_None._")
+            appendLine()
+            return
+        }
+        links.forEach { linkNode ->
+            val link = linkNode.link ?: return@forEach
+            val type = document.nodes[NodeId(link.typeDefinitionId)]?.takeIf(Node::isType)
+            appendLine("##### ${linkDisplayName(document, linkNode)}")
+            appendLine()
+            appendLine("- **Link ID:** `${escapeInlineCode(linkNode.id.value)}`")
+            appendLine("- **From:** `${endpoint(document, link.sourceNodeId, link.sourcePortName)}`")
+            appendLine("- **To:** `${endpoint(document, link.targetNodeId, link.targetPortName)}`")
+            appendLine("- **Transport:** `${escapeInlineCode(link.transportKind)}`")
+            appendLine("- **Classification:** `${LinkClassifier.classify(document, linkNode).name}`")
+            appendLine()
+            if (type != null) {
+                appendLine("**Shared type:** `${escapeInlineCode(type.name.ifBlank { type.id.value })}`")
+                appendLine()
+                val fields = type.typeDefinition?.fields.orEmpty()
+                if (fields.isEmpty()) {
+                    appendLine("_The shared type declares no fields._")
+                    appendLine()
+                } else {
+                    appendLine("| Field | Type | Reference |")
+                    appendLine("| --- | --- | --- |")
+                    fields.forEach { field ->
+                        appendLine("| ${tableCell(field.name)} | ${tableCell(document.typeDisplayName(field.typeId))} | ${if (field.isReference) "Yes" else "No"} |")
+                    }
+                    appendLine()
                 }
+            } else if (link.payloadDefinition.isNotBlank()) {
+                appendCodeBlock(link.payloadDefinition.trim(), linkNode.text.declarationLanguageId)
+            } else {
+                appendLine("_No payload type definition provided._")
                 appendLine()
             }
+            if (linkNode.text.specification.isNotBlank()) {
+                appendLine("**Link specification**")
+                appendLine()
+                appendRichText(linkNode.text.specification, linkNode.text.specificationLanguageId)
+            }
+        }
+    }
+
+    private fun StringBuilder.appendUsedTypes(document: ThreadworkDocument, node: Node) {
+        val links = (dataInputs(document, node) + dataOutputs(document, node)).distinctBy { it.id }
+        appendLine("#### Used Types")
+        appendLine()
+        if (links.isEmpty()) {
+            appendLine("_None._")
+            appendLine()
+            return
+        }
+        val describedTypeIds = mutableSetOf<String>()
+        links.forEach { linkNode ->
+            val link = linkNode.link ?: return@forEach
+            val typeId = link.typeDefinitionId.trim()
+            val type = document.nodes[NodeId(typeId)]?.takeIf(Node::isType)
+            when {
+                type != null && describedTypeIds.add(type.id.value) -> {
+                    appendLine("##### ${type.name.ifBlank { type.id.value }}")
+                    appendLine()
+                    val fields = type.typeDefinition?.fields.orEmpty()
+                    if (fields.isEmpty()) {
+                        appendLine("_The shared type declares no fields._")
+                        appendLine()
+                    } else {
+                        appendLine("| Field | Type | Reference |")
+                        appendLine("| --- | --- | --- |")
+                        fields.forEach { field ->
+                            appendLine("| ${tableCell(field.name)} | ${tableCell(document.typeDisplayName(field.typeId))} | ${if (field.isReference) "Yes" else "No"} |")
+                        }
+                        appendLine()
+                    }
+                }
+                typeId.isBlank() && link.payloadDefinition.isNotBlank() && describedTypeIds.add("payload:${linkNode.id.value}") -> {
+                    appendLine("##### ${linkNode.name.ifBlank { linkNode.id.value }} payload")
+                    appendLine()
+                    appendCodeBlock(link.payloadDefinition.trim(), linkNode.text.declarationLanguageId)
+                }
+            }
+        }
+        if (describedTypeIds.isEmpty()) {
+            appendLine("_No type definitions provided._")
+            appendLine()
+        }
+    }
+
+    private fun StringBuilder.appendDirectChildren(document: ThreadworkDocument, node: Node) {
+        if (node.children.isEmpty()) return
+        appendLine("#### Direct Children")
+        appendLine()
+        appendLine("| Name | Stereotype |")
+        appendLine("| --- | --- |")
+        node.children
+            .mapNotNull(document.nodes::get)
+            .sortedWith(compareBy<Node>({ it.name.lowercase() }, { it.id.value }))
+            .forEach { child ->
+                appendLine("| ${tableCell(child.name.ifBlank { child.id.value })} | ${tableCell(child.stereotype(document).name)} |")
+            }
+        appendLine()
+    }
+
+    private fun StringBuilder.appendSpecificationAnnexes(document: ThreadworkDocument, scope: DocumentationScope) {
+        appendLine("## Annexes")
+        appendLine()
+        appendLine("### Shared Types")
+        appendLine()
+        if (scope.types.isEmpty()) {
+            appendLine("_No shared custom types are present in this scope._")
+        } else {
+            scope.types.forEach { type ->
+                appendLine("- `${escapeInlineCode(type.name.ifBlank { type.id.value })}`")
+            }
+        }
+        appendLine()
+        appendLine("### Service Libraries")
+        appendLine()
+        val services = scope.serviceLibraries(document)
+        if (services.isEmpty()) {
+            appendLine("_No service libraries are used in this scope._")
+        } else {
+            services.forEach { service ->
+                appendLine("- `${escapeInlineCode(service.name.ifBlank { service.id.value })}` at `${nodePath(document, service)}`")
+            }
+        }
+        appendLine()
+    }
+
+    private fun DocumentationScope.serviceLibraries(document: ThreadworkDocument): List<Node> =
+        buildList {
+            processingNodes
+                .filter { it.stereotype(document) == NodeStereotype.ServiceLibrary }
+                .forEach(::add)
+            links
+                .filter { LinkClassifier.classify(document, it) in dependencyKinds }
+                .mapNotNull { it.link?.sourceNodeId?.let(document.nodes::get) }
+                .forEach(::add)
+        }.distinctBy { it.id }.sortedWith(compareBy<Node>({ it.name.lowercase() }, { it.id.value }))
+
+    private fun StringBuilder.appendUsageInstructions(node: Node) {
+        appendLine("#### Usage Instructions")
+        appendLine()
+        if (node.text.aiInstructions.isBlank()) {
+            appendLine("_No usage instructions provided._")
+            appendLine()
+        } else {
+            appendRichText(node.text.aiInstructions, node.text.aiInstructionsLanguageId)
+        }
+    }
+
+    private fun StringBuilder.appendTestData(node: Node) {
+        appendLine("#### Test Data")
+        appendLine()
+        if (node.text.tests.isBlank()) {
+            appendLine("_No test data provided._")
+            appendLine()
+        } else {
+            appendRichText(node.text.tests, node.text.testsLanguageId)
         }
     }
 

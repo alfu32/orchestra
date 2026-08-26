@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
 
 class DocumentationCompilerTest {
     @Test
-    fun `compiles functional and technical markdown independently of technology and layout`() {
+    fun `compiles project and component documentation independently of technology and layout`() {
         val repository = InMemoryDocumentRepository(newDocument("Packet Platform"))
         val root = repository.getDocument().rootNodeId
         repository.updateNodeTechnology(
@@ -61,25 +61,29 @@ class DocumentationCompilerTest {
         assertTrue(result.success)
         val project = assertNotNull(result.generatedProject)
         assertEquals(
-            setOf("Packet Platform.SPEC.md", "Packet Platform.TECH.md", "Packet Platform.COMPONENTS.md"),
+            setOf("Packet Platform.SPEC.md", "Packet Platform.COMPONENTS.md"),
             project.files.mapTo(linkedSetOf()) { it.path },
         )
         assertTrue(project.files.all { it.elementKind == GeneratedElementKind.Documentation })
-        val functional = project.files.single { it.path.endsWith(".SPEC.md") }.content
-        assertTrue(functional.contains("Reads queued packets"))
-        assertTrue(functional.contains("packets:Packet"))
-        assertTrue(functional.contains("read packets.packets"))
-        val technical = project.files.single { it.path.endsWith(".TECH.md") }.content
-        assertTrue(technical.contains("**Direct technology:** `nodejs`"))
-        assertTrue(technical.contains("Run with `threadwork-reader"))
-        assertTrue(technical.contains("## Shared Types"))
-        assertTrue(technical.contains("| id | string | No |"))
-        assertTrue(technical.contains("payload uses the shared `Packet` type contract"))
-        val writerSection = technical.substringAfter("### write packets").substringBefore("## Data Contracts")
+        val documentation = project.files.single { it.path.endsWith(".SPEC.md") }.content
+        assertTrue(documentation.contains("Reads queued packets"))
+        assertTrue(documentation.contains("| packets | Packet |"))
+        assertTrue(documentation.contains("**Direct technology:** `nodejs`"))
+        assertTrue(documentation.contains("Run with `threadwork-reader"))
+        assertTrue(documentation.contains("## Annexes"))
+        assertTrue(documentation.contains("### Shared Types"))
+        assertTrue(documentation.contains("- `Packet`"))
+        val writerSection = documentation.substringAfter("### write packets").substringBefore("## Annexes")
         assertTrue(writerSection.contains("**Direct technology:** _Not specified directly._"))
         val components = project.files.single { it.path.endsWith(".COMPONENTS.md") }.content
         assertTrue(components.contains("## Contents"))
         assertTrue(components.contains("### Test Data"))
+        assertTrue(components.contains("#### Incoming Link Contracts"))
+        assertTrue(components.contains("#### Outgoing Link Contracts"))
+        assertTrue(components.contains("#### Used Types"))
+        assertTrue(components.contains("**Shared type:** `Packet`"))
+        assertTrue(components.contains("#### Usage Instructions"))
+        assertTrue(components.contains("Run with `threadwork-reader --config config.json`."))
         assertTrue(components.contains("<!-- threadwork:page-break -->"))
     }
 
@@ -100,11 +104,11 @@ class DocumentationCompilerTest {
 
         val project = assertNotNull(result.generatedProject)
         assertEquals(
-            setOf("Order Processing.SPEC.md", "Order Processing.TECH.md", "Order Processing.COMPONENTS.md"),
+            setOf("Order Processing.SPEC.md", "Order Processing.COMPONENTS.md"),
             project.files.mapTo(linkedSetOf()) { it.path },
         )
-        val functional = project.files.single { it.path.endsWith(".SPEC.md") }.content
-        assertTrue(functional.contains("Validates the order."))
-        assertFalse(functional.contains("Charges the customer."))
+        val documentation = project.files.single { it.path.endsWith(".SPEC.md") }.content
+        assertTrue(documentation.contains("Validates the order."))
+        assertFalse(documentation.contains("Charges the customer."))
     }
 }

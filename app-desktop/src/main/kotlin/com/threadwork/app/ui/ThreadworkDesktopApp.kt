@@ -214,6 +214,7 @@ class ThreadworkDesktopApp(
         ::openNodeInEntityEditor,
         ::exportDocumentationPdf,
         ::exportDocumentationHtml,
+        ::exportDocumentationMarkdown,
     )
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
@@ -1030,7 +1031,6 @@ class ThreadworkDesktopApp(
     private fun exportDocumentationPdf(sheetPdf: File) {
         val directory = sheetPdf.parentFile ?: File(".")
         val documentation = compileDocumentationFiles()
-        writeDocumentationMarkdown(directory, documentation)
         documentation.forEach { markdownFile ->
             val pages = renderMarkdownPages(markdownFile.content)
             if (pages.isNotEmpty()) {
@@ -1048,11 +1048,15 @@ class ThreadworkDesktopApp(
     private fun exportDocumentationHtml(sheetSvg: File) {
         val directory = sheetSvg.parentFile ?: File(".")
         val documentation = compileDocumentationFiles()
-        writeDocumentationMarkdown(directory, documentation)
         documentation.forEach { markdownFile ->
             val htmlPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".html")
             Files.writeString(htmlPath, markdownToHtml(markdownFile.content))
         }
+    }
+
+    private fun exportDocumentationMarkdown(sheetPng: File) {
+        val directory = sheetPng.parentFile ?: File(".")
+        writeDocumentationMarkdown(directory, compileDocumentationFiles())
     }
 
     private fun compileDocumentationFiles(): List<GeneratedFile> {
@@ -1633,6 +1637,18 @@ enum class CanvasMode {
     CreateLink,
 }
 
+private enum class SheetExportPackage(
+    val extension: String,
+    private val label: String,
+) {
+    Pdf("pdf", "PDF plan + PDF documentation"),
+    Svg("svg", "SVG plan + HTML documentation"),
+    Png("png", "PNG plan + Markdown documentation"),
+    ;
+
+    override fun toString(): String = label
+}
+
 enum class AlignmentOperation(
     val statusText: String,
     val isDistribution: Boolean = false,
@@ -1655,6 +1671,7 @@ class GraphCanvas(
     private val onNodeDoubleClicked: (NodeId) -> Unit = {},
     private val onPdfSheetExported: (File) -> Unit = {},
     private val onSvgSheetExported: (File) -> Unit = {},
+    private val onPngSheetExported: (File) -> Unit = {},
 ) : JPanel() {
     var mode: CanvasMode = CanvasMode.Select
         private set
@@ -1938,32 +1955,37 @@ class GraphCanvas(
     }
 
     fun exportSheet(parent: JFrame) {
-        val format = JOptionPane.showInputDialog(
+        val exportPackage = JOptionPane.showInputDialog(
             parent,
-            "Export format",
-            "Export Sheet",
+            "Export package",
+            "Export Plan and Documentation",
             JOptionPane.PLAIN_MESSAGE,
             null,
-            arrayOf("pdf", "png", "svg"),
-            "pdf",
-        ) as? String ?: return
-        val dialog = FileDialog(parent, "Save sheet as ${format.uppercase()}", FileDialog.SAVE).apply {
-            file = "threadwork-sheet.$format"
+            SheetExportPackage.entries.toTypedArray(),
+            SheetExportPackage.Pdf,
+        ) as? SheetExportPackage ?: return
+        val dialog = FileDialog(parent, "Save ${exportPackage}", FileDialog.SAVE).apply {
+            file = "threadwork-sheet.${exportPackage.extension}"
         }
         dialog.isVisible = true
         val directory = dialog.directory?.takeIf { it.isNotBlank() } ?: return
         val selected = dialog.file?.takeIf { it.isNotBlank() } ?: return
-        val file = withExtension(Path.of(directory).resolve(selected).toFile(), format)
+        val file = withExtension(Path.of(directory).resolve(selected).toFile(), exportPackage.extension)
         runCatching {
-            when (format) {
-                "svg" -> writeSvgSheet(file)
-                "png" -> ImageIO.write(renderSheetImage() ?: error("Nothing to export."), "png", file)
-                "pdf" -> writePdfSheet(file)
+            when (exportPackage) {
+                SheetExportPackage.Svg -> writeSvgSheet(file)
+                SheetExportPackage.Png -> writePngSheet(file)
+                SheetExportPackage.Pdf -> writePdfSheet(file)
             }
         }.onSuccess {
-            JOptionPane.showMessageDialog(parent, "Saved ${file.absolutePath}", "Export Sheet", JOptionPane.INFORMATION_MESSAGE)
+            JOptionPane.showMessageDialog(
+                parent,
+                "Saved ${exportPackage} to ${file.parentFile.absolutePath}",
+                "Export Plan and Documentation",
+                JOptionPane.INFORMATION_MESSAGE,
+            )
         }.onFailure {
-            JOptionPane.showMessageDialog(parent, it.message ?: "Export failed.", "Export Sheet", JOptionPane.ERROR_MESSAGE)
+            JOptionPane.showMessageDialog(parent, it.message ?: "Export failed.", "Export Plan and Documentation", JOptionPane.ERROR_MESSAGE)
         }
     }
 
@@ -2848,6 +2870,11 @@ class GraphCanvas(
         svg.appendLine("</svg>")
         Files.writeString(file.toPath(), svg.toString())
         onSvgSheetExported(file)
+    }
+
+    private fun writePngSheet(file: File) {
+        ImageIO.write(renderSheetImage() ?: error("Nothing to export."), "png", file)
+        onPngSheetExported(file)
     }
 
     private fun svgSheet(svg: StringBuilder, plan: SheetPlan) {

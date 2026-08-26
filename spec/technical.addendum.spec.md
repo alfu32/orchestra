@@ -526,8 +526,16 @@ The desktop Build menu shall expose **Compile Documentation**. Documentation com
 
 The documentation compiler shall emit two Markdown files:
 
-- `<project-or-scope-name>.SPEC.md`, containing processing-node functional specifications and typed input/output flows.
-- `<project-or-scope-name>.TECH.md`, containing direct node technology declarations, dependencies, typed data contracts, payload definitions, and running or compiling instructions from the usage-instructions field.
+- `<project-or-scope-name>.SPEC.md`, a node-oriented functional and technical specification containing the functional specification, direct technology declarations, typed input/output flow names, dependencies, test data, and usage instructions. Shared types and service libraries are listed by name in annexes.
+- `<project-or-scope-name>.COMPONENTS.md`, a paginated component dossier. Each processing node starts on a new page and repeats its specification, complete incoming and outgoing link contracts with type definitions, outputs, used-library details, usage instructions, and test data.
+
+Both documents shall contain a table of contents.
+
+Sheet export shall offer explicit output packages:
+
+- **PDF plan + PDF documentation**: the drawing and the two documentation files rendered as A4 PDFs.
+- **SVG plan + HTML documentation**: the drawing as SVG and the two documentation files rendered as HTML.
+- **PNG plan + Markdown documentation**: the drawing as PNG and the two source Markdown documentation files. The PDF and SVG packages shall not write Markdown files.
 
 Generated sections and contracts shall retain source node identifiers or hierarchy paths for traceability. Inherited technology values shall not be reported as direct node technology declarations.
 
