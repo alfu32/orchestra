@@ -757,7 +757,19 @@ class ThreadworkDesktopApp(
             status.text = "Select at least one processing node for AI support."
             return
         }
-        when (val response = AiSupportProviders.current().submit(AiPromptRequest(task, fiches))) {
+        val selectedNodeIds = selection.filter { id ->
+            repository.getNode(id)?.let { !it.isLink && it.kind !in setOf(NodeKind.Note, NodeKind.Type) } == true
+        }
+        when (
+            val response = AiSupportProviders.current().submit(
+                AiPromptRequest(
+                    task = task,
+                    componentMarkdown = fiches,
+                    document = repository.getDocument(),
+                    nodeIds = selectedNodeIds,
+                ),
+            )
+        ) {
             is AiPromptResponse.Text -> runCatching {
                 Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(response.value), null)
             }.onSuccess {

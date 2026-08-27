@@ -41,8 +41,14 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private data class Snapshot(
         val lines: List<String>,
         val cursors: List<CaretState>,
-        val scrollLine: Int,
-        val scrollColumn: Int,
+        val scrollVisualRow: Int,
+    )
+
+    /** A rendered portion of one logical buffer line. */
+    private data class VisualRow(
+        val lineIndex: Int,
+        val startColumn: Int,
+        val endColumn: Int,
     )
 
     private data class CaretState(
@@ -70,8 +76,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private val cursors = mutableListOf(CaretState(BufferPosition(0, 0)))
     private val undoStack = ArrayDeque<Snapshot>()
     private val redoStack = ArrayDeque<Snapshot>()
-    private var scrollLine = 0
-    private var scrollColumn = 0
+    private var scrollVisualRow = 0
     private var readOnly = false
     private var languageId = ""
     private var technology = TechnologyMetadata()
@@ -190,11 +195,8 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                 e.consume()
                 return@addMouseWheelListener
             }
-            if (e.isShiftDown) {
-                scrollColumn = (scrollColumn + e.preciseWheelRotation.toInt() * 4).coerceAtLeast(0)
-            } else {
-                scrollLine = (scrollLine + (e.preciseWheelRotation * 3).toInt()).coerceIn(0, maxScrollLine())
-            }
+            scrollVisualRow = (scrollVisualRow + (e.preciseWheelRotation * 3).toInt())
+                .coerceIn(0, maxScrollVisualRow())
             repaint()
         }
         Timer(530) {
@@ -210,8 +212,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         if (lines.isEmpty()) lines += ""
         cursors.clear()
         cursors += CaretState(BufferPosition(0, 0))
-        scrollLine = 0
-        scrollColumn = 0
+        scrollVisualRow = 0
         undoStack.clear()
         redoStack.clear()
         hideCompletions()
@@ -283,23 +284,22 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val charWidth = max(1, metrics.charWidth('M'))
         val gutterWidth = gutterWidth(metrics, charWidth)
         val visibleRows = max(1, height / lineHeight)
-        val visibleCols = max(1, (width - gutterWidth - charWidth) / charWidth)
-        scrollLine = scrollLine.coerceIn(0, maxScrollLine())
+        val visualRows = visualRows(metrics, charWidth, gutterWidth)
+        scrollVisualRow = scrollVisualRow.coerceIn(0, maxScrollVisualRow(visualRows))
 
         g2.color = Color(0x1e1e1e)
         g2.fillRect(0, 0, width, height)
-        drawGutter(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows)
+        drawGutter(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows, visualRows)
         for (row in 0 until visibleRows) {
-            val lineIndex = scrollLine + row
-            if (lineIndex >= lines.size) break
+            val visualRow = visualRows.getOrNull(scrollVisualRow + row) ?: break
             val baseline = row * lineHeight + metrics.ascent
-            drawLineBackground(g2, row, lineHeight, gutterWidth)
-            drawSelection(g2, lineIndex, row, lineHeight, charWidth, gutterWidth, visibleCols)
-            drawHighlightedLine(g2, lines[lineIndex], lineIndex, gutterWidth, baseline, charWidth, visibleCols)
-            drawDiagnostics(g2, lineIndex, row, lineHeight, gutterWidth, charWidth, visibleCols)
+            drawLineBackground(g2, visualRow, row, lineHeight, gutterWidth, visualRows)
+            drawSelection(g2, visualRow, row, lineHeight, charWidth, gutterWidth)
+            drawHighlightedLine(g2, lines[visualRow.lineIndex], visualRow, gutterWidth, baseline, charWidth)
+            drawDiagnostics(g2, visualRow, row, lineHeight, gutterWidth, charWidth)
         }
-        drawCaret(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows)
-        drawCompletionPopup(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows)
+        drawCaret(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows, visualRows)
+        drawCompletionPopup(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows, visualRows)
         drawHoverPopup(g2, metrics, lineHeight)
         drawEditorStatus(g2, metrics)
     }
@@ -692,22 +692,30 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         charWidth: Int,
         gutterWidth: Int,
         visibleRows: Int,
+        visualRows: List<VisualRow>,
     ) {
         g2.color = Color(0x252526)
         g2.fillRect(0, 0, gutterWidth, height)
         g2.color = Color(0x858585)
         for (row in 0 until visibleRows) {
-            val lineIndex = scrollLine + row
-            if (lineIndex >= lines.size) break
-            val label = (lineIndex + 1).toString().padStart((lines.size + 1).toString().length)
+            val visualRow = visualRows.getOrNull(scrollVisualRow + row) ?: break
+            if (visualRow.startColumn != 0) continue
+            val label = (visualRow.lineIndex + 1).toString().padStart((lines.size + 1).toString().length)
             g2.drawString(label, charWidth, row * lineHeight + metrics.ascent)
         }
         g2.color = Color(0x3c3c3c)
         g2.drawLine(gutterWidth - 1, 0, gutterWidth - 1, height)
     }
 
-    private fun drawLineBackground(g2: Graphics2D, row: Int, lineHeight: Int, gutterWidth: Int) {
-        if (scrollLine + row == caret.line) {
+    private fun drawLineBackground(
+        g2: Graphics2D,
+        visualRow: VisualRow,
+        row: Int,
+        lineHeight: Int,
+        gutterWidth: Int,
+        visualRows: List<VisualRow>,
+    ) {
+        if (visualRows.indexOfCaret(caret) == scrollVisualRow + row) {
             g2.color = Color(0x282828)
             g2.fillRect(gutterWidth, row * lineHeight, width - gutterWidth, lineHeight)
         }
@@ -716,14 +724,13 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private fun drawHighlightedLine(
         g2: Graphics2D,
         line: String,
-        lineIndex: Int,
+        visualRow: VisualRow,
         gutterWidth: Int,
         baseline: Int,
         charWidth: Int,
-        visibleCols: Int,
     ) {
-        val start = scrollColumn.coerceAtMost(line.length)
-        val end = (scrollColumn + visibleCols).coerceAtMost(line.length)
+        val start = visualRow.startColumn.coerceAtMost(line.length)
+        val end = visualRow.endColumn.coerceAtMost(line.length)
         if (start >= end) return
         val tokens = RegexSyntaxHighlighter.highlightLine(languageId, line, declarationSymbols)
         var cursor = start
@@ -731,7 +738,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         fun drawSegment(segmentStart: Int, segmentEnd: Int, color: Color) {
             if (segmentEnd <= segmentStart) return
             g2.color = color
-            val x = gutterWidth + (segmentStart - scrollColumn) * charWidth
+            val x = gutterWidth + (segmentStart - start) * charWidth
             g2.drawString(line.substring(segmentStart, segmentEnd), x, baseline)
         }
 
@@ -744,7 +751,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             cursor = tokenEnd.coerceAtLeast(cursor)
         }
         if (cursor < end) drawSegment(cursor, end, RegexSyntaxHighlighter.Default)
-        if (diagnostics.any { it.line == lineIndex + 1 }) {
+        if (diagnostics.any { it.line == visualRow.lineIndex + 1 }) {
             g2.color = Color(0xff6b68)
             g2.fillRect(gutterWidth, baseline + 3, max(1, (end - start) * charWidth), 2)
         }
@@ -752,23 +759,23 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
     private fun drawSelection(
         g2: Graphics2D,
-        lineIndex: Int,
+        visualRow: VisualRow,
         row: Int,
         lineHeight: Int,
         charWidth: Int,
         gutterWidth: Int,
-        visibleCols: Int,
     ) {
         selectionRanges().forEach { range ->
+            val lineIndex = visualRow.lineIndex
             if (lineIndex !in range.first.line..range.second.line) return@forEach
             val start = if (lineIndex == range.first.line) range.first.column else 0
             val end = if (lineIndex == range.second.line) range.second.column else lines[lineIndex].length
-            val visibleStart = start.coerceAtLeast(scrollColumn)
-            val visibleEnd = end.coerceAtMost(scrollColumn + visibleCols)
-            if (visibleEnd < visibleStart) return@forEach
+            val visibleStart = start.coerceAtLeast(visualRow.startColumn)
+            val visibleEnd = end.coerceAtMost(visualRow.endColumn)
+            if (visibleEnd <= visibleStart) return@forEach
             g2.color = Color(0x3a5f8a)
             g2.fillRect(
-                gutterWidth + (visibleStart - scrollColumn) * charWidth,
+                gutterWidth + (visibleStart - visualRow.startColumn) * charWidth,
                 row * lineHeight,
                 max(1, (visibleEnd - visibleStart) * charWidth),
                 lineHeight,
@@ -778,13 +785,13 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
     private fun drawDiagnostics(
         g2: Graphics2D,
-        lineIndex: Int,
+        visualRow: VisualRow,
         row: Int,
         lineHeight: Int,
         gutterWidth: Int,
         charWidth: Int,
-        visibleCols: Int,
     ) {
+        val lineIndex = visualRow.lineIndex
         val diagnostic = diagnostics.firstOrNull { it.line == lineIndex + 1 } ?: return
         g2.color = when (diagnostic.severity) {
             DiagnosticSeverity.Error -> Color(0xff5555)
@@ -792,8 +799,8 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             DiagnosticSeverity.Info -> Color(0x75beff)
         }
         val column = (diagnostic.column ?: 1).coerceAtLeast(1) - 1
-        if (column in scrollColumn..(scrollColumn + visibleCols)) {
-            val x = gutterWidth + (column - scrollColumn) * charWidth
+        if (column in visualRow.startColumn until visualRow.endColumn) {
+            val x = gutterWidth + (column - visualRow.startColumn) * charWidth
             val y = row * lineHeight + lineHeight - 3
             g2.fillRect(x, y, charWidth.coerceAtLeast(4), 2)
         }
@@ -806,14 +813,16 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         charWidth: Int,
         gutterWidth: Int,
         visibleRows: Int,
+        visualRows: List<VisualRow>,
     ) {
         if (!hasFocus() || !cursorVisible) return
         g2.color = Color(0xf2f2f2)
         cursorStates().forEach { state ->
-            val row = state.caret.line - scrollLine
+            val visualIndex = visualRows.indexOfCaret(state.caret)
+            val row = visualIndex - scrollVisualRow
             if (row !in 0 until visibleRows) return@forEach
-            val col = state.caret.column - scrollColumn
-            if (col < 0) return@forEach
+            val segment = visualRows[visualIndex]
+            val col = state.caret.column - segment.startColumn
             val x = gutterWidth + col * charWidth
             val y = row * lineHeight + 2
             g2.fillRect(x, y, 2, metrics.height - 4)
@@ -913,9 +922,10 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         charWidth: Int,
         gutterWidth: Int,
         visibleRows: Int,
+        visualRows: List<VisualRow>,
     ) {
         if (completionItems.isEmpty()) return
-        val geometry = completionPopupGeometry(metrics, lineHeight, charWidth, gutterWidth, visibleRows) ?: return
+        val geometry = completionPopupGeometry(metrics, lineHeight, charWidth, gutterWidth, visibleRows, visualRows) ?: return
         val x = geometry.x
         val y = geometry.y
         val popupWidth = geometry.width
@@ -972,9 +982,12 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val charWidth = max(1, metrics.charWidth('M'))
         val lineHeight = metrics.height.coerceAtLeast(1)
         val gutter = gutterWidth(metrics, charWidth)
-        val line = (scrollLine + point.y / lineHeight).coerceIn(0, lines.lastIndex)
-        val column = (scrollColumn + ((point.x - gutter).coerceAtLeast(0) / charWidth)).coerceIn(0, lines[line].length)
-        return BufferPosition(line, column)
+        val visualRows = visualRows(metrics, charWidth, gutter)
+        val visualIndex = (scrollVisualRow + point.y / lineHeight).coerceIn(0, visualRows.lastIndex)
+        val visualRow = visualRows[visualIndex]
+        val column = (visualRow.startColumn + ((point.x - gutter).coerceAtLeast(0) / charWidth))
+            .coerceIn(visualRow.startColumn, visualRow.endColumn)
+        return BufferPosition(visualRow.lineIndex, column)
     }
 
     private fun visibleRowCount(): Int =
@@ -982,6 +995,42 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
     private fun gutterWidth(metrics: FontMetrics, charWidth: Int): Int =
         (lines.size + 1).toString().length * charWidth + charWidth * 3
+
+    private fun visualRows(metrics: FontMetrics, charWidth: Int, gutterWidth: Int): List<VisualRow> {
+        val wrapColumns = max(1, (width - gutterWidth - charWidth) / charWidth)
+        return buildList {
+            lines.forEachIndexed { lineIndex, line ->
+                if (line.isEmpty()) {
+                    add(VisualRow(lineIndex, 0, 0))
+                } else {
+                    var start = 0
+                    while (start < line.length) {
+                        val end = min(line.length, start + wrapColumns)
+                        add(VisualRow(lineIndex, start, end))
+                        start = end
+                    }
+                }
+            }
+        }
+    }
+
+    private fun List<VisualRow>.indexOfCaret(position: BufferPosition): Int {
+        val lastForLine = indexOfLast { it.lineIndex == position.line }
+        return indexOfFirst { row ->
+            row.lineIndex == position.line && position.column in row.startColumn until row.endColumn
+        }.takeIf { it >= 0 }
+            ?: lastForLine.takeIf { it >= 0 }
+            ?: 0
+    }
+
+    private fun maxScrollVisualRow(rows: List<VisualRow> = visualRowsForCurrentViewport()): Int =
+        (rows.size - visibleRowCount()).coerceAtLeast(0)
+
+    private fun visualRowsForCurrentViewport(): List<VisualRow> {
+        val metrics = getFontMetrics(editorFont)
+        val charWidth = max(1, metrics.charWidth('M'))
+        return visualRows(metrics, charWidth, gutterWidth(metrics, charWidth))
+    }
 
     private fun selectedColumns(lineIndex: Int): IntRange? {
         val range = selectionRanges().firstOrNull { lineIndex in it.first.line..it.second.line } ?: return null
@@ -1072,18 +1121,14 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
     private fun ensureCaretVisible() {
         val visibleRows = visibleRowCount()
-        if (caret.line < scrollLine) scrollLine = caret.line
-        if (caret.line >= scrollLine + visibleRows) scrollLine = caret.line - visibleRows + 1
         val metrics = getFontMetrics(editorFont)
         val charWidth = max(1, metrics.charWidth('M'))
-        val visibleCols = max(1, (width - gutterWidth(metrics, charWidth) - charWidth) / charWidth)
-        if (caret.column < scrollColumn) scrollColumn = caret.column
-        if (caret.column >= scrollColumn + visibleCols) scrollColumn = caret.column - visibleCols + 1
-        scrollLine = scrollLine.coerceIn(0, maxScrollLine())
-        scrollColumn = scrollColumn.coerceAtLeast(0)
+        val visualRows = visualRows(metrics, charWidth, gutterWidth(metrics, charWidth))
+        val caretVisualRow = visualRows.indexOfCaret(caret)
+        if (caretVisualRow < scrollVisualRow) scrollVisualRow = caretVisualRow
+        if (caretVisualRow >= scrollVisualRow + visibleRows) scrollVisualRow = caretVisualRow - visibleRows + 1
+        scrollVisualRow = scrollVisualRow.coerceIn(0, maxScrollVisualRow(visualRows))
     }
-
-    private fun maxScrollLine(): Int = (lines.size - visibleRowCount()).coerceAtLeast(0)
 
     private fun clamp(position: BufferPosition): BufferPosition {
         val line = position.line.coerceIn(0, lines.lastIndex)
@@ -1091,7 +1136,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     }
 
     private fun snapshot(): Snapshot =
-        Snapshot(lines.toList(), cursors.map { CaretState(it.caret, it.anchor) }, scrollLine, scrollColumn)
+        Snapshot(lines.toList(), cursors.map { CaretState(it.caret, it.anchor) }, scrollVisualRow)
 
     private fun restore(snapshot: Snapshot) {
         lines.clear()
@@ -1099,8 +1144,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         cursors.clear()
         cursors += snapshot.cursors.map { CaretState(it.caret, it.anchor) }
         if (cursors.isEmpty()) cursors += CaretState(BufferPosition(0, 0))
-        scrollLine = snapshot.scrollLine
-        scrollColumn = snapshot.scrollColumn
+        scrollVisualRow = snapshot.scrollVisualRow
         hideCompletions()
     }
 
@@ -1362,10 +1406,13 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         charWidth: Int,
         gutterWidth: Int,
         visibleRows: Int,
+        visualRows: List<VisualRow> = visualRowsForCurrentViewport(),
     ): CompletionPopupGeometry? {
         if (completionItems.isEmpty()) return null
-        val row = (caret.line - scrollLine + 1).coerceIn(0, visibleRows - 1)
-        val col = (caret.column - scrollColumn).coerceAtLeast(0)
+        val caretVisualRow = visualRows.indexOfCaret(caret)
+        val segment = visualRows[caretVisualRow]
+        val row = (caretVisualRow - scrollVisualRow + 1).coerceIn(0, visibleRows - 1)
+        val col = (caret.column - segment.startColumn).coerceAtLeast(0)
         val labelColumnWidth = completionItems.maxOf { metrics.stringWidth(it.label.take(72)) }.coerceIn(150, 420)
         val detailColumnWidth = completionItems.maxOf { metrics.stringWidth(it.detail.take(84)) }.coerceIn(120, 440)
         val desiredWidth = labelColumnWidth + detailColumnWidth + 36

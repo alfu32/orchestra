@@ -1,5 +1,9 @@
 package com.threadwork.app.ai
 
+import com.threadwork.core.model.NodeId
+import com.threadwork.core.model.NodeTextSection
+import com.threadwork.core.model.ThreadworkDocument
+import com.threadwork.core.model.effectiveTextLanguageId
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.util.prefs.Preferences
@@ -16,30 +20,46 @@ import javax.swing.JTextField
 
 enum class AiSupportTask(
     val label: String,
-    val instruction: String,
 ) {
     GenerateSource(
         "Generate Source Code",
-        "Generate the source declaration for the selected component. Honor its stated inputs, outputs, used services, type definitions, specification, and effective language and technology. Return only the source text.",
     ),
     TidySpecification(
         "Tidy and Format Specification",
-        "Rewrite the selected component specification as clear, precise Markdown. Preserve the intended behavior, inputs, outputs, constraints, and acceptance criteria. Return only the revised specification.",
     ),
     GenerateTestData(
         "Generate Test Data",
-        "Generate representative test data for the selected component from its specification and typed inputs and outputs. Use the component's tests language where possible. Return only the test data.",
     ),
+
+    ;
+
+    fun instruction(document: ThreadworkDocument, nodeIds: Collection<NodeId>): String = when (this) {
+        GenerateSource ->
+            "Generate the source declaration for the selected component. Honor its stated inputs, outputs, used services, type definitions, specification, and effective language and technology. Return only the source text."
+
+        TidySpecification ->
+            "Rewrite the selected component specification as clear, precise Markdown. Preserve the intended behavior, inputs, outputs, constraints, and acceptance criteria. Return only the revised specification."
+
+        GenerateTestData -> {
+            val formats = nodeIds.mapNotNull { nodeId ->
+                document.nodes[nodeId]?.let { document.effectiveTextLanguageId(it.id, NodeTextSection.Tests) }
+            }.distinct()
+            val format = formats.singleOrNull() ?: formats.joinToString(", ").ifBlank { "the node's test format" }
+            "Generate representative test data for the selected component from its specification and typed inputs and outputs in the test language $format. Return only the test data/script."
+        }
+    }
 }
 
 data class AiPromptRequest(
     val task: AiSupportTask,
     val componentMarkdown: String,
+    val document: ThreadworkDocument,
+    val nodeIds: Collection<NodeId>,
 ) {
     fun prompt(): String = buildString {
         appendLine("You are assisting with a Threadwork component.")
         appendLine()
-        appendLine("Task: ${task.instruction}")
+        appendLine("Task: ${task.instruction(document, nodeIds)}")
         appendLine()
         appendLine("Component dossier:")
         appendLine("```markdown")
@@ -59,6 +79,8 @@ interface AiSupportProvider {
     val label: String
 
     fun submit(request: AiPromptRequest): AiPromptResponse
+
+    fun optionsPanel(): AiProviderOptionsPanel
 }
 
 object AiSupportSettings {
@@ -99,23 +121,82 @@ object PromptToClipboardProvider : AiSupportProvider {
     override val label: String = "Prompt to Clipboard"
 
     override fun submit(request: AiPromptRequest): AiPromptResponse = AiPromptResponse.Text(request.prompt())
+
+    override fun optionsPanel(): AiProviderOptionsPanel = AiProviderOptionsPanel(
+        JPanel(BorderLayout()).apply {
+            border = BorderFactory.createEmptyBorder(12, 12, 12, 12)
+            add(
+                JLabel("Builds the selected component dossier and requested instruction, then copies the complete prompt to the system clipboard."),
+                BorderLayout.NORTH,
+            )
+        },
+    ) {}
 }
 
-private data class StubProvider(
-    override val id: String,
-    override val label: String,
+abstract class ApiKeyAiSupportProvider(
+    final override val id: String,
+    final override val label: String,
+    private val defaultEndpoint: String,
+    private val defaultModel: String,
 ) : AiSupportProvider {
     override fun submit(request: AiPromptRequest): AiPromptResponse = AiPromptResponse.Unavailable(
         "$label inference is not implemented. Configure it under Options > Inference Providers, or select Prompt to Clipboard.",
+    )
+
+    /** Reserved for each provider's browser/OAuth token procurement workflow. */
+    open fun initiateAuthorization() = Unit
+
+    override fun optionsPanel(): AiProviderOptionsPanel = configuredProviderPanel(
+        provider = this,
+        defaultEndpoint = defaultEndpoint,
+        defaultModel = defaultModel,
+        tokenRequired = true,
+    )
+}
+
+object ClaudeAiProvider : ApiKeyAiSupportProvider(
+    id = "claude",
+    label = "Claude",
+    defaultEndpoint = "https://api.anthropic.com",
+    defaultModel = "claude-sonnet",
+)
+
+object CodexAiProvider : ApiKeyAiSupportProvider(
+    id = "codex",
+    label = "Codex",
+    defaultEndpoint = "https://api.openai.com/v1",
+    defaultModel = "gpt-5-codex",
+)
+
+object ChatGptAiProvider : ApiKeyAiSupportProvider(
+    id = "chatgpt",
+    label = "ChatGPT",
+    defaultEndpoint = "https://api.openai.com/v1",
+    defaultModel = "gpt-5",
+)
+
+object OllamaAiProvider : AiSupportProvider {
+    override val id: String = "ollama"
+    override val label: String = "Local Ollama"
+
+    override fun submit(request: AiPromptRequest): AiPromptResponse = AiPromptResponse.Unavailable(
+        "Local Ollama inference is not implemented. Configure it under Options > Inference Providers, or select Prompt to Clipboard.",
+    )
+
+    override fun optionsPanel(): AiProviderOptionsPanel = configuredProviderPanel(
+        provider = this,
+        defaultEndpoint = "http://localhost:11434",
+        defaultModel = "llama3.2",
+        tokenRequired = false,
     )
 }
 
 object AiSupportProviders {
     private val providers = listOf<AiSupportProvider>(
-        StubProvider("claude", "Claude"),
-        StubProvider("codex", "Codex"),
-        StubProvider("chatgpt", "ChatGPT"),
-        StubProvider("ollama", "Local Ollama"),
+        ClaudeAiProvider,
+        CodexAiProvider,
+        ChatGptAiProvider,
+        OllamaAiProvider,
         PromptToClipboardProvider,
     )
 
@@ -128,16 +209,8 @@ object AiSupportProviders {
             maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
         }
         val tabs = JTabbedPane()
-        val commits = mutableListOf<() -> Unit>()
-
-        tabs.addTab("Claude", providerPanel("claude", "https://api.anthropic.com", "claude-sonnet").also { commits += it.commit }.component)
-        tabs.addTab("Codex", providerPanel("codex", "https://api.openai.com/v1", "gpt-5-codex").also { commits += it.commit }.component)
-        tabs.addTab("ChatGPT", providerPanel("chatgpt", "https://api.openai.com/v1", "gpt-5").also { commits += it.commit }.component)
-        tabs.addTab("Local Ollama", providerPanel("ollama", "http://localhost:11434", "llama3.2", tokenRequired = false).also { commits += it.commit }.component)
-        tabs.addTab("Prompt to Clipboard", JPanel(BorderLayout()).apply {
-            border = BorderFactory.createEmptyBorder(12, 12, 12, 12)
-            add(JLabel("Builds the selected component dossier and requested instruction, then copies the complete prompt to the system clipboard."), BorderLayout.NORTH)
-        })
+        val providerPanels = providers.associateWith { it.optionsPanel() }
+        providers.forEach { provider -> tabs.addTab(provider.label, providerPanels.getValue(provider).component) }
 
         val content = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -149,41 +222,41 @@ object AiSupportProviders {
         return AiProviderOptionsPanel(content) {
             AiSupportSettings.activeProviderId = providers.firstOrNull { it.label == activeProvider.selectedItem }?.id
                 ?: PromptToClipboardProvider.providerId
-            commits.forEach { it() }
+            providerPanels.values.forEach { it.commit() }
         }
     }
+}
 
-    private fun providerPanel(
-        id: String,
-        defaultEndpoint: String,
-        defaultModel: String,
-        tokenRequired: Boolean = true,
-    ): AiProviderOptionsPanel {
-        val endpoint = JTextField(AiSupportSettings.endpoint(id, defaultEndpoint))
-        val token = JPasswordField(AiSupportSettings.token(id))
-        val model = JTextField(AiSupportSettings.model(id, defaultModel))
-        val content = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            border = BorderFactory.createEmptyBorder(12, 12, 12, 12)
-            add(JLabel("Endpoint URL"))
-            add(endpoint)
-            add(JLabel("Model").apply { border = BorderFactory.createEmptyBorder(10, 0, 0, 0) })
-            add(model)
-            if (tokenRequired) {
-                add(JLabel("API token").apply { border = BorderFactory.createEmptyBorder(10, 0, 0, 0) })
-                add(token)
-                add(JButton("Authorize in browser (not implemented)").apply {
-                    isEnabled = false
-                    toolTipText = "Provider authorization will be implemented with the inference client."
-                    border = BorderFactory.createEmptyBorder(10, 0, 0, 0)
-                })
-            }
+private fun configuredProviderPanel(
+    provider: AiSupportProvider,
+    defaultEndpoint: String,
+    defaultModel: String,
+    tokenRequired: Boolean,
+): AiProviderOptionsPanel {
+    val endpoint = JTextField(AiSupportSettings.endpoint(provider.id, defaultEndpoint))
+    val token = JPasswordField(AiSupportSettings.token(provider.id))
+    val model = JTextField(AiSupportSettings.model(provider.id, defaultModel))
+    val content = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.Y_AXIS)
+        border = BorderFactory.createEmptyBorder(12, 12, 12, 12)
+        add(JLabel("Endpoint URL"))
+        add(endpoint)
+        add(JLabel("Model").apply { border = BorderFactory.createEmptyBorder(10, 0, 0, 0) })
+        add(model)
+        if (tokenRequired) {
+            add(JLabel("API token").apply { border = BorderFactory.createEmptyBorder(10, 0, 0, 0) })
+            add(token)
+            add(JButton("Authorize in browser (not implemented)").apply {
+                isEnabled = false
+                toolTipText = "Provider authorization will be implemented with the inference client."
+                border = BorderFactory.createEmptyBorder(10, 0, 0, 0)
+            })
         }
-        return AiProviderOptionsPanel(content) {
-            AiSupportSettings.setEndpoint(id, endpoint.text)
-            AiSupportSettings.setModel(id, model.text)
-            if (tokenRequired) AiSupportSettings.setToken(id, token.password.concatToString())
-        }
+    }
+    return AiProviderOptionsPanel(content) {
+        AiSupportSettings.setEndpoint(provider.id, endpoint.text)
+        AiSupportSettings.setModel(provider.id, model.text)
+        if (tokenRequired) AiSupportSettings.setToken(provider.id, token.password.concatToString())
     }
 }
 
