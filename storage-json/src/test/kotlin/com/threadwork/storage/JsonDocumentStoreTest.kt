@@ -110,6 +110,60 @@ class JsonDocumentStoreTest {
     }
 
     @Test
+    fun `loads legacy links with link endpoints as processing nodes`() {
+        val rootId = NodeId("root")
+        val sourceId = NodeId("source")
+        val targetId = NodeId("target")
+        val endpointLinkId = NodeId("link_endpoint")
+        val legacyLinkId = NodeId("link_legacy")
+        val document = ThreadworkDocument(
+            id = "legacy_link_endpoint_document",
+            name = "legacy link endpoints",
+            rootNodeId = rootId,
+            nodes = mutableMapOf(
+                rootId to Node(
+                    id = rootId,
+                    name = "legacy link endpoints",
+                    kind = NodeKind.Group,
+                    children = mutableListOf(sourceId, targetId, endpointLinkId, legacyLinkId),
+                ),
+                sourceId to Node(sourceId, "source", NodeKind.Processor, parentId = rootId),
+                targetId to Node(targetId, "target", NodeKind.Processor, parentId = rootId),
+                endpointLinkId to Node(
+                    id = endpointLinkId,
+                    name = "endpoint",
+                    kind = NodeKind.Link,
+                    parentId = rootId,
+                    link = LinkData(sourceId, "out", targetId, "in"),
+                ),
+                legacyLinkId to Node(
+                    id = legacyLinkId,
+                    name = "legacy bridge",
+                    kind = NodeKind.Link,
+                    parentId = rootId,
+                    text = com.threadwork.core.model.NodeText(specification = "Preserve this content."),
+                    link = LinkData(endpointLinkId, "in", targetId, "out", transportKind = "ipc"),
+                ),
+            ),
+        )
+        val file = createTempFile(suffix = ".orch")
+        val store = KotlinxJsonDocumentStore()
+
+        store.save(document, file)
+        val loaded = store.load(file)
+        val migrated = loaded.nodes.getValue(legacyLinkId)
+
+        assertEquals(NodeKind.Processor, migrated.kind)
+        assertFalse(migrated.isLink)
+        assertEquals("Preserve this content.", migrated.text.specification)
+        assertEquals(endpointLinkId.value, migrated.metadata["threadwork.migratedLinkSourceId"])
+        assertEquals("ipc", migrated.metadata["threadwork.migratedLinkTransportKind"])
+        assertTrue(migrated.ports.any { it.name == "in" && it.direction == PortDirection.Input })
+        assertTrue(migrated.ports.any { it.name == "out" && it.direction == PortDirection.Output })
+        assertTrue(DocumentValidator.validate(loaded).none { it.severity.name == "Error" })
+    }
+
+    @Test
     fun `loads legacy node map by trusting node ids instead of map keys`() {
         val file = createTempFile(suffix = ".threadwork.json")
         Files.writeString(

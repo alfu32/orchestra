@@ -16,8 +16,6 @@
                 "node_6",
                 "node_7",
                 "link_8",
-                "link_10",
-                "link_11",
                 "link_12",
                 "link_13",
                 "link_14",
@@ -82,7 +80,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-27T01:44:15.656309570Z",
+                "date": "2026-08-27T10:55:23.456452589Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -98,8 +96,7 @@
             "parentId": "root",
             "children": [],
             "incomingLinks": [
-                "link_8",
-                "link_10"
+                "link_8"
             ],
             "outgoingLinks": [
                 "link_14",
@@ -142,7 +139,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-26T19:09:57.295543266Z",
+                "date": "2026-08-27T10:55:23.456389189Z",
                 "user": "devlin"
             },
             "ports": [
@@ -173,7 +170,6 @@
             "parentId": "root",
             "children": [],
             "incomingLinks": [
-                "link_11",
                 "link_14",
                 "link_2890d0f2-b500-4390-a8b1-350ae9f1396e"
             ],
@@ -200,7 +196,7 @@
                 "sourceLanguageId": "",
                 "specification": "using the credentials provided in the configuration it connects to the api endpoint specified under\nexchange.* it connects to ms exchange and downloads all the csv attachments in the emails from the folder Inbox/PRC/TODO\nputs them in the local folder  todo\nthen it opens each file transforms it into a list of `InfoPackage` where the package payload is the row\nand pushes each of the packages to raw_ip\nmalformed rows will be pushed to info_package_error\n\n\n## Purpose\n\nRetrieve CSV attachments from a configured Microsoft Exchange mailbox, convert each CSV row into an `InfoPackage`, and route successfully parsed packages and malformed rows to their respective outputs.\n\n## Behavior\n\n1. Receive a `ModuleConfiguration` through the `config` input.\n\n2. Use the Exchange connection settings from the configuration:\n\n   * `exchange_url`\n   * `exchange_user`\n   * `exchange_account`\n   * `exchange_password`\n\n3. Connect to Microsoft Exchange using `ms_exchange_client`.\n\n4. Access the mailbox folder:\n\n   ```text\n   Inbox/PRC/TODO\n   ```\n\n5. Retrieve the emails in that folder and download every CSV attachment.\n\n6. Store the downloaded CSV files in the local folder:\n\n   ```text\n   todo\n   ```\n\n7. Process every downloaded CSV file.\n\n8. For each CSV data row:\n\n   * parse the row;\n   * create one `InfoPackage`;\n   * use the row contents as the package payload in `InfoPackage.package_info`;\n   * emit the resulting package through `raw_ip`.\n\n9. If a CSV row is malformed or cannot be transformed into a valid `InfoPackage`:\n\n   * do not emit it through `raw_ip`;\n   * create a `ProcessDataError` describing the failure;\n   * emit the error through `info_package_error`.\n\n10. Processing of a malformed row must not prevent subsequent rows or files from being processed.\n\nThe specification does not define how the remaining `InfoPackage` fields (`ID`, `date`, `valid`, `failed`, and `error`) are populated. Their values must therefore follow the project's existing `InfoPackage` conventions and must not be inferred from this component specification.\n\n## Constraints\n\n* Exchange credentials and endpoint information must come from the received `ModuleConfiguration`.\n* Only CSV attachments are downloaded for processing.\n* Attachments are retrieved from `Inbox/PRC/TODO`.\n* Downloaded CSV files are stored in the local `todo` folder before processing.\n* Each CSV data row is processed independently.\n* One successfully processed row produces one `InfoPackage`.\n* Malformed rows are routed to `info_package_error` and must not be routed to `raw_ip`.\n* A malformed row must not terminate processing of the remaining rows or files.\n\n## Acceptance Criteria\n\n* Given valid Exchange configuration, the component can connect to the configured Microsoft Exchange account.\n* The component reads messages from `Inbox/PRC/TODO`.\n* Every CSV attachment found in the selected messages is downloaded to the local `todo` folder.\n* Every successfully parsed CSV data row results in exactly one `InfoPackage` emitted through `raw_ip`.\n* The CSV row is represented in the emitted package's `package_info`.\n* A malformed or unprocessable row produces a `ProcessDataError` through `info_package_error`.\n* A malformed row does not produce an `InfoPackage` through `raw_ip`.\n* Processing continues after an individual malformed row.\n* The output types and link contracts remain compatible with `remove_duplicates` and `error_handler`.\n",
                 "specificationLanguageId": "markdown",
-                "tests": "",
+                "tests": "{\n  \"component\": \"/TestProject/read_info_packages\",\n  \"language\": \"json\",\n  \"tests\": [\n    {\n      \"name\": \"process_single_csv_attachment\",\n      \"input\": {\n        \"config\": {\n          \"file_path\": \"./todo\",\n          \"frequency\": \"PT5M\",\n          \"jdbc_url\": \"jdbc:oracle:thin:@localhost:1521/FREEPDB1\",\n          \"jdbc_password\": \"test_password\",\n          \"jdbc_user\": \"test_user\",\n          \"exchange_user\": \"svc_prc\",\n          \"exchange_url\": \"[https://exchange.example.test/EWS/Exchange.asmx](https://exchange.example.test/EWS/Exchange.asmx)\",\n          \"exchange_account\": \"[prc@example.test](mailto:prc@example.test)\",\n          \"exchange_password\": \"exchange_test_password\"\n        }\n      },\n      \"mocks\": {\n        \"ms_exchange_client\": {\n          \"expected_connection\": {\n            \"url\": \"[https://exchange.example.test/EWS/Exchange.asmx](https://exchange.example.test/EWS/Exchange.asmx)\",\n            \"user\": \"svc_prc\",\n            \"account\": \"[prc@example.test](mailto:prc@example.test)\",\n            \"password\": \"exchange_test_password\"\n          },\n          \"expected_folder\": \"Inbox/PRC/TODO\",\n          \"emails\": [\n            {\n              \"subject\": \"PRC import\",\n              \"attachments\": [\n                {\n                  \"name\": \"packages.csv\",\n                  \"content_type\": \"text/csv\",\n                  \"content\": \"ID,NAME,VALUE\\n1001,Alpha,42\\n1002,Beta,84\\n\"\n                }\n              ]\n            }\n          ]\n        }\n      },\n      \"expected_files\": [\n        {\n          \"path\": \"todo/packages.csv\",\n          \"exists\": true\n        }\n      ],\n      \"expected_outputs\": {\n        \"raw_ip\": [\n          {\n            \"package_info\": \"1001,Alpha,42\"\n          },\n          {\n            \"package_info\": \"1002,Beta,84\"\n          }\n        ],\n        \"info_package_error\": []\n      },\n      \"assertions\": {\n        \"raw_ip_count\": 2,\n        \"info_package_error_count\": 0,\n        \"ignore_unspecified_InfoPackage_fields\": [\n          \"ID\",\n          \"date\",\n          \"valid\",\n          \"failed\",\n          \"error\"\n        ]\n      }\n    },\n    {\n      \"name\": \"process_multiple_csv_attachments_and_ignore_non_csv\",\n      \"input\": {\n        \"config\": {\n          \"file_path\": \"./todo\",\n          \"frequency\": \"PT5M\",\n          \"jdbc_url\": \"jdbc:oracle:thin:@localhost:1521/FREEPDB1\",\n          \"jdbc_password\": \"test_password\",\n          \"jdbc_user\": \"test_user\",\n          \"exchange_user\": \"svc_prc\",\n          \"exchange_url\": \"[https://exchange.example.test/EWS/Exchange.asmx](https://exchange.example.test/EWS/Exchange.asmx)\",\n          \"exchange_account\": \"[prc@example.test](mailto:prc@example.test)\",\n          \"exchange_password\": \"exchange_test_password\"\n        }\n      },\n      \"mocks\": {\n        \"ms_exchange_client\": {\n          \"expected_folder\": \"Inbox/PRC/TODO\",\n          \"emails\": [\n            {\n              \"subject\": \"Batch A\",\n              \"attachments\": [\n                {\n                  \"name\": \"batch_a.csv\",\n                  \"content_type\": \"text/csv\",\n                  \"content\": \"ID,NAME,VALUE\\n2001,Gamma,10\\n2002,Delta,20\\n\"\n                },\n                {\n                  \"name\": \"instructions.txt\",\n                  \"content_type\": \"text/plain\",\n                  \"content\": \"This attachment must not be processed.\"\n                }\n              ]\n            },\n            {\n              \"subject\": \"Batch B\",\n              \"attachments\": [\n                {\n                  \"name\": \"batch_b.csv\",\n                  \"content_type\": \"text/csv\",\n                  \"content\": \"ID,NAME,VALUE\\n2003,Epsilon,30\\n\"\n                }\n              ]\n            }\n          ]\n        }\n      },\n      \"expected_files\": [\n        {\n          \"path\": \"todo/batch_a.csv\",\n          \"exists\": true\n        },\n        {\n          \"path\": \"todo/batch_b.csv\",\n          \"exists\": true\n        },\n        {\n          \"path\": \"todo/instructions.txt\",\n          \"exists\": false\n        }\n      ],\n      \"expected_outputs\": {\n        \"raw_ip\": [\n          {\n            \"package_info\": \"2001,Gamma,10\"\n          },\n          {\n            \"package_info\": \"2002,Delta,20\"\n          },\n          {\n            \"package_info\": \"2003,Epsilon,30\"\n          }\n        ],\n        \"info_package_error\": []\n      },\n      \"assertions\": {\n        \"raw_ip_count\": 3,\n        \"info_package_error_count\": 0,\n        \"csv_attachments_downloaded\": 2,\n        \"non_csv_attachments_downloaded\": 0,\n        \"ignore_unspecified_InfoPackage_fields\": [\n          \"ID\",\n          \"date\",\n          \"valid\",\n          \"failed\",\n          \"error\"\n        ]\n      }\n    },\n    {\n      \"name\": \"route_malformed_row_to_error_and_continue\",\n      \"input\": {\n        \"config\": {\n          \"file_path\": \"./todo\",\n          \"frequency\": \"PT5M\",\n          \"jdbc_url\": \"jdbc:oracle:thin:@localhost:1521/FREEPDB1\",\n          \"jdbc_password\": \"test_password\",\n          \"jdbc_user\": \"test_user\",\n          \"exchange_user\": \"svc_prc\",\n          \"exchange_url\": \"[https://exchange.example.test/EWS/Exchange.asmx](https://exchange.example.test/EWS/Exchange.asmx)\",\n          \"exchange_account\": \"[prc@example.test](mailto:prc@example.test)\",\n          \"exchange_password\": \"exchange_test_password\"\n        }\n      },\n      \"mocks\": {\n        \"ms_exchange_client\": {\n          \"expected_folder\": \"Inbox/PRC/TODO\",\n          \"emails\": [\n            {\n              \"subject\": \"Mixed batch\",\n              \"attachments\": [\n                {\n                  \"name\": \"mixed.csv\",\n                  \"content_type\": \"text/csv\",\n                  \"content\": \"ID,NAME,VALUE\\n3001,Zeta,11\\n\"3002,Eta,broken\\n3003,Theta,33\\n\"\n                }\n              ]\n            }\n          ]\n        }\n      },\n      \"expected_outputs\": {\n        \"raw_ip\": [\n          {\n            \"package_info\": \"3001,Zeta,11\"\n          },\n          {\n            \"package_info\": \"3003,Theta,33\"\n          }\n        ],\n        \"info_package_error\": [\n          {\n            \"error\": {\n              \"matches\": \"non-empty\"\n            },\n            \"package\": {\n              \"package_info\": {\n                \"matches\": \"contains:3002\"\n              }\n            }\n          }\n        ]\n      },\n      \"assertions\": {\n        \"raw_ip_count\": 2,\n        \"info_package_error_count\": 1,\n        \"malformed_row_not_emitted_to_raw_ip\": true,\n        \"processing_continues_after_malformed_row\": true,\n        \"ignore_unspecified_InfoPackage_fields\": [\n          \"ID\",\n          \"date\",\n          \"valid\",\n          \"failed\",\n          \"error\"\n        ]\n      }\n    },\n    {\n      \"name\": \"empty_csv_produces_no_packages\",\n      \"input\": {\n        \"config\": {\n          \"file_path\": \"./todo\",\n          \"frequency\": \"PT5M\",\n          \"jdbc_url\": \"jdbc:oracle:thin:@localhost:1521/FREEPDB1\",\n          \"jdbc_password\": \"test_password\",\n          \"jdbc_user\": \"test_user\",\n          \"exchange_user\": \"svc_prc\",\n          \"exchange_url\": \"[https://exchange.example.test/EWS/Exchange.asmx](https://exchange.example.test/EWS/Exchange.asmx)\",\n          \"exchange_account\": \"[prc@example.test](mailto:prc@example.test)\",\n          \"exchange_password\": \"exchange_test_password\"\n        }\n      },\n      \"mocks\": {\n        \"ms_exchange_client\": {\n          \"expected_folder\": \"Inbox/PRC/TODO\",\n          \"emails\": [\n            {\n              \"subject\": \"Empty batch\",\n              \"attachments\": [\n                {\n                  \"name\": \"empty.csv\",\n                  \"content_type\": \"text/csv\",\n                  \"content\": \"ID,NAME,VALUE\\n\"\n                }\n              ]\n            }\n          ]\n        }\n      },\n      \"expected_files\": [\n        {\n          \"path\": \"todo/empty.csv\",\n          \"exists\": true\n        }\n      ],\n      \"expected_outputs\": {\n        \"raw_ip\": [],\n        \"info_package_error\": []\n      },\n      \"assertions\": {\n        \"raw_ip_count\": 0,\n        \"info_package_error_count\": 0\n      }\n    },\n    {\n      \"name\": \"no_matching_email_attachments\",\n      \"input\": {\n        \"config\": {\n          \"file_path\": \"./todo\",\n          \"frequency\": \"PT5M\",\n          \"jdbc_url\": \"jdbc:oracle:thin:@localhost:1521/FREEPDB1\",\n          \"jdbc_password\": \"test_password\",\n          \"jdbc_user\": \"test_user\",\n          \"exchange_user\": \"svc_prc\",\n          \"exchange_url\": \"[https://exchange.example.test/EWS/Exchange.asmx](https://exchange.example.test/EWS/Exchange.asmx)\",\n          \"exchange_account\": \"[prc@example.test](mailto:prc@example.test)\",\n          \"exchange_password\": \"exchange_test_password\"\n        }\n      },\n      \"mocks\": {\n        \"ms_exchange_client\": {\n          \"expected_folder\": \"Inbox/PRC/TODO\",\n          \"emails\": []\n        }\n      },\n      \"expected_outputs\": {\n        \"raw_ip\": [],\n        \"info_package_error\": []\n      },\n      \"assertions\": {\n        \"raw_ip_count\": 0,\n        \"info_package_error_count\": 0,\n        \"downloaded_csv_count\": 0\n      }\n    }\n  ]\n}\n",
                 "testsLanguageId": "json",
                 "aiInstructions": "",
                 "aiInstructionsLanguageId": "markdown"
@@ -218,7 +214,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-27T10:31:35.469593423Z",
+                "date": "2026-08-27T10:59:31.822982781Z",
                 "user": "devlin"
             },
             "ports": [
@@ -328,7 +324,7 @@
                 "link_8"
             ],
             "layout": {
-                "x": 738.0,
+                "x": 714.0,
                 "y": 1297.0,
                 "width": 276.0,
                 "height": 100.0,
@@ -389,7 +385,7 @@
                 "link_13"
             ],
             "layout": {
-                "x": 1242.0,
+                "x": 1218.0,
                 "y": 1297.0,
                 "width": 276.0,
                 "height": 108.0,
@@ -450,12 +446,10 @@
             "children": [],
             "incomingLinks": [],
             "outgoingLinks": [
-                "link_10",
-                "link_11",
                 "link_12"
             ],
             "layout": {
-                "x": 1746.0,
+                "x": 1722.0,
                 "y": 1297.0,
                 "width": 276.0,
                 "height": 138.0,
@@ -485,11 +479,14 @@
                 "fileExtension": "",
                 "contentType": ""
             },
-            "revision": null,
+            "revision": {
+                "name": "",
+                "date": ""
+            },
             "responsible": null,
             "modified": {
-                "date": "",
-                "user": ""
+                "date": "2026-08-27T10:55:23.456389189Z",
+                "user": "devlin"
             },
             "ports": [
                 {
@@ -558,134 +555,6 @@
                 "sourceNodeId": "node_5",
                 "sourcePortName": "out",
                 "targetNodeId": "node_1",
-                "targetPortName": "in",
-                "transportKind": "usage",
-                "typeName": "",
-                "payloadDefinition": "",
-                "typeDefinitionId": "",
-                "compositeBoundaryIds": []
-            },
-            "typeDefinition": null,
-            "metadata": {},
-            "pluginData": {}
-        },
-        {
-            "id": "link_10",
-            "name": "logger0",
-            "kind": "Link",
-            "parentId": "root",
-            "children": [],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": 0.0,
-                "y": 0.0,
-                "width": 200.0,
-                "height": 100.0,
-                "closedWidth": 200.0,
-                "closedHeight": 100.0,
-                "openWidth": 200.0,
-                "openHeight": 100.0,
-                "isExpanded": true
-            },
-            "fileLayoutStrategyId": "none",
-            "text": {
-                "initialization": "",
-                "initializationLanguageId": "",
-                "source": "",
-                "sourceLanguageId": "",
-                "specification": "",
-                "specificationLanguageId": "markdown",
-                "tests": "",
-                "testsLanguageId": "json",
-                "aiInstructions": "",
-                "aiInstructionsLanguageId": "markdown"
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "revision": {
-                "name": "",
-                "date": ""
-            },
-            "responsible": null,
-            "modified": {
-                "date": "2026-08-26T10:49:56.884808020Z",
-                "user": "devlin"
-            },
-            "ports": [],
-            "link": {
-                "sourceNodeId": "node_7",
-                "sourcePortName": "out",
-                "targetNodeId": "node_1",
-                "targetPortName": "in",
-                "transportKind": "usage",
-                "typeName": "",
-                "payloadDefinition": "",
-                "typeDefinitionId": "",
-                "compositeBoundaryIds": []
-            },
-            "typeDefinition": null,
-            "metadata": {},
-            "pluginData": {}
-        },
-        {
-            "id": "link_11",
-            "name": "logger1",
-            "kind": "Link",
-            "parentId": "root",
-            "children": [],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": 0.0,
-                "y": 0.0,
-                "width": 200.0,
-                "height": 100.0,
-                "closedWidth": 200.0,
-                "closedHeight": 100.0,
-                "openWidth": 200.0,
-                "openHeight": 100.0,
-                "isExpanded": true
-            },
-            "fileLayoutStrategyId": "none",
-            "text": {
-                "initialization": "",
-                "initializationLanguageId": "",
-                "source": "",
-                "sourceLanguageId": "",
-                "specification": "",
-                "specificationLanguageId": "markdown",
-                "tests": "",
-                "testsLanguageId": "json",
-                "aiInstructions": "",
-                "aiInstructionsLanguageId": "markdown"
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "revision": {
-                "name": "",
-                "date": ""
-            },
-            "responsible": null,
-            "modified": {
-                "date": "2026-08-26T10:50:05.224219855Z",
-                "user": "devlin"
-            },
-            "ports": [],
-            "link": {
-                "sourceNodeId": "node_7",
-                "sourcePortName": "out",
-                "targetNodeId": "node_3",
                 "targetPortName": "in",
                 "transportKind": "usage",
                 "typeName": "",
@@ -1304,8 +1173,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 2526.0,
-                "y": 2000.0,
+                "x": 2504.0,
+                "y": 2022.0,
                 "width": 228.0,
                 "height": 100.0,
                 "closedWidth": 228.0,
@@ -1355,8 +1224,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 2793.0,
-                "y": 2006.0,
+                "x": 2771.0,
+                "y": 2022.0,
                 "width": 228.0,
                 "height": 100.0,
                 "closedWidth": 228.0,
@@ -1470,8 +1339,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 749.0,
-                "y": 1994.0,
+                "x": 727.0,
+                "y": 1882.0,
                 "width": 228.0,
                 "height": 240.0,
                 "closedWidth": 228.0,
@@ -1572,8 +1441,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 1873.0,
-                "y": 1994.0,
+                "x": 1851.0,
+                "y": 1936.0,
                 "width": 220.0,
                 "height": 186.0,
                 "closedWidth": 220.0,
@@ -1851,8 +1720,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 1274.0,
-                "y": 1994.0,
+                "x": 1252.0,
+                "y": 2008.0,
                 "width": 220.0,
                 "height": 114.0,
                 "closedWidth": 220.0,
@@ -2050,7 +1919,7 @@
         },
         {
             "id": "node_27",
-            "name": "remove_duplicates",
+            "name": "validate_info_packages",
             "kind": "Processor",
             "parentId": "root",
             "children": [],
@@ -2098,7 +1967,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-27T01:45:13.569587269Z",
+                "date": "2026-08-27T10:55:59.115482902Z",
                 "user": "devlin"
             },
             "ports": [
@@ -2133,7 +2002,7 @@
                 "link_2890d0f2-b500-4390-a8b1-350ae9f1396e"
             ],
             "layout": {
-                "x": 2332.0,
+                "x": 2308.0,
                 "y": 1297.0,
                 "width": 276.0,
                 "height": 90.0,
@@ -2252,7 +2121,7 @@
         },
         {
             "id": "link_738b0fd6-d53d-4c2d-a8b3-ba8730b2725b",
-            "name": "unidetified_ip",
+            "name": "invalid_ip",
             "kind": "Link",
             "parentId": "root",
             "children": [],
@@ -2295,7 +2164,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-27T01:44:46.624310382Z",
+                "date": "2026-08-27T10:56:23.590361289Z",
                 "user": "devlin"
             },
             "ports": [],

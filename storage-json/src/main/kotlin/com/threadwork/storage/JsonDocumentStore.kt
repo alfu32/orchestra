@@ -3,6 +3,7 @@ package com.threadwork.storage
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
+import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.Revision
@@ -107,8 +108,51 @@ class KotlinxJsonDocumentStore(
     }
 
     private fun repairDocument(document: ThreadworkDocument) {
+        migrateLinksWithLinkEndpoints(document)
         repairParentChildReferences(document)
         repairLinkReferences(document)
+    }
+
+    /**
+     * Threadwork no longer permits a data link to use another link as either endpoint.
+     * Older documents used that shape as an implicit processing step. Preserve those
+     * nodes by converting the offending link itself into an explicit processor before
+     * link/reference repair and validation.
+     */
+    private fun migrateLinksWithLinkEndpoints(document: ThreadworkDocument) {
+        document.nodes.values
+            .filter { node ->
+                val link = node.link
+                node.isLink && link != null && (
+                    document.nodes[link.sourceNodeId]?.isLink == true ||
+                        document.nodes[link.targetNodeId]?.isLink == true
+                    )
+            }
+            .forEach { node ->
+                val legacyLink = requireNotNull(node.link)
+                node.metadata.putIfAbsent("threadwork.migratedLinkSourceId", legacyLink.sourceNodeId.value)
+                node.metadata.putIfAbsent("threadwork.migratedLinkTargetId", legacyLink.targetNodeId.value)
+                node.metadata.putIfAbsent("threadwork.migratedLinkSourcePort", legacyLink.sourcePortName)
+                node.metadata.putIfAbsent("threadwork.migratedLinkTargetPort", legacyLink.targetPortName)
+                node.metadata.putIfAbsent("threadwork.migratedLinkTransportKind", legacyLink.transportKind)
+                legacyLink.typeDefinitionId.takeIf(String::isNotBlank)?.let {
+                    node.metadata.putIfAbsent("threadwork.migratedLinkTypeDefinitionId", it)
+                }
+                legacyLink.typeName.takeIf(String::isNotBlank)?.let {
+                    node.metadata.putIfAbsent("threadwork.migratedLinkTypeName", it)
+                }
+                legacyLink.payloadDefinition.takeIf(String::isNotBlank)?.let {
+                    node.metadata.putIfAbsent("threadwork.migratedLinkPayloadDefinition", it)
+                }
+                legacyLink.compositeBoundaryIds.takeIf { it.isNotEmpty() }?.let {
+                    node.metadata.putIfAbsent("threadwork.migratedLinkBoundaryIds", it.joinToString(",") { id -> id.value })
+                }
+
+                ensurePort(node, legacyLink.sourcePortName.ifBlank { "in" }, PortDirection.Input)
+                ensurePort(node, legacyLink.targetPortName.ifBlank { "out" }, PortDirection.Output)
+                node.kind = NodeKind.Processor
+                node.link = null
+            }
     }
 
     private fun repairParentChildReferences(document: ThreadworkDocument) {
