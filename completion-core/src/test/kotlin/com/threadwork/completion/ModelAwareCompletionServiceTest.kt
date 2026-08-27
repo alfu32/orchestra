@@ -58,7 +58,7 @@ class ModelAwareCompletionServiceTest {
     }
 
     @Test
-    fun `suggests ports and relatives`() {
+    fun `does not suggest raw ports or related node names to processing code`() {
         val repository = InMemoryDocumentRepository(newDocument("completion"))
         val root = repository.getDocument().rootNodeId
         val node = repository.createNode(root, "worker", NodeKind.Processor)
@@ -79,13 +79,13 @@ class ModelAwareCompletionServiceTest {
             ),
         ).map { it.label }.toSet()
 
-        assertTrue("payload" in labels)
-        assertTrue("sibling" in labels)
-        assertTrue(repository.requireNode(sibling.id).name in labels)
+        assertTrue("payload" !in labels)
+        assertTrue("sibling" !in labels)
+        assertTrue(repository.requireNode(sibling.id).name !in labels)
     }
 
     @Test
-    fun `prioritizes incoming outgoing and dependency link names`() {
+    fun `does not suggest raw link names to processing code`() {
         val repository = InMemoryDocumentRepository(newDocument("completion"))
         val root = repository.getDocument().rootNodeId
         val library = repository.createNode(root, "lib_logging", NodeKind.Processor)
@@ -99,7 +99,10 @@ class ModelAwareCompletionServiceTest {
         repository.createLink(root, "config_in", source.id, "out", worker.id, "in")
         repository.createLink(root, "config_out", worker.id, "out", target.id, "in")
 
-        val service = ModelAwareCompletionService(repository::getDocument)
+        val service = ModelAwareCompletionService(
+            documentProvider = repository::getDocument,
+            compilerProvider = { _, _ -> CodeIntelligenceCompiler },
+        )
         val suggestions = service.getSuggestions(
             CompletionRequest(
                 nodeId = worker.id,
@@ -113,11 +116,12 @@ class ModelAwareCompletionServiceTest {
             ),
         )
 
-        assertEquals(
-            listOf("lib_logging", "config_in", "config_out"),
-            suggestions.take(3).map { it.label },
-        )
-        assertTrue(suggestions.indexOfFirst { it.label == "payload" } < suggestions.indexOfFirst { it.label == sibling.name })
+        val labels = suggestions.map { it.label }.toSet()
+        assertTrue("lib_logging" !in labels)
+        assertTrue("config_in" !in labels)
+        assertTrue("config_out" !in labels)
+        assertTrue("payload" !in labels)
+        assertTrue(sibling.name !in labels)
     }
 
     @Test

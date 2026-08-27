@@ -2,15 +2,12 @@ package com.threadwork.completion
 
 import com.threadwork.compiler.api.CompilerCodeSymbolKind
 import com.threadwork.compiler.api.CompilerPlugin
-import com.threadwork.core.classification.LinkClassifier
-import com.threadwork.core.classification.LinkStereotype
 import com.threadwork.core.classification.NodeStereotype
 import com.threadwork.core.classification.stereotype
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeTextSection
-import com.threadwork.core.model.PortDirection
 
 data class CompletionRequest(
     val nodeId: NodeId,
@@ -74,7 +71,6 @@ class ModelAwareCompletionService(
     private val documentProvider: () -> ThreadworkDocument,
     private val compilerProvider: (ThreadworkDocument, Node) -> CompilerPlugin? = { _, _ -> null },
     private val technologyProviders: List<TechnologyCompletionProvider> = listOf(
-        KotlinJvmCompletionProvider(),
         FlowTemplateCompletionProvider(),
     ),
     private val declarationSymbolIndex: DocumentDeclarationSymbolIndex = DocumentDeclarationSymbolIndex(),
@@ -84,89 +80,8 @@ class ModelAwareCompletionService(
         val node = document.nodes[request.nodeId] ?: return emptyList()
         val suggestions = mutableListOf<CompletionSuggestion>()
 
-        val compiler = compilerProvider(document, node)
-        compiler
-            ?.codeIntelligence(document, node)
-            ?.symbols
-            ?.forEach { symbol ->
-                suggestions += CompletionSuggestion(
-                    label = symbol.name,
-                    insertText = symbol.name,
-                    kind = symbol.kind.toCompletionKind(),
-                    detail = symbol.detail.ifBlank { symbol.typeName },
-                    documentation = symbol.documentation,
-                    sourcePluginId = compiler.id,
-                )
-                symbol.members.forEach { member ->
-                    suggestions += CompletionSuggestion(
-                        label = member.name,
-                        insertText = member.name,
-                        kind = when (symbol.kind) {
-                            CompilerCodeSymbolKind.Type -> CompletionSuggestionKind.TypeMember
-                            else -> CompletionSuggestionKind.BufferMember
-                        },
-                        detail = member.detail,
-                        documentation = member.documentation,
-                        sourcePluginId = compiler.id,
-                    )
-                }
-            }
-
-        node.incomingLinks.mapNotNull(document.nodes::get).forEach { linkNode ->
-            linkNameSuggestion(document, linkNode, incoming = true)?.let(suggestions::add)
-        }
-
-        node.outgoingLinks.mapNotNull(document.nodes::get).forEach { linkNode ->
-            linkNameSuggestion(document, linkNode, incoming = false)?.let(suggestions::add)
-        }
-
-        node.ports.forEach { port ->
-            suggestions += CompletionSuggestion(
-                label = port.name,
-                insertText = port.name,
-                kind = if (port.direction == PortDirection.Input) CompletionSuggestionKind.InputPort else CompletionSuggestionKind.OutputPort,
-                detail = "${port.direction.name.lowercase()} port",
-            )
-        }
-
-        node.parentId?.let { parentId ->
-            document.nodes[parentId]?.let { parent ->
-                suggestions += CompletionSuggestion(parent.name, parent.name, CompletionSuggestionKind.ParentNode, "parent node")
-                parent.children.filter { it != node.id }.mapNotNull(document.nodes::get).forEach { sibling ->
-                    suggestions += CompletionSuggestion(sibling.name, sibling.name, CompletionSuggestionKind.SiblingNode, "sibling node")
-                }
-            }
-        }
-
-        node.children.mapNotNull(document.nodes::get).forEach { child ->
-            suggestions += CompletionSuggestion(child.name, child.name, CompletionSuggestionKind.ChildNode, "child node")
-        }
-
-        node.incomingLinks.mapNotNull(document.nodes::get).mapNotNull { it.link }.forEach { link ->
-            document.nodes[link.sourceNodeId]?.let { source ->
-                suggestions += CompletionSuggestion(source.name, source.name, CompletionSuggestionKind.LinkedSourceNode, "incoming link source")
-            }
-        }
-
-        node.outgoingLinks.mapNotNull(document.nodes::get).mapNotNull { it.link }.forEach { link ->
-            document.nodes[link.targetNodeId]?.let { target ->
-                suggestions += CompletionSuggestion(target.name, target.name, CompletionSuggestionKind.LinkedTargetNode, "outgoing link target")
-            }
-        }
-
-        node.metadata.filterKeys { it.startsWith("import.") || it == "import" || it.startsWith("library.") }.forEach { (key, value) ->
-            val label = value.ifBlank { key.substringAfter('.') }
-            suggestions += CompletionSuggestion(label, label, CompletionSuggestionKind.Import, "metadata import")
-        }
-
-        getDeclarationSymbols(request).mapTo(suggestions) { symbol ->
-            CompletionSuggestion(
-                label = symbol.name,
-                insertText = symbol.name,
-                kind = CompletionSuggestionKind.UserSymbol,
-                detail = "${symbol.kind.name.lowercase()} from ${symbol.ownerNodeName}",
-                documentation = symbol.header,
-            )
+        if (node.stereotype(document) != NodeStereotype.CompilerTemplate) {
+            addProcessingScopeSuggestions(document, node, request, suggestions)
         }
 
         technologyProviders
@@ -182,43 +97,56 @@ class ModelAwareCompletionService(
     override fun getDeclarationSymbols(request: CompletionRequest): List<DeclarationSymbol> =
         declarationSymbolIndex.symbols(documentProvider(), request)
 
-    private fun linkNameSuggestion(document: ThreadworkDocument, linkNode: Node, incoming: Boolean): CompletionSuggestion? {
-        val link = linkNode.link
-        val name = linkNode.name.ifBlank {
-            if (incoming) link?.sourcePortName else link?.targetPortName
-        }.orEmpty()
-        if (name.isBlank()) return null
-        val stereotype = LinkClassifier.classify(document, linkNode)
-        val kind = when {
-            stereotype in dependencyLikeLinks -> CompletionSuggestionKind.DependencyLink
-            incoming -> CompletionSuggestionKind.IncomingLink
-            else -> CompletionSuggestionKind.OutgoingLink
+    private fun addProcessingScopeSuggestions(
+        document: ThreadworkDocument,
+        node: Node,
+        request: CompletionRequest,
+        suggestions: MutableList<CompletionSuggestion>,
+    ) {
+        if (request.textSection != NodeTextSection.Declaration) return
+
+        compilerProvider(document, node)
+            ?.let { compiler ->
+                compiler.codeIntelligence(document, node).symbols.forEach { symbol ->
+                    suggestions += CompletionSuggestion(
+                        label = symbol.name,
+                        insertText = symbol.name,
+                        kind = symbol.kind.toCompletionKind(),
+                        detail = symbol.detail.ifBlank { symbol.typeName },
+                        documentation = symbol.documentation,
+                        sourcePluginId = compiler.id,
+                    )
+                    symbol.members.forEach { member ->
+                        suggestions += CompletionSuggestion(
+                            label = member.name,
+                            insertText = member.name,
+                            kind = when (symbol.kind) {
+                                CompilerCodeSymbolKind.Type -> CompletionSuggestionKind.TypeMember
+                                else -> CompletionSuggestionKind.BufferMember
+                            },
+                            detail = member.detail,
+                            documentation = member.documentation,
+                            sourcePluginId = compiler.id,
+                        )
+                    }
+                }
+            }
+
+        getDeclarationSymbols(request).mapTo(suggestions) { symbol ->
+            CompletionSuggestion(
+                label = symbol.name,
+                insertText = symbol.name,
+                kind = CompletionSuggestionKind.UserSymbol,
+                detail = "${symbol.kind.name.lowercase()} declared in this node",
+                documentation = symbol.header,
+            )
         }
-        val direction = if (incoming) "incoming" else "outgoing"
-        val detail = when (stereotype) {
-            LinkStereotype.UsageImport -> "library usage link"
-            LinkStereotype.DependencyInjection -> "dependency injection link"
-            LinkStereotype.ErrorPipe -> "$direction error link"
-            LinkStereotype.Transport -> "$direction link"
-        }
-        return CompletionSuggestion(
-            label = name,
-            insertText = name,
-            kind = kind,
-            detail = detail,
-        )
     }
 
     private fun suggestionPriority(kind: CompletionSuggestionKind): Int = when (kind) {
         CompletionSuggestionKind.InputBuffer,
         CompletionSuggestionKind.OutputBuffer,
         CompletionSuggestionKind.ServiceInstance -> 0
-        CompletionSuggestionKind.DependencyLink -> 1
-        CompletionSuggestionKind.IncomingLink,
-        CompletionSuggestionKind.OutgoingLink -> 2
-        CompletionSuggestionKind.InputPort,
-        CompletionSuggestionKind.OutputPort -> 3
-        CompletionSuggestionKind.Import,
         CompletionSuggestionKind.CompilerSymbol,
         CompletionSuggestionKind.BufferMember,
         CompletionSuggestionKind.Type,
@@ -228,40 +156,19 @@ class ModelAwareCompletionService(
         CompletionSuggestionKind.UserSymbol -> 4
         CompletionSuggestionKind.TemplateObject,
         CompletionSuggestionKind.TemplateField -> 4
+        CompletionSuggestionKind.DependencyLink,
+        CompletionSuggestionKind.IncomingLink,
+        CompletionSuggestionKind.OutgoingLink,
+        CompletionSuggestionKind.InputPort,
+        CompletionSuggestionKind.OutputPort,
+        CompletionSuggestionKind.Import,
         CompletionSuggestionKind.LinkedSourceNode,
-        CompletionSuggestionKind.LinkedTargetNode -> 5
+        CompletionSuggestionKind.LinkedTargetNode,
         CompletionSuggestionKind.ParentNode,
         CompletionSuggestionKind.SiblingNode,
         CompletionSuggestionKind.ChildNode,
         CompletionSuggestionKind.Library -> 6
     }
-
-    private val dependencyLikeLinks = setOf(
-        LinkStereotype.UsageImport,
-        LinkStereotype.DependencyInjection,
-    )
-}
-
-class KotlinJvmCompletionProvider : TechnologyCompletionProvider {
-    override fun supports(languageId: String, technologyId: String): Boolean =
-        languageId == "kotlin" || technologyId == "kotlin-jvm"
-
-    override fun getSuggestions(node: Node, document: ThreadworkDocument, request: CompletionRequest): List<CompletionSuggestion> {
-        val portSnippets = node.ports.map { port ->
-            val snippet = if (port.direction == PortDirection.Input) {
-                "context.inputs[\"${port.name}\"]"
-            } else {
-                "context.outputs.getOrPut(\"${port.name}\") { mutableListOf() }"
-            }
-            CompletionSuggestion(snippet, snippet, CompletionSuggestionKind.Snippet, "Kotlin runtime snippet")
-        }
-        return listOf(
-            CompletionSuggestion("context", "context", CompletionSuggestionKind.CompilerSymbol, "RuntimeContext parameter"),
-            CompletionSuggestion("inputs", "context.inputs", CompletionSuggestionKind.CompilerSymbol, "Runtime input queues"),
-            CompletionSuggestion("outputs", "context.outputs", CompletionSuggestionKind.CompilerSymbol, "Runtime output queues"),
-        ) + portSnippets
-    }
-
 }
 
 private fun CompilerCodeSymbolKind.toCompletionKind(): CompletionSuggestionKind = when (this) {

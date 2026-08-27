@@ -46,22 +46,16 @@ class DocumentDeclarationSymbolIndex(
     fun symbols(document: ThreadworkDocument, request: CompletionRequest): List<DeclarationSymbol> {
         val requestedLanguage = normalizedLanguageId(request.languageId)
         if (requestedLanguage.isBlank() || requestedLanguage == "plain") return emptyList()
+        if (request.textSection != NodeTextSection.Declaration) return emptyList()
 
-        return document.nodes.values
-            .sortedBy { it.id.value }
-            .flatMap { node ->
-                val languageId = document.effectiveTextLanguageId(node.id, NodeTextSection.Declaration)
-                if (normalizedLanguageId(languageId) != requestedLanguage) return@flatMap emptyList()
-                val source = when {
-                    node.id == request.nodeId && request.textSection == NodeTextSection.Declaration -> request.fullText
-                    node.isLink -> node.link?.payloadDefinition.orEmpty().ifBlank { node.text.declaration }
-                    else -> node.text.declaration
-                }
-                if (source.isBlank()) return@flatMap emptyList()
-                extractors.firstOrNull { it.supports(languageId) }
-                    ?.extract(source, languageId, node.id, node.name)
-                    .orEmpty()
-            }
+        val node = document.nodes[request.nodeId] ?: return emptyList()
+        val languageId = document.effectiveTextLanguageId(node.id, NodeTextSection.Declaration)
+        if (normalizedLanguageId(languageId) != requestedLanguage) return emptyList()
+        if (request.fullText.isBlank()) return emptyList()
+
+        return extractors.firstOrNull { it.supports(languageId) }
+            ?.extract(request.fullText, languageId, node.id, node.name)
+            .orEmpty()
             .distinctBy { listOf(it.languageId, it.kind.name, it.name, it.header) }
     }
 }

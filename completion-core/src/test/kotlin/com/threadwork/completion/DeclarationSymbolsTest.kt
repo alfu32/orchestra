@@ -59,7 +59,7 @@ class DeclarationSymbolsTest {
     }
 
     @Test
-    fun `makes declarations from related entities available as completions`() {
+    fun `limits declaration completions to the current processing node`() {
         val repository = InMemoryDocumentRepository(newDocument("symbols"))
         val root = repository.getDocument().rootNodeId
         repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "c", technologyId = "native-c"))
@@ -78,16 +78,18 @@ class DeclarationSymbolsTest {
             languageId = "c",
             technologyId = "native-c",
             cursorOffset = 3,
-            fullText = "pro",
-            currentLine = "pro",
-            prefix = "pro",
+            fullText = "void consume_packet(RuntimeContext *context) { }",
+            currentLine = "consume",
+            prefix = "",
         )
         val service = ModelAwareCompletionService(repository::getDocument)
-        val suggestion = service.getSuggestions(request).single { it.label == "produce_packet" }
+        val suggestions = service.getSuggestions(request)
+        val suggestion = suggestions.single { it.label == "consume_packet" }
 
         assertEquals(CompletionSuggestionKind.UserSymbol, suggestion.kind)
-        assertTrue("function from producer" in suggestion.detail)
-        assertTrue("Packet produce_packet" in suggestion.documentation)
-        assertTrue(service.getDeclarationSymbols(request).any { it.name == "produce_packet" })
+        assertTrue("declared in this node" in suggestion.detail)
+        assertTrue("void consume_packet" in suggestion.documentation)
+        assertTrue(suggestions.none { it.label == "produce_packet" })
+        assertTrue(service.getDeclarationSymbols(request).any { it.name == "consume_packet" })
     }
 }

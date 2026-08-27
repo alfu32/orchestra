@@ -16,7 +16,6 @@
                 "node_6",
                 "node_7",
                 "link_8",
-                "link_9",
                 "link_10",
                 "link_11",
                 "link_12",
@@ -39,7 +38,10 @@
                 "node_9fc8c2eb-538e-4697-9103-91985df0ba1f",
                 "node_28",
                 "link_30",
-                "node_27"
+                "node_27",
+                "node_2bf442bf-31f6-4378-86dc-b25323b10bba",
+                "link_2890d0f2-b500-4390-a8b1-350ae9f1396e",
+                "link_738b0fd6-d53d-4c2d-a8b3-ba8730b2725b"
             ],
             "incomingLinks": [],
             "outgoingLinks": [],
@@ -80,7 +82,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-26T19:09:07.080660631Z",
+                "date": "2026-08-27T01:44:15.656309570Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -171,9 +173,9 @@
             "parentId": "root",
             "children": [],
             "incomingLinks": [
-                "link_9",
                 "link_11",
-                "link_14"
+                "link_14",
+                "link_2890d0f2-b500-4390-a8b1-350ae9f1396e"
             ],
             "outgoingLinks": [
                 "link_19",
@@ -194,9 +196,9 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "using the credentials provided in the configuration it connects to the api endpoint specified under\nexchange.* it connects to ms exchange and downloads all the csv attachments in the emails from the folder Inbox/PRC/TODO\nputs them in the local folder  todo\nthen it opens each file transforms it into a list of `InfoPackage` where the package payload is the row\nand pushes each of the packages to raw_ip\nmalformed rows will be pushed to info_package_error\n\n",
+                "source": "const connection = msExchangeClient.connect(config.exchange_url,config.exchange_user,config.exchange_password,config.exchange_account)\nfor(email of connection.read()){\n    for( attachment of msEschangeClient.getAttachments(email)){\n        raw_ip.push( new InfoPackage(id,attachment.content) )\n    }\n}\n",
                 "sourceLanguageId": "",
-                "specification": "",
+                "specification": "using the credentials provided in the configuration it connects to the api endpoint specified under\nexchange.* it connects to ms exchange and downloads all the csv attachments in the emails from the folder Inbox/PRC/TODO\nputs them in the local folder  todo\nthen it opens each file transforms it into a list of `InfoPackage` where the package payload is the row\nand pushes each of the packages to raw_ip\nmalformed rows will be pushed to info_package_error",
                 "specificationLanguageId": "markdown",
                 "tests": "",
                 "testsLanguageId": "json",
@@ -216,7 +218,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-26T19:15:49.071493464Z",
+                "date": "2026-08-27T01:38:32.833782526Z",
                 "user": "devlin"
             },
             "ports": [
@@ -384,7 +386,6 @@
             "children": [],
             "incomingLinks": [],
             "outgoingLinks": [
-                "link_9",
                 "link_13"
             ],
             "layout": {
@@ -418,11 +419,14 @@
                 "fileExtension": "",
                 "contentType": ""
             },
-            "revision": null,
+            "revision": {
+                "name": "",
+                "date": ""
+            },
             "responsible": null,
             "modified": {
-                "date": "",
-                "user": ""
+                "date": "2026-08-27T01:29:48.165795310Z",
+                "user": "devlin"
             },
             "ports": [
                 {
@@ -554,70 +558,6 @@
                 "sourceNodeId": "node_5",
                 "sourcePortName": "out",
                 "targetNodeId": "node_1",
-                "targetPortName": "in",
-                "transportKind": "usage",
-                "typeName": "",
-                "payloadDefinition": "",
-                "typeDefinitionId": "",
-                "compositeBoundaryIds": []
-            },
-            "typeDefinition": null,
-            "metadata": {},
-            "pluginData": {}
-        },
-        {
-            "id": "link_9",
-            "name": "soap_0",
-            "kind": "Link",
-            "parentId": "root",
-            "children": [],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": 0.0,
-                "y": 0.0,
-                "width": 200.0,
-                "height": 100.0,
-                "closedWidth": 200.0,
-                "closedHeight": 100.0,
-                "openWidth": 200.0,
-                "openHeight": 100.0,
-                "isExpanded": true
-            },
-            "fileLayoutStrategyId": "none",
-            "text": {
-                "initialization": "",
-                "initializationLanguageId": "",
-                "source": "",
-                "sourceLanguageId": "",
-                "specification": "",
-                "specificationLanguageId": "markdown",
-                "tests": "",
-                "testsLanguageId": "json",
-                "aiInstructions": "",
-                "aiInstructionsLanguageId": "markdown"
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "revision": {
-                "name": "",
-                "date": ""
-            },
-            "responsible": null,
-            "modified": {
-                "date": "2026-08-26T10:49:33.067004449Z",
-                "user": "devlin"
-            },
-            "ports": [],
-            "link": {
-                "sourceNodeId": "node_6",
-                "sourcePortName": "out",
-                "targetNodeId": "node_3",
                 "targetPortName": "in",
                 "transportKind": "usage",
                 "typeName": "",
@@ -959,7 +899,8 @@
                 "link_18",
                 "link_19",
                 "link_21",
-                "link_336c7a11-7dd5-46fe-a134-cbcd18dde831"
+                "link_336c7a11-7dd5-46fe-a134-cbcd18dde831",
+                "link_738b0fd6-d53d-4c2d-a8b3-ba8730b2725b"
             ],
             "outgoingLinks": [
                 "link_23"
@@ -968,11 +909,11 @@
                 "x": 1932.0,
                 "y": 1960.0,
                 "width": 276.0,
-                "height": 168.0,
+                "height": 198.0,
                 "closedWidth": 276.0,
-                "closedHeight": 168.0,
+                "closedHeight": 198.0,
                 "openWidth": 276.0,
-                "openHeight": 168.0,
+                "openHeight": 198.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -1001,7 +942,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-26T19:09:07.080660631Z",
+                "date": "2026-08-27T01:44:15.656309570Z",
                 "user": "devlin"
             },
             "ports": [
@@ -1997,7 +1938,7 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "validInfoPackage\n\n",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -2019,7 +1960,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-26T18:59:40.097538529Z",
+                "date": "2026-08-27T01:46:10.027026713Z",
                 "user": "devlin"
             },
             "ports": [
@@ -2117,7 +2058,8 @@
                 "link_89bc0a9e-04c3-4100-8267-0be2f650db9f"
             ],
             "outgoingLinks": [
-                "link_30"
+                "link_30",
+                "link_738b0fd6-d53d-4c2d-a8b3-ba8730b2725b"
             ],
             "layout": {
                 "x": 1288.0,
@@ -2134,7 +2076,7 @@
             "text": {
                 "initialization": "var packagesIndex={}",
                 "initializationLanguageId": "",
-                "source": "var ip=info_package.pop();\nif(ip.id){\n  if(ip.id in packagesIndex){\n  }else{\n    var fip = ip\n    fip.fixed=true\n    fixed_info_package.push(fip)\n  }\n}",
+                "source": "var ip=rawIp.pop()\n\nif(rawIp.ID){\n    ip.valid=true\n    validInfoPackage.push(ip)\n} else {\n    ip.valid=false\n    unidetifiedIp.push(ip)\n}",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -2156,7 +2098,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-26T18:59:48.352640396Z",
+                "date": "2026-08-27T01:45:13.569587269Z",
                 "user": "devlin"
             },
             "ports": [
@@ -2176,6 +2118,198 @@
                 }
             ],
             "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_2bf442bf-31f6-4378-86dc-b25323b10bba",
+            "name": "lib_ms_exchange",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_2890d0f2-b500-4390-a8b1-350ae9f1396e"
+            ],
+            "layout": {
+                "x": 900.0,
+                "y": 1094.0,
+                "width": 276.0,
+                "height": 90.0,
+                "closedWidth": 276.0,
+                "closedHeight": 90.0,
+                "openWidth": 276.0,
+                "openHeight": 90.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "return {\n  connect(endpoint,user,password,account){}\n  read(filters){}\n}",
+                "sourceLanguageId": "",
+                "specification": "connects to a microsoft exchange endpoint account email using credentials and reads emails using filters like\n```\nfolder:${folderName}\n```",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-27T01:32:55.992331842Z",
+                "user": "devlin"
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_2890d0f2-b500-4390-a8b1-350ae9f1396e",
+            "name": "ms_exchange_client",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-27T01:30:17.204227006Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_2bf442bf-31f6-4378-86dc-b25323b10bba",
+                "sourcePortName": "out",
+                "targetNodeId": "node_3",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "",
+                "compositeBoundaryIds": []
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_738b0fd6-d53d-4c2d-a8b3-ba8730b2725b",
+            "name": "unidetified_ip",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-27T01:44:46.624310382Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_27",
+                "sourcePortName": "out",
+                "targetNodeId": "node_17",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "node_47df1883-4e55-4c08-9957-118e1e13ddde",
+                "compositeBoundaryIds": []
+            },
             "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
