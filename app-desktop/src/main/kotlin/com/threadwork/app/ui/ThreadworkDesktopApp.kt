@@ -7,6 +7,10 @@ import com.threadwork.app.editor.GridCodeEditorAdapter
 import com.threadwork.app.editor.ThreadworkEditorSettings
 import com.threadwork.app.editor.RegexSyntaxHighlighter
 import com.threadwork.app.fonts.ThreadworkFonts
+import com.threadwork.app.ai.AiPromptRequest
+import com.threadwork.app.ai.AiPromptResponse
+import com.threadwork.app.ai.AiSupportProviders
+import com.threadwork.app.ai.AiSupportTask
 import com.threadwork.Version
 import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.CompilerPlugin
@@ -460,7 +464,6 @@ class ThreadworkDesktopApp(
             add(commandItem("edit.cut"))
             add(commandItem("edit.copy"))
             add(commandItem("edit.paste"))
-            add(commandItem("edit.copyComponentFiches"))
             addSeparator()
             add(JMenu("Align and Distribute").apply {
                 add(commandItem("edit.align.top", "align_top"))
@@ -483,6 +486,13 @@ class ThreadworkDesktopApp(
             add(commandItem("compile.project", "build", "Build"))
             add(commandItem("compile.compiler", "build", "Build Compiler"))
             add(commandItem("compile.documentation", "build", "Compile Documentation"))
+        })
+        add(JMenu("AI Support").apply {
+            add(commandItem("ai.copyComponentFiches"))
+            addSeparator()
+            add(commandItem("ai.generateSource"))
+            add(commandItem("ai.tidySpecification"))
+            add(commandItem("ai.generateTestData"))
         })
         add(JMenu("Help").apply {
             add(commandItem("help.about"))
@@ -522,14 +532,31 @@ class ThreadworkDesktopApp(
         registerCommand(AppCommand("edit.paste", "Edit: Paste", KeyStroke.getKeyStroke(KeyEvent.VK_V, shortcut)) { paste() })
         registerCommand(
             AppCommand(
-                "edit.copyComponentFiches",
-                "Edit: Copy Selected Component Fiches as Markdown",
-                enabled = {
-                    selection.any { id ->
-                        repository.getNode(id)?.let { !it.isLink && it.kind !in setOf(NodeKind.Note, NodeKind.Type) } == true
-                    }
-                },
+                "ai.copyComponentFiches",
+                "AI Support: Copy Selected Component Fiches as Markdown",
+                enabled = ::hasSelectedProcessingNodes,
             ) { copySelectedComponentFiches() },
+        )
+        registerCommand(
+            AppCommand(
+                "ai.generateSource",
+                "AI Support: Generate Source Code for Selected Components",
+                enabled = ::hasSelectedProcessingNodes,
+            ) { runAiSupport(AiSupportTask.GenerateSource) },
+        )
+        registerCommand(
+            AppCommand(
+                "ai.tidySpecification",
+                "AI Support: Tidy and Format Selected Specifications",
+                enabled = ::hasSelectedProcessingNodes,
+            ) { runAiSupport(AiSupportTask.TidySpecification) },
+        )
+        registerCommand(
+            AppCommand(
+                "ai.generateTestData",
+                "AI Support: Generate Test Data for Selected Components",
+                enabled = ::hasSelectedProcessingNodes,
+            ) { runAiSupport(AiSupportTask.GenerateTestData) },
         )
         registerCommand(AppCommand("edit.align.top", "Edit: Align Top") { alignAndDistribute(AlignmentOperation.AlignTop) })
         registerCommand(AppCommand("edit.align.bottom", "Edit: Align Bottom") { alignAndDistribute(AlignmentOperation.AlignBottom) })
@@ -720,6 +747,29 @@ class ThreadworkDesktopApp(
         }
     }
 
+    private fun hasSelectedProcessingNodes(): Boolean = selection.any { id ->
+        repository.getNode(id)?.let { !it.isLink && it.kind !in setOf(NodeKind.Note, NodeKind.Type) } == true
+    }
+
+    private fun runAiSupport(task: AiSupportTask) {
+        val fiches = documentationCompiler.componentFiches(repository.getDocument(), selection)
+        if (fiches.isBlank()) {
+            status.text = "Select at least one processing node for AI support."
+            return
+        }
+        when (val response = AiSupportProviders.current().submit(AiPromptRequest(task, fiches))) {
+            is AiPromptResponse.Text -> runCatching {
+                Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(response.value), null)
+            }.onSuccess {
+                status.text = "Copied ${task.label.lowercase()} prompt to the system clipboard."
+            }.onFailure {
+                status.text = "Could not copy AI prompt: ${it.message}"
+            }
+
+            is AiPromptResponse.Unavailable -> status.text = response.message
+        }
+    }
+
     private fun paste() {
         val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
         when (focusOwner) {
@@ -818,7 +868,7 @@ class ThreadworkDesktopApp(
         val compositeReferenceHeight = JSpinner(
             SpinnerNumberModel(ThreadworkDesignerSettings.compositeReferenceViewportHeight, 300.0, 10000.0, 50.0),
         )
-        val content = JPanel().apply {
+        val generalContent = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
             add(JLabel("Flow Designer font"))
@@ -834,6 +884,12 @@ class ThreadworkDesktopApp(
             add(JLabel("Code editor indent spaces").apply { border = BorderFactory.createEmptyBorder(12, 0, 0, 0) })
             add(indentSpaces)
         }
+        val aiOptions = AiSupportProviders.optionsPanel()
+        val content = JTabbedPane().apply {
+            addTab("General", generalContent)
+            addTab("Inference Providers", aiOptions.component)
+            preferredSize = Dimension(560, 500)
+        }
         val result = JOptionPane.showConfirmDialog(frame, content, "Options", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
         if (result != JOptionPane.OK_OPTION) return
 
@@ -843,6 +899,7 @@ class ThreadworkDesktopApp(
         ThreadworkDesignerSettings.compositeTitleTargetScreenPx = (compositeTargetPx.value as Number).toDouble()
         ThreadworkDesignerSettings.compositeReferenceViewportWidth = (compositeReferenceWidth.value as Number).toDouble()
         ThreadworkDesignerSettings.compositeReferenceViewportHeight = (compositeReferenceHeight.value as Number).toDouble()
+        aiOptions.commit()
         applyFontOptions()
         canvas.refreshBoundsFromChildren()
         canvas.repaint()
@@ -4372,13 +4429,6 @@ class GraphCanvas(
         e.isPopupTrigger || SwingUtilities.isRightMouseButton(e)
 
     private fun showContextMenu(e: MouseEvent) {
-        val point = modelPoint(e.point)
-        val hit = hitNode(point) ?: hitLink(point)
-        if (hit != null && hit !in selection) {
-            selection.clear()
-            selection += hit
-            onSelectionChanged()
-        }
         onContextMenu(this, e.x, e.y)
     }
 
