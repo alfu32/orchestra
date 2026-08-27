@@ -1364,11 +1364,6 @@ class ThreadworkDesktopApp(
             node.children.mapNotNull(document.nodes::get)
                 .sortedWith(compareBy<Node> { treeCategory(it).sortOrder }.thenBy { it.name.lowercase() })
                 .forEach { add(treeNode(document, it.id)) }
-            if (node.id != document.rootNodeId) {
-                textFeatureRefs().forEach { (feature, section) ->
-                    add(TreeNodeRef(id, feature, TreeItemCategory.Feature, section))
-                }
-            }
         }
     }
 
@@ -1388,6 +1383,7 @@ class ThreadworkDesktopApp(
         tree.showsRootHandles = true
         tree.isEditable = editable
         tree.invokesStopCellEditing = true
+        tree.font = tree.font.deriveFont(11f)
         tree.cellRenderer = HierarchyTreeCellRenderer()
         tree.selectionModel.selectionMode = TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION
         treeExpandedIds.getOrPut(tree) { mutableSetOf(repository.getDocument().rootNodeId.value) }
@@ -1413,16 +1409,9 @@ class ThreadworkDesktopApp(
         }
         tree.addTreeSelectionListener {
             val ref = tree.lastSelectedPathComponent as? TreeNodeRef ?: return@addTreeSelectionListener
-            if (ref.category == TreeItemCategory.Feature) {
-                selection.clear()
-                selection += ref.id
-                onSelectionChanged(ref.textSection)
-                return@addTreeSelectionListener
-            }
             if (updatesSelection) {
                 val selectedIds = tree.selectionPaths
                     ?.mapNotNull { it.lastPathComponent as? TreeNodeRef }
-                    ?.filter { it.category != TreeItemCategory.Feature }
                     ?.map { it.id }
                     ?.distinct()
                     .orEmpty()
@@ -1439,7 +1428,6 @@ class ThreadworkDesktopApp(
                 override fun treeNodesChanged(e: TreeModelEvent) {
                     val changed = if (e.children?.isNotEmpty() == true) e.children.firstOrNull() else e.treePath.lastPathComponent
                     val ref = changed as? TreeNodeRef ?: return
-                    if (ref.category == TreeItemCategory.Feature) return
                     val name = ref.toString().trim()
                     if (name.isBlank()) return
                     val node = repository.getNode(ref.id) ?: return
@@ -1492,23 +1480,11 @@ class ThreadworkDesktopApp(
         selection.mapNotNull(document.nodes::get)
             .sortedWith(compareBy<Node> { treeCategory(it).sortOrder }.thenBy { it.name.lowercase() })
             .forEach { node ->
-                root.add(TreeNodeRef(node.id, node.name, treeCategory(node)).apply {
-                    textFeatureRefs().forEach { (feature, section) ->
-                        add(TreeNodeRef(node.id, feature, TreeItemCategory.Feature, section))
-                    }
-                })
+                root.add(TreeNodeRef(node.id, node.name, treeCategory(node)))
             }
         selectedEntitiesTree.model = DefaultTreeModel(root)
         selectedEntitiesTree.expandRow(0)
     }
-
-    private fun textFeatureRefs(): List<Pair<String, NodeTextSection>> = listOf(
-        "instantiation" to NodeTextSection.Instantiation,
-        "declaration" to NodeTextSection.Declaration,
-        "spec" to NodeTextSection.Specification,
-        "test-data" to NodeTextSection.Tests,
-        "usage-instructions" to NodeTextSection.AiInstructions,
-    )
 
     private fun treeCategory(node: Node): TreeItemCategory = when {
         node.isLink -> TreeItemCategory.Link
@@ -1523,10 +1499,9 @@ class ThreadworkDesktopApp(
         override fun createTransferable(c: JComponent): Transferable? {
             val tree = c as? JTree ?: return null
             val ref = tree.lastSelectedPathComponent as? TreeNodeRef ?: return null
-            if (ref.category == TreeItemCategory.Feature || ref.id == repository.getDocument().rootNodeId) return null
+            if (ref.id == repository.getDocument().rootNodeId) return null
             val treeSelectedIds = tree.selectionPaths
                 ?.mapNotNull { it.lastPathComponent as? TreeNodeRef }
-                ?.filter { it.category != TreeItemCategory.Feature }
                 ?.map { it.id }
                 ?.distinct()
                 .orEmpty()
@@ -1655,14 +1630,12 @@ private enum class TreeItemCategory(val sortOrder: Int, val marker: Color) {
     Type(1, Color(0x00897b)),
     Processing(2, Color(0x2f6bdc)),
     Link(3, Color(0xf39c12)),
-    Feature(4, Color.WHITE),
 }
 
 private class TreeNodeRef(
     val id: NodeId,
     label: String,
     val category: TreeItemCategory,
-    val textSection: NodeTextSection? = null,
 ) : DefaultMutableTreeNode(label) {
     override fun toString(): String = userObject?.toString().orEmpty()
 }
@@ -1678,6 +1651,7 @@ private class HierarchyTreeCellRenderer : DefaultTreeCellRenderer() {
         hasFocus: Boolean,
     ): Component {
         val component = super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus)
+        component.font = component.font.deriveFont(11f)
         icon = MarkerIcon((value as? TreeNodeRef)?.category?.marker ?: Color.WHITE)
         leafIcon = icon
         openIcon = icon
