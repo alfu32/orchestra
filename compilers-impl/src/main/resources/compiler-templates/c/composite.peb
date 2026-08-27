@@ -1,5 +1,5 @@
 {# Defines a composite: own setup, child setup, own execution, child execution, then link transport. #}
-static int tw_{{ initializerSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, {% if link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.dependencySymbol }}{% endfor %})
+static int tw_{{ initializerSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, {% if link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.argumentSymbol }}{% endfor %})
 {
     (void)context;
 {% if instantiation is not empty %}{{ instantiationIndent4 }}
@@ -9,7 +9,7 @@ static int tw_{{ initializerSymbol }}(threadwork_context *context{% for link in 
 {% endif %}{% endfor %}    return THREADWORK_OK;
 }
 
-static int tw_{{ runSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, {% if link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.dependencySymbol }}{% endfor %})
+static int tw_{{ runSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, {% if link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.argumentSymbol }}{% endfor %})
 {
     (void)context;
 {% if declaration is not empty %}{{ declarationIndent4 }}

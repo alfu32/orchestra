@@ -59,6 +59,21 @@ interface CompilerPlugin : FsStorage {
     fun getStaticFiles(document: ThreadworkDocument, options: CompilerOptions): List<String> =
         magicFileNames.toList()
 
+    /**
+     * Names, types, and runtime operations that this compiler exposes to a
+     * processing-node declaration.  Implementations with a richer generated
+     * runtime may override this to expose their exact compiled artefacts.
+     */
+    fun codeIntelligence(document: ThreadworkDocument, node: Node): CompilerCodeIntelligence =
+        defaultCodeIntelligence(document, node)
+
+    /** Detailed generated representation of a type for editor hover help. */
+    fun typeInformation(
+        document: ThreadworkDocument,
+        node: Node,
+        typeName: String,
+    ): CompilerTypeInformation? = defaultTypeInformation(document, node, typeName)
+
     fun layoutStrategy(options: CompilerOptions): LayoutStrategy =
         ClassifiedFilesystemLayoutStrategy
 

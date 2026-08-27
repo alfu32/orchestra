@@ -1,6 +1,8 @@
 package com.threadwork.app.ui
 
 import com.threadwork.app.editor.EditorCompletionContext
+import com.threadwork.app.editor.EditorHoverInfo
+import com.threadwork.app.editor.EditorHoverRequest
 import com.threadwork.app.editor.GridCodeEditorAdapter
 import com.threadwork.app.editor.ThreadworkEditorSettings
 import com.threadwork.app.editor.RegexSyntaxHighlighter
@@ -240,7 +242,15 @@ class ThreadworkDesktopApp(
         layoutStrategies,
         compilerCapabilityResolver,
     )
-    private val editorTabs = NodeEditorTabs(repository, ::refreshAll, ::checkpointHistory, ::undoDocument, ::redoDocument, languageIds)
+    private val editorTabs = NodeEditorTabs(
+        repository,
+        ::refreshAll,
+        ::checkpointHistory,
+        ::undoDocument,
+        ::redoDocument,
+        languageIds,
+        compilerCapabilityResolver,
+    )
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
     }
@@ -1117,16 +1127,25 @@ class ThreadworkDesktopApp(
             <html>
             <head>
               <style>
+
                 body { font-family: sans-serif; margin: 36px; color: #222; }
-                h1 { font-size: 24px; } h2 { font-size: 18px; } h3 { font-size: 14px; }
-                p, li { font-size: 11px; line-height: 1.35; }
+                h1 { font-size: 36px; border-bottom:2px solid #000;page-break-before: always;page-break-after: always;}
+                h2 { margin:5px;font-size: 28px;border-bottom:1px solid #000; }
+                h3 { margin:10px;font-size: 22px;border-bottom:1px dotted #444; }
+                h4 { margin:15px;font-size: 18px;border-bottom:1px dashed #444; }
+                p, li { font-size: 14px; line-height: 1.35; }
                 strong, b { font-weight: bold; } em, i { font-style: italic; }
-                code, pre { font-family: monospace; font-size: 9px; }
+                code, pre { font-family: monospace; font-size: 12px; }
                 code { background: #f3f3f3; } pre { white-space: pre-wrap; }
-                table { border-collapse: collapse; font-size: 10px; }
+                table { border-collapse: collapse; font-size: 12px; }
                 th, td { border: 1px solid #999; padding: 3px; vertical-align: top; }
               </style>
             </head>
+            <script>
+                document.onreadystatechange = (event)=>{
+                    console.log({message,'document.onreadystatechange',event})
+                }
+            </script>
             <body>$body</body>
             </html>
         """.trimIndent()
@@ -5391,6 +5410,7 @@ private class NodeEditorTabs(
     private val undoDocument: () -> Unit,
     private val redoDocument: () -> Unit,
     private val languageIds: List<String>,
+    private val compilerCapabilityResolver: CompilerCapabilityResolver,
 ) : JTabbedPane() {
     private var boundIds: List<NodeId> = emptyList()
 
@@ -5398,7 +5418,19 @@ private class NodeEditorTabs(
         if (ids != boundIds) {
             removeAll()
             ids.mapNotNull(repository::getNode).forEach { node ->
-                addTab(node.name, NodeTextEditor(repository, node.id, refreshAll, checkpointHistory, undoDocument, redoDocument, languageIds))
+                addTab(
+                    node.name,
+                    NodeTextEditor(
+                        repository,
+                        node.id,
+                        refreshAll,
+                        checkpointHistory,
+                        undoDocument,
+                        redoDocument,
+                        languageIds,
+                        compilerCapabilityResolver,
+                    ),
+                )
             }
             boundIds = ids
         } else {
@@ -5443,8 +5475,12 @@ private class NodeTextEditor(
     private val undoDocument: () -> Unit,
     private val redoDocument: () -> Unit,
     languageIds: List<String>,
+    private val compilerCapabilityResolver: CompilerCapabilityResolver,
 ) : JTabbedPane() {
-    private val completionService = ModelAwareCompletionService(repository::getDocument)
+    private val completionService = ModelAwareCompletionService(
+        documentProvider = repository::getDocument,
+        compilerProvider = { document, node -> compilerCapabilityResolver.compilerFor(document, node.id) },
+    )
     private val editorsBySection = mutableMapOf<NodeTextSection, GridCodeEditorAdapter>()
     private val languageSelectorsBySection = mutableMapOf<NodeTextSection, JComboBox<String>>()
     private val effectiveLanguageLabelsBySection = mutableMapOf<NodeTextSection, JLabel>()
@@ -5570,6 +5606,7 @@ private class NodeTextEditor(
         editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
         editor.onCompletionRequested = completionService::getSuggestions
         editor.onDeclarationSymbolsRequested = completionService::getDeclarationSymbols
+        editor.onHoverInfoRequested = ::typeHoverInfo
         editor.setText(spec.textGetter(node.text))
         fun saveNow() {
             val current = repository.requireNode(nodeId)
@@ -5635,6 +5672,7 @@ private class NodeTextEditor(
         editor.setCompletionContext(EditorCompletionContext(node.id.value, NodeTextSection.Tests))
         editor.onCompletionRequested = completionService::getSuggestions
         editor.onDeclarationSymbolsRequested = completionService::getDeclarationSymbols
+        editor.onHoverInfoRequested = ::typeHoverInfo
         editor.setText(node.text.tests)
         fun saveNow() {
             val current = repository.requireNode(nodeId)
@@ -5692,6 +5730,28 @@ private class NodeTextEditor(
         return node.technology.copy(
             languageId = document.effectiveLanguageId(nodeId),
             technologyId = document.effectiveTechnologyId(nodeId),
+        )
+    }
+
+    private fun typeHoverInfo(request: EditorHoverRequest): EditorHoverInfo? {
+        val document = repository.getDocument()
+        val node = document.getElementById(NodeId(request.nodeId)) ?: return null
+        val compiler = compilerCapabilityResolver.compilerFor(document, node.id) ?: return null
+        val type = compiler.typeInformation(document, node, request.symbol) ?: return null
+        val fields = type.fields.takeIf { it.isNotEmpty() }
+            ?.joinToString("\n") { field ->
+                "${field.name}: ${field.typeName}${if (field.isReference) " (reference)" else ""}"
+            }
+            .orEmpty()
+        val declaration = type.declaration.trim().takeIf(String::isNotBlank).orEmpty()
+        val body = listOfNotNull(
+            type.documentation.takeIf(String::isNotBlank),
+            declaration.takeIf(String::isNotBlank),
+            fields.takeIf(String::isNotBlank),
+        ).joinToString("\n")
+        return EditorHoverInfo(
+            title = "${type.name} [${type.languageId.ifBlank { request.languageId }}]",
+            body = body.ifBlank { "No generated type details are available." },
         )
     }
 

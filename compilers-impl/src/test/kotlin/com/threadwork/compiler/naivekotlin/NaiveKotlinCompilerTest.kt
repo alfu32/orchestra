@@ -45,7 +45,7 @@ class NaiveKotlinCompilerTest {
         assertTrue(generated.contains("data class WorkOrder"))
         assertTrue(generated.contains("val id: Double"))
         assertTrue(generated.contains("ArrayDeque<WorkOrder>"))
-        assertTrue(generated.contains("transport_orders(orders_a_port, orders_b_port)"))
+        assertTrue(generated.contains("transport_orders1(orders1_a_port, orders1_b_port)"))
     }
 
     @Test
@@ -86,12 +86,12 @@ class NaiveKotlinCompilerTest {
         val project = assertNotNull(result.generatedProject)
         assertTrue(project.files.any { it.path == "src/main/kotlin/generated/Runtime.kt" })
         val generated = project.files.joinToString("\n") { it.content }
-        assertTrue(generated.contains("val transfer_a_port = ArrayDeque"))
-        assertTrue(generated.contains("val transfer_b_port = ArrayDeque"))
-        assertTrue(generated.contains("fun transport_transfer("))
-        assertTrue(generated.contains("run_producer_") && generated.contains("transfer_a_port"))
-        assertTrue(generated.contains("run_consumer_") && generated.contains("transfer_b_port"))
-        assertTrue(generated.contains("transport_transfer(transfer_a_port, transfer_b_port)"))
+        assertTrue(generated.contains("val transfer1_a_port = ArrayDeque"))
+        assertTrue(generated.contains("val transfer1_b_port = ArrayDeque"))
+        assertTrue(generated.contains("fun transport_transfer1("))
+        assertTrue(generated.contains("run_producer_") && generated.contains("transfer1_a_port"))
+        assertTrue(generated.contains("run_consumer_") && generated.contains("transfer1_b_port"))
+        assertTrue(generated.contains("transport_transfer1(transfer1_a_port, transfer1_b_port)"))
     }
 
     @Test

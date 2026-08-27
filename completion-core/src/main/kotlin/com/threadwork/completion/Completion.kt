@@ -1,5 +1,7 @@
 package com.threadwork.completion
 
+import com.threadwork.compiler.api.CompilerCodeSymbolKind
+import com.threadwork.compiler.api.CompilerPlugin
 import com.threadwork.core.classification.LinkClassifier
 import com.threadwork.core.classification.LinkStereotype
 import com.threadwork.core.classification.NodeStereotype
@@ -48,6 +50,12 @@ enum class CompletionSuggestionKind {
     Keyword,
     Snippet,
     CompilerSymbol,
+    InputBuffer,
+    OutputBuffer,
+    ServiceInstance,
+    BufferMember,
+    Type,
+    TypeMember,
     UserSymbol,
 }
 
@@ -64,6 +72,7 @@ interface TechnologyCompletionProvider {
 
 class ModelAwareCompletionService(
     private val documentProvider: () -> ThreadworkDocument,
+    private val compilerProvider: (ThreadworkDocument, Node) -> CompilerPlugin? = { _, _ -> null },
     private val technologyProviders: List<TechnologyCompletionProvider> = listOf(
         KotlinJvmCompletionProvider(),
         FlowTemplateCompletionProvider(),
@@ -74,6 +83,34 @@ class ModelAwareCompletionService(
         val document = documentProvider()
         val node = document.nodes[request.nodeId] ?: return emptyList()
         val suggestions = mutableListOf<CompletionSuggestion>()
+
+        val compiler = compilerProvider(document, node)
+        compiler
+            ?.codeIntelligence(document, node)
+            ?.symbols
+            ?.forEach { symbol ->
+                suggestions += CompletionSuggestion(
+                    label = symbol.name,
+                    insertText = symbol.name,
+                    kind = symbol.kind.toCompletionKind(),
+                    detail = symbol.detail.ifBlank { symbol.typeName },
+                    documentation = symbol.documentation,
+                    sourcePluginId = compiler.id,
+                )
+                symbol.members.forEach { member ->
+                    suggestions += CompletionSuggestion(
+                        label = member.name,
+                        insertText = member.name,
+                        kind = when (symbol.kind) {
+                            CompilerCodeSymbolKind.Type -> CompletionSuggestionKind.TypeMember
+                            else -> CompletionSuggestionKind.BufferMember
+                        },
+                        detail = member.detail,
+                        documentation = member.documentation,
+                        sourcePluginId = compiler.id,
+                    )
+                }
+            }
 
         node.incomingLinks.mapNotNull(document.nodes::get).forEach { linkNode ->
             linkNameSuggestion(document, linkNode, incoming = true)?.let(suggestions::add)
@@ -173,24 +210,30 @@ class ModelAwareCompletionService(
     }
 
     private fun suggestionPriority(kind: CompletionSuggestionKind): Int = when (kind) {
-        CompletionSuggestionKind.DependencyLink -> 0
+        CompletionSuggestionKind.InputBuffer,
+        CompletionSuggestionKind.OutputBuffer,
+        CompletionSuggestionKind.ServiceInstance -> 0
+        CompletionSuggestionKind.DependencyLink -> 1
         CompletionSuggestionKind.IncomingLink,
-        CompletionSuggestionKind.OutgoingLink -> 1
+        CompletionSuggestionKind.OutgoingLink -> 2
         CompletionSuggestionKind.InputPort,
-        CompletionSuggestionKind.OutputPort -> 2
+        CompletionSuggestionKind.OutputPort -> 3
         CompletionSuggestionKind.Import,
         CompletionSuggestionKind.CompilerSymbol,
+        CompletionSuggestionKind.BufferMember,
+        CompletionSuggestionKind.Type,
+        CompletionSuggestionKind.TypeMember,
         CompletionSuggestionKind.Keyword,
         CompletionSuggestionKind.Snippet,
-        CompletionSuggestionKind.UserSymbol -> 3
+        CompletionSuggestionKind.UserSymbol -> 4
         CompletionSuggestionKind.TemplateObject,
-        CompletionSuggestionKind.TemplateField -> 3
+        CompletionSuggestionKind.TemplateField -> 4
         CompletionSuggestionKind.LinkedSourceNode,
-        CompletionSuggestionKind.LinkedTargetNode -> 4
+        CompletionSuggestionKind.LinkedTargetNode -> 5
         CompletionSuggestionKind.ParentNode,
         CompletionSuggestionKind.SiblingNode,
         CompletionSuggestionKind.ChildNode,
-        CompletionSuggestionKind.Library -> 5
+        CompletionSuggestionKind.Library -> 6
     }
 
     private val dependencyLikeLinks = setOf(
@@ -218,6 +261,16 @@ class KotlinJvmCompletionProvider : TechnologyCompletionProvider {
             CompletionSuggestion("outputs", "context.outputs", CompletionSuggestionKind.CompilerSymbol, "Runtime output queues"),
         ) + portSnippets
     }
+
+}
+
+private fun CompilerCodeSymbolKind.toCompletionKind(): CompletionSuggestionKind = when (this) {
+    CompilerCodeSymbolKind.InputBuffer -> CompletionSuggestionKind.InputBuffer
+    CompilerCodeSymbolKind.OutputBuffer -> CompletionSuggestionKind.OutputBuffer
+    CompilerCodeSymbolKind.ServiceInstance -> CompletionSuggestionKind.ServiceInstance
+    CompilerCodeSymbolKind.Type -> CompletionSuggestionKind.Type
+    CompilerCodeSymbolKind.TypeMember -> CompletionSuggestionKind.TypeMember
+    CompilerCodeSymbolKind.BufferMember -> CompletionSuggestionKind.BufferMember
 }
 
 class FlowTemplateCompletionProvider : TechnologyCompletionProvider {

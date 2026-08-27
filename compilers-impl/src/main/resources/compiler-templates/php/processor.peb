@@ -1,6 +1,6 @@
 {# Processor parameters expose incoming B buffers, outgoing A buffers, then injected libraries. #}<?php
 
-function {{ symbol }}(array &$context{% for link in incomingDataLinks %}, array &${{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, array &${{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, mixed ${{ link.dependencySymbol }}{% endfor %}): void
+function {{ symbol }}(array &$context{% for link in incomingDataLinks %}, array &${{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, array &${{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, mixed ${{ link.argumentSymbol }}{% endfor %}): void
 {
 {% if instantiation is not empty %}{{ instantiationIndent4 }}
 {% endif %}{% if declaration is not empty %}{{ declarationIndent4 }}

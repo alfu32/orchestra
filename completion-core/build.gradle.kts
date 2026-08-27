@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     api(project(":core"))
+    api(project(":compiler-api"))
     testImplementation(project(":storage-json"))
     testImplementation(kotlin("test"))
 }

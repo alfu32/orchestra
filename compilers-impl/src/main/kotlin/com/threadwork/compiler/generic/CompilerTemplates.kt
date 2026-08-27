@@ -3,6 +3,7 @@ package com.threadwork.compiler.generic
 import com.threadwork.compiler.api.ClassifiedFilesystemLayoutStrategy
 import com.threadwork.compiler.api.CompiledNodeArtifact
 import com.threadwork.compiler.api.CompilerOptions
+import com.threadwork.compiler.api.CompilerTypeInformation
 import com.threadwork.compiler.api.DirectFileSystemHomorphismLayoutStrategy
 import com.threadwork.compiler.api.GeneratedElementKind
 import com.threadwork.compiler.api.GeneratedFile
@@ -11,6 +12,7 @@ import com.threadwork.compiler.api.NodeCompilerContext
 import com.threadwork.compiler.api.SingleFileLayoutStrategy
 import com.threadwork.compiler.api.SourceSetLayoutStrategy
 import com.threadwork.compiler.api.StructuredCompiler
+import com.threadwork.compiler.api.defaultTypeInformation
 import com.threadwork.compiler.api.ANY_LANGUAGE_ID
 import com.threadwork.compiler.api.CompilerTechnology
 import com.threadwork.core.classification.LinkClassifier
@@ -412,6 +414,35 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
     ): String =
         renderer.render(template, nodeTemplateContext(context) + additions)
 
+    override fun typeInformation(
+        document: ThreadworkDocument,
+        node: Node,
+        typeName: String,
+    ): CompilerTypeInformation? {
+        val modelInfo = defaultTypeInformation(document, node, typeName) ?: return null
+        val typeNode = document.nodes.values.firstOrNull {
+            it.kind == NodeKind.Type && it.name.equals(typeName.trim(), ignoreCase = true)
+        } ?: return modelInfo
+        val generatedDeclaration = compile(
+            document,
+            CompilerOptions(
+                projectName = document.projectName(),
+                scopeNodeIds = setOf(typeNode.id),
+                includeScopeAncestors = false,
+                allowCompilerDelegation = false,
+            ),
+        ).generatedProject?.files
+            ?.firstOrNull { it.originNodeId == typeNode.id }
+            ?.content
+            ?.trim()
+            .orEmpty()
+        return if (generatedDeclaration.isBlank()) {
+            modelInfo
+        } else {
+            modelInfo.copy(declaration = generatedDeclaration)
+        }
+    }
+
     private fun templateFor(context: NodeCompilerContext, declaration: Boolean): String? {
         val stereotype = stereotypeForTemplateContext(context.document, context.node)
         val suffix = if (declaration) "declaration" else "instantiation"
@@ -784,19 +815,23 @@ private fun linkDescriptors(document: ThreadworkDocument, ids: Iterable<com.thre
         val link = node.link ?: return@mapNotNull null
         val typeName = document.linkTypeDisplayName(node)
         val declaredType = document.getElementById(link.typeDefinitionId)
-        val symbol = safeIdentifier(node.name, preserveCase = true)
+        val symbol = camelCaseIdentifier(node.name)
         val sourceNode = document.getElementById(link.sourceNodeId)
         val targetNode = document.getElementById(link.targetNodeId)
         val dependencyIndex = dependencyLinkIndex(document, node, sourceNode)
+        val allocationIndex = dataLinkIndex(document, node, sourceNode)
+        val allocationSymbol = "$symbol${allocationIndex.coerceAtLeast(1)}"
         val dependencySymbol = "${symbol}${dependencyIndex.coerceAtLeast(1)}"
         mapOf(
             "id" to node.id.value,
             "name" to node.name,
             "variableName" to node.name,
             "symbol" to symbol,
-            "transportSymbol" to "transport_$symbol",
-            "aPortSymbol" to "${symbol}_a_port",
-            "bPortSymbol" to "${symbol}_b_port",
+            "argumentSymbol" to symbol,
+            "allocationSymbol" to allocationSymbol,
+            "transportSymbol" to "transport_$allocationSymbol",
+            "aPortSymbol" to "${allocationSymbol}_a_port",
+            "bPortSymbol" to "${allocationSymbol}_b_port",
             "typeName" to typeName,
             "typeSymbol" to declaredType?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty()
                 .ifBlank { typeName },
@@ -804,7 +839,7 @@ private fun linkDescriptors(document: ThreadworkDocument, ids: Iterable<com.thre
             "typeFields" to declaredType?.let { typeFieldViews(document, it) }.orEmpty(),
             "typeDefinition" to link.payloadDefinition,
             "payloadDefinition" to link.payloadDefinition,
-            "argument" to if (typeName.isBlank()) node.name else "${node.name}:$typeName",
+            "argument" to if (typeName.isBlank()) symbol else "$symbol:$typeName",
             "stereotype" to LinkClassifier.classify(document, node).name,
             "sourceNodeId" to link.sourceNodeId.value,
             "sourceNodeName" to sourceNode?.name.orEmpty(),
@@ -831,8 +866,10 @@ private fun linkContext(document: ThreadworkDocument, node: Node): Map<String, A
     val targetName = targetNode?.name ?: link.targetNodeId.value
     val sourceReference = "${sanitizeReference(sourceName)}.${sanitizeReference(link.sourcePortName)}"
     val targetReference = "${sanitizeReference(targetName)}.${sanitizeReference(link.targetPortName)}"
-    val symbol = safeIdentifier(node.name, preserveCase = true)
+    val symbol = camelCaseIdentifier(node.name)
     val dependencyIndex = dependencyLinkIndex(document, node, sourceNode)
+    val allocationIndex = dataLinkIndex(document, node, sourceNode)
+    val allocationSymbol = "$symbol${allocationIndex.coerceAtLeast(1)}"
     val dependencySymbol = "${symbol}${dependencyIndex.coerceAtLeast(1)}"
     return mapOf(
         "link" to mapOf(
@@ -840,9 +877,11 @@ private fun linkContext(document: ThreadworkDocument, node: Node): Map<String, A
             "name" to node.name,
             "variableName" to node.name,
             "symbol" to symbol,
-            "transportSymbol" to "transport_$symbol",
-            "aPortSymbol" to "${symbol}_a_port",
-            "bPortSymbol" to "${symbol}_b_port",
+            "argumentSymbol" to symbol,
+            "allocationSymbol" to allocationSymbol,
+            "transportSymbol" to "transport_$allocationSymbol",
+            "aPortSymbol" to "${allocationSymbol}_a_port",
+            "bPortSymbol" to "${allocationSymbol}_b_port",
             "typeDefinitionId" to link.typeDefinitionId,
             "typeName" to document.linkTypeDisplayName(node),
             "typeSymbol" to link.typeDefinitionId.takeIf(String::isNotBlank)
@@ -898,6 +937,22 @@ private fun dependencyLinkIndex(document: ThreadworkDocument, linkNode: Node, so
     return dependencies.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 }?.plus(1) ?: 1
 }
 
+/**
+ * The generated double-buffer allocation belongs to the source node and needs
+ * a stable disambiguator. Processor-local arguments intentionally remain
+ * unindexed because they are scoped to one generated function.
+ */
+private fun dataLinkIndex(document: ThreadworkDocument, linkNode: Node, sourceNode: Node?): Int {
+    val dataLinks = sourceNode?.outgoingLinks.orEmpty().mapNotNull(document::getElementById)
+        .filter { candidate ->
+            candidate.link != null && LinkClassifier.classify(document, candidate) !in setOf(
+                LinkStereotype.UsageImport,
+                LinkStereotype.DependencyInjection,
+            )
+        }
+    return dataLinks.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 }?.plus(1) ?: 1
+}
+
 private fun compileScopeIds(document: ThreadworkDocument, requested: Set<com.threadwork.core.model.NodeId>): Set<com.threadwork.core.model.NodeId> {
     if (requested.isEmpty()) return document.nodes.keys
     val result = linkedSetOf<com.threadwork.core.model.NodeId>()
@@ -940,6 +995,17 @@ private fun safeIdentifier(value: String, preserveCase: Boolean = false): String
     val sanitized = value.trim().replace(Regex("[^A-Za-z0-9_]+"), "_").trim('_')
     val fallback = sanitized.ifBlank { "node" }.let { if (preserveCase) it else it.lowercase() }
     return if (fallback.first().isDigit()) "_$fallback" else fallback
+}
+
+private fun camelCaseIdentifier(value: String): String {
+    val words = value.trim()
+        .split(Regex("[^A-Za-z0-9]+"))
+        .filter(String::isNotBlank)
+    val identifier = words.mapIndexed { index, word ->
+        val normalized = word.lowercase()
+        if (index == 0) normalized else normalized.replaceFirstChar { it.uppercase() }
+    }.joinToString("").ifBlank { "value" }
+    return if (identifier.first().isDigit()) "_$identifier" else identifier
 }
 
 private fun safePathSegment(value: String): String =

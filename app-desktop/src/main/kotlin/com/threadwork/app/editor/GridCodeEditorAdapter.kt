@@ -81,6 +81,10 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private var completionItems: List<CompletionSuggestion> = emptyList()
     private var completionIndex = 0
     private var completionScrollOffset = 0
+    private var hoverPoint: Point? = null
+    private var hoverPosition: BufferPosition? = null
+    private var hoverInfo: EditorHoverInfo? = null
+    private val typeHoverTimer = Timer(1700) { resolveHoverInfo() }.apply { isRepeats = false }
     private var cursorVisible = true
     private val menuMask = runCatching { Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx }
         .getOrDefault(InputEvent.CTRL_DOWN_MASK)
@@ -105,6 +109,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             field = value
             refreshDeclarationSymbols()
         }
+    override var onHoverInfoRequested: ((EditorHoverRequest) -> EditorHoverInfo?)? = null
     var onUndoRequested: (() -> Unit)? = null
     var onRedoRequested: (() -> Unit)? = null
 
@@ -123,6 +128,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         addMouseListener(object : MouseAdapter() {
             override fun mousePressed(e: MouseEvent) {
                 requestFocusInWindow()
+                clearHover()
                 completionIndexAt(e.point)?.let { index ->
                     completionIndex = index
                     applyCompletion(completionItems[index])
@@ -163,6 +169,20 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                 notifyCursor()
                 repaint()
             }
+
+            override fun mouseMoved(e: MouseEvent) {
+                if (completionItems.isNotEmpty()) return
+                val position = positionAt(e.point)
+                if (position == hoverPosition && hoverPoint == e.point) return
+                hoverPosition = position
+                hoverPoint = e.point
+                hoverInfo = null
+                typeHoverTimer.restart()
+                repaint()
+            }
+        })
+        addMouseListener(object : MouseAdapter() {
+            override fun mouseExited(e: MouseEvent) = clearHover()
         })
         addMouseWheelListener { e: MouseWheelEvent ->
             if (completionItems.isNotEmpty()) {
@@ -195,6 +215,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         undoStack.clear()
         redoStack.clear()
         hideCompletions()
+        clearHover()
         refreshDeclarationSymbols()
         notifyCursor()
         repaint()
@@ -206,6 +227,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         this.languageId = RegexSyntaxHighlighter.normalizeLanguage(languageId)
         refreshDeclarationSymbols()
         updateToolTip()
+        clearHover()
         repaint()
     }
 
@@ -228,6 +250,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     override fun setCompletionContext(context: EditorCompletionContext) {
         completionContext = context
         refreshDeclarationSymbols()
+        clearHover()
     }
 
     override fun focus() {
@@ -277,11 +300,13 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         }
         drawCaret(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows)
         drawCompletionPopup(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows)
+        drawHoverPopup(g2, metrics, lineHeight)
         drawEditorStatus(g2, metrics)
     }
 
     private fun handleKeyPressed(e: KeyEvent) {
         cursorVisible = true
+        clearHover()
         if (completionItems.isNotEmpty() && handleCompletionKey(e)) return
         val menu = (e.modifiersEx and menuMask) != 0
         val shift = e.isShiftDown
@@ -379,6 +404,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val char = e.keyChar
         if (char == KeyEvent.CHAR_UNDEFINED || char < ' ' || char == '\u007f') return
         cursorVisible = true
+        clearHover()
         edit { insertTextAtCursors(char.toString()) }
         e.consume()
     }
@@ -794,6 +820,92 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         }
     }
 
+    private fun resolveHoverInfo() {
+        val point = hoverPoint ?: return
+        val position = hoverPosition ?: return
+        val nodeId = completionContext.nodeId ?: return
+        if (position != positionAt(point)) return
+        val symbol = symbolAt(position)
+        if (symbol.isBlank()) return
+        hoverInfo = onHoverInfoRequested?.invoke(
+            EditorHoverRequest(
+                nodeId = nodeId,
+                textSection = completionContext.textSection,
+                languageId = languageId,
+                technologyId = technology.technologyId,
+                symbol = symbol,
+            ),
+        )
+        repaint()
+    }
+
+    private fun clearHover() {
+        typeHoverTimer.stop()
+        if (hoverPoint == null && hoverPosition == null && hoverInfo == null) return
+        hoverPoint = null
+        hoverPosition = null
+        hoverInfo = null
+        repaint()
+    }
+
+    private fun symbolAt(position: BufferPosition): String {
+        val line = lines.getOrNull(position.line).orEmpty()
+        if (line.isEmpty()) return ""
+        val probe = when {
+            position.column in line.indices && line[position.column].isWordChar() -> position.column
+            position.column > 0 && line[position.column - 1].isWordChar() -> position.column - 1
+            else -> return ""
+        }
+        var start = probe
+        var end = probe + 1
+        while (start > 0 && line[start - 1].isWordChar()) start--
+        while (end < line.length && line[end].isWordChar()) end++
+        return line.substring(start, end)
+    }
+
+    private fun drawHoverPopup(g2: Graphics2D, metrics: FontMetrics, lineHeight: Int) {
+        val info = hoverInfo ?: return
+        val point = hoverPoint ?: return
+        val maxContentWidth = max(220, min(width - 24, 620))
+        val maxChars = max(24, maxContentWidth / max(1, metrics.charWidth('M')))
+        val bodyLines = info.body.lines().flatMap { line -> wrapForHover(line, maxChars) }.ifEmpty { listOf("") }
+        val allLines = listOf(info.title) + bodyLines
+        val popupWidth = allLines.maxOf { metrics.stringWidth(it) }
+            .plus(20)
+            .coerceIn(220, maxContentWidth)
+        val popupHeight = (bodyLines.size + 1) * lineHeight + 14
+        val x = point.x.coerceIn(4, max(4, width - popupWidth - 4))
+        val y = (point.y + lineHeight).coerceIn(4, max(4, height - popupHeight - 4))
+        g2.color = Color(0x252526)
+        g2.fillRoundRect(x, y, popupWidth, popupHeight, 6, 6)
+        g2.color = Color(0x5f5f5f)
+        g2.drawRoundRect(x, y, popupWidth, popupHeight, 6, 6)
+        g2.color = Color(0x9cdcfe)
+        g2.drawString(info.title, x + 10, y + metrics.ascent + 5)
+        g2.color = Color(0xd4d4d4)
+        bodyLines.forEachIndexed { index, line ->
+            g2.drawString(line, x + 10, y + (index + 2) * lineHeight + 5)
+        }
+    }
+
+    private fun wrapForHover(value: String, maxChars: Int): List<String> {
+        if (value.length <= maxChars) return listOf(value)
+        val words = value.split(Regex("\\s+"))
+        val lines = mutableListOf<String>()
+        var current = ""
+        words.forEach { word ->
+            val next = if (current.isBlank()) word else "$current $word"
+            if (next.length > maxChars && current.isNotBlank()) {
+                lines += current
+                current = word
+            } else {
+                current = next
+            }
+        }
+        if (current.isNotBlank()) lines += current
+        return lines
+    }
+
     private fun drawCompletionPopup(
         g2: Graphics2D,
         metrics: FontMetrics,
@@ -825,10 +937,10 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                 g2.fillRect(x + 1, rowY, popupWidth - 2, lineHeight)
             }
             g2.color = Color(0xd4d4d4)
-            g2.drawString(item.label.take(40), x + 8, rowY + metrics.ascent)
+            g2.drawString(item.label.take(72), x + 8, rowY + metrics.ascent)
             if (item.detail.isNotBlank()) {
                 g2.color = Color(0x9cdcfe)
-                g2.drawString(item.detail.take(52), detailX, rowY + metrics.ascent)
+                g2.drawString(item.detail.take(84), detailX, rowY + metrics.ascent)
             }
         }
         drawCompletionScrollbar(g2, geometry)
@@ -938,7 +1050,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
     private fun currentPrefix(): String {
         val text = lines[caret.line].take(caret.column)
-        return text.takeLastWhile { it.isLetterOrDigit() || it == '_' || it == '-' }
+        return text.takeLastWhile { it.isLetterOrDigit() || it == '_' || it == '-' || it == '.' || it == '$' }
     }
 
     private fun offsetFor(position: BufferPosition): Int {
@@ -1254,8 +1366,8 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         if (completionItems.isEmpty()) return null
         val row = (caret.line - scrollLine + 1).coerceIn(0, visibleRows - 1)
         val col = (caret.column - scrollColumn).coerceAtLeast(0)
-        val labelColumnWidth = completionItems.maxOf { metrics.stringWidth(it.label.take(40)) }.coerceIn(120, 260)
-        val detailColumnWidth = completionItems.maxOf { metrics.stringWidth(it.detail.take(52)) }.coerceIn(120, 320)
+        val labelColumnWidth = completionItems.maxOf { metrics.stringWidth(it.label.take(72)) }.coerceIn(150, 420)
+        val detailColumnWidth = completionItems.maxOf { metrics.stringWidth(it.detail.take(84)) }.coerceIn(120, 440)
         val desiredWidth = labelColumnWidth + detailColumnWidth + 36
         val popupWidth = min(max(320, desiredWidth), max(320, width - gutterWidth - 16))
         val visibleItemCount = visibleCompletionRows(lineHeight)

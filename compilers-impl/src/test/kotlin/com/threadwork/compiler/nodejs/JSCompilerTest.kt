@@ -42,8 +42,12 @@ class JSCompilerTest {
         assertTrue(result.success, result.diagnostics.joinToString { it.message })
         val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
         assertTrue(generated.contains("@typedef {Object} WorkOrder"))
-        assertTrue(generated.contains("const orders_a_port = [];"))
-        assertTrue(generated.contains("transport_orders(orders_a_port, orders_b_port);"))
+        assertTrue(generated.contains("const orders1_a_port = [];"))
+        assertTrue(generated.contains("transport_orders1(orders1_a_port, orders1_b_port);"))
+
+        val typeInfo = assertNotNull(JSCompiler().typeInformation(repository.getDocument(), source, "WorkOrder"))
+        assertTrue(typeInfo.declaration.contains("@typedef {Object} WorkOrder"))
+        assertTrue(typeInfo.declaration.contains("@property {number} id"))
     }
 
     @Test
@@ -71,7 +75,7 @@ class JSCompilerTest {
         assertTrue(result.success, result.diagnostics.joinToString { it.message })
         val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
         assertTrue(generated.contains("@typedef {Object} Envelope"))
-        assertTrue(generated.contains("function transport_packet(a, b)"))
+        assertTrue(generated.contains("function transport_packet1(a, b)"))
     }
 
     @Test
@@ -164,11 +168,39 @@ class JSCompilerTest {
 
         assertTrue(result.success)
         val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
-        assertTrue(generated.contains("const record_pipe_a_port = [];"))
-        assertTrue(generated.contains("const record_pipe_b_port = [];"))
-        assertTrue(generated.contains("function transport_record_pipe(a, b)"))
-        assertTrue(generated.contains("reader(context, record_pipe_a_port);"))
-        assertTrue(generated.contains("writer(context, record_pipe_b_port);"))
-        assertTrue(generated.contains("transport_record_pipe(record_pipe_a_port, record_pipe_b_port);"))
+        assertTrue(generated.contains("const recordPipe1_a_port = [];"))
+        assertTrue(generated.contains("const recordPipe1_b_port = [];"))
+        assertTrue(generated.contains("function transport_recordPipe1(a, b)"))
+        assertTrue(generated.contains("function reader(context = {}, recordPipe)"))
+        assertTrue(generated.contains("function writer(context = {}, recordPipe)"))
+        assertTrue(generated.contains("reader(context, recordPipe1_a_port);"))
+        assertTrue(generated.contains("writer(context, recordPipe1_b_port);"))
+        assertTrue(generated.contains("transport_recordPipe1(recordPipe1_a_port, recordPipe1_b_port);"))
+    }
+
+    @Test
+    fun `dependency injection declares an indexed instance and passes a local service argument`() {
+        val repository = InMemoryDocumentRepository(newDocument("Dependency JS"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
+        val library = repository.createNode(root, "lib_config", NodeKind.Processor)
+        repository.updateNodeText(
+            library.id,
+            repository.requireNode(library.id).text.copy(instantiation = "createConfigLibrary()"),
+        )
+        val worker = repository.createNode(root, "worker", NodeKind.Processor)
+        repository.addPort(library.id, NodePort("service", "service", PortDirection.Output))
+        repository.addPort(worker.id, NodePort("config", "config", PortDirection.Input))
+        val link = repository.createLink(root, "config_service", library.id, "service", worker.id, "config")
+        repository.updateLinkData(link.id, requireNotNull(link.link).copy(transportKind = "dependency"))
+
+        val result = JSCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
+        assertTrue(generated.contains("const configService1 = createConfigLibrary();"))
+        assertTrue(generated.contains("function worker(context = {}, configService)"))
+        assertTrue(generated.contains("worker(context, configService1);"))
+        assertFalse(generated.contains("transport_configService"))
     }
 }

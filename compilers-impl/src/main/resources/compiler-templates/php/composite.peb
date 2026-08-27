@@ -1,4 +1,4 @@
-{# A composite executes children with link-owned ports, then advances every owned data link once. #}function {{ symbol }}(array &$context{% for link in incomingDataLinks %}, array &${{ link.symbol }}{% endfor %}{% for link in outgoingDataLinks %}, array &${{ link.symbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, mixed ${{ link.dependencySymbol }}{% endfor %}): void
+{# A composite executes children with link-owned ports, then advances every owned data link once. #}function {{ symbol }}(array &$context{% for link in incomingDataLinks %}, array &${{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, array &${{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, mixed ${{ link.argumentSymbol }}{% endfor %}): void
 {
 {% for linkArtifact in linkArtifacts %}{% if linkArtifact.link is not empty and linkArtifact.link.stereotype != "UsageImport" and linkArtifact.link.stereotype != "DependencyInjection" %}    global ${{ linkArtifact.link.aPortSymbol }}, ${{ linkArtifact.link.bPortSymbol }};
 {% endif %}{% endfor %}

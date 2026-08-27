@@ -98,6 +98,9 @@ object LinkClassifier {
         val linkName = linkNode.name.trim()
 
         return when {
+            transportKind in dependencyKinds ||
+                linkName.containsToken("dependency") ||
+                linkName.containsToken("inject") -> LinkStereotype.DependencyInjection
             transportKind in usageKinds ||
                 sourceStereotype == NodeStereotype.ServiceLibrary ||
                 linkName.containsToken("usage") ||
@@ -109,9 +112,6 @@ object LinkClassifier {
                 link.sourcePortName.contains("error", ignoreCase = true) ||
                 link.targetPortName.contains("error", ignoreCase = true) ||
                 linkName.containsToken("error") -> LinkStereotype.ErrorPipe
-            transportKind in dependencyKinds ||
-                linkName.containsToken("dependency") ||
-                linkName.containsToken("inject") -> LinkStereotype.DependencyInjection
             else -> LinkStereotype.Transport
         }
     }

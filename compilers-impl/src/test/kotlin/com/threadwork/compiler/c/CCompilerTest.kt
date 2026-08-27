@@ -42,7 +42,7 @@ class CCompilerTest {
         val sourceCode = assertNotNull(result.generatedProject).files.single().content
         assertTrue(sourceCode.contains("typedef struct WorkOrder"))
         assertTrue(sourceCode.contains(".element_size = sizeof(WorkOrder)"))
-        assertTrue(sourceCode.contains("transport_orders(&orders_a_port, &orders_b_port)"))
+        assertTrue(sourceCode.contains("transport_orders1(&orders1_a_port, &orders1_b_port)"))
     }
 
     @Test
@@ -86,13 +86,13 @@ class CCompilerTest {
         val producerPrototype = Regex("static int (tw_init_[A-Za-z0-9_]+)\\(threadwork_context \\*context[^;]*\\);").find(source)
         assertNotNull(producerPrototype)
         val producerDefinition = source.indexOf(
-            "static int ${producerPrototype.groupValues[1]}(threadwork_context *context, threadwork_buffer *orders_to_validator)\n{",
+            "static int ${producerPrototype.groupValues[1]}(threadwork_context *context, threadwork_buffer *ordersToValidator)\n{",
         )
         assertTrue(producerDefinition > producerPrototype.range.first)
-        assertTrue(source.contains("static threadwork_buffer orders_to_validator_a_port"))
-        assertTrue(source.contains("static threadwork_buffer orders_to_validator_b_port"))
-        assertTrue(source.contains("static int transport_orders_to_validator("))
-        assertTrue(source.contains("transport_orders_to_validator(&orders_to_validator_a_port, &orders_to_validator_b_port)"))
+        assertTrue(source.contains("static threadwork_buffer ordersToValidator1_a_port"))
+        assertTrue(source.contains("static threadwork_buffer ordersToValidator1_b_port"))
+        assertTrue(source.contains("static int transport_ordersToValidator1("))
+        assertTrue(source.contains("transport_ordersToValidator1(&ordersToValidator1_a_port, &ordersToValidator1_b_port)"))
         assertFalse(source.contains("static int tw_run_switch("))
     }
 

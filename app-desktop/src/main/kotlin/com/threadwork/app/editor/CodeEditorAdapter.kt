@@ -18,6 +18,19 @@ data class EditorCompletionContext(
     val textSection: NodeTextSection,
 )
 
+data class EditorHoverRequest(
+    val nodeId: String,
+    val textSection: NodeTextSection,
+    val languageId: String,
+    val technologyId: String,
+    val symbol: String,
+)
+
+data class EditorHoverInfo(
+    val title: String,
+    val body: String,
+)
+
 interface CodeEditorAdapter {
     fun setText(text: String)
     fun getText(): String
@@ -32,6 +45,7 @@ interface CodeEditorAdapter {
     var onCursorChanged: ((EditorCursor) -> Unit)?
     var onCompletionRequested: ((CompletionRequest) -> List<CompletionSuggestion>)?
     var onDeclarationSymbolsRequested: ((CompletionRequest) -> List<DeclarationSymbol>)?
+    var onHoverInfoRequested: ((EditorHoverRequest) -> EditorHoverInfo?)?
 }
 
 class CodeMirrorWebViewAdapterUnsupported : CodeEditorAdapter {
@@ -39,6 +53,7 @@ class CodeMirrorWebViewAdapterUnsupported : CodeEditorAdapter {
     override var onCursorChanged: ((EditorCursor) -> Unit)? = null
     override var onCompletionRequested: ((CompletionRequest) -> List<CompletionSuggestion>)? = null
     override var onDeclarationSymbolsRequested: ((CompletionRequest) -> List<DeclarationSymbol>)? = null
+    override var onHoverInfoRequested: ((EditorHoverRequest) -> EditorHoverInfo?)? = null
 
     override fun setText(text: String) = unsupported()
     override fun getText(): String = unsupported()

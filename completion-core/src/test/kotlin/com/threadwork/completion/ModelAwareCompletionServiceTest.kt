@@ -1,9 +1,17 @@
 package com.threadwork.completion
 
+import com.threadwork.compiler.api.CompilationResult
+import com.threadwork.compiler.api.CompilerOptions
+import com.threadwork.compiler.api.CompilerPlugin
+import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.PortDirection
+import com.threadwork.core.model.TechnologyMetadata
+import com.threadwork.core.model.ThreadworkDocument
+import com.threadwork.core.model.TypeDefinition
+import com.threadwork.core.model.TypeFieldDefinition
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.newDocument
 import kotlin.test.Test
@@ -11,6 +19,44 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ModelAwareCompletionServiceTest {
+    @Test
+    fun `suggests compiler local buffer service and type intelligence first`() {
+        val repository = InMemoryDocumentRepository(newDocument("intelligence"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
+        val type = repository.createNode(root, "Packet", NodeKind.Type)
+        repository.updateNodeTypeDefinition(
+            type.id,
+            TypeDefinition(mutableListOf(TypeFieldDefinition("id", "number"))),
+        )
+        val source = repository.createNode(root, "reader", NodeKind.Processor)
+        val worker = repository.createNode(root, "worker", NodeKind.Processor)
+        val library = repository.createNode(root, "lib_config", NodeKind.Processor)
+        val input = repository.createLink(root, "incoming_packet", source.id, "out", worker.id, "in")
+        repository.updateLinkData(input.id, requireNotNull(input.link).copy(typeDefinitionId = type.id.value))
+        val output = repository.createLink(root, "outgoing_packet", worker.id, "out", source.id, "in")
+        repository.updateLinkData(output.id, requireNotNull(output.link).copy(typeDefinitionId = type.id.value))
+        val serviceLink = repository.createLink(root, "config_service", library.id, "service", worker.id, "config")
+        repository.updateLinkData(serviceLink.id, requireNotNull(serviceLink.link).copy(transportKind = "dependency"))
+
+        val suggestions = ModelAwareCompletionService(
+            documentProvider = repository::getDocument,
+            compilerProvider = { _, _ -> CodeIntelligenceCompiler },
+        ).getSuggestions(requestFor(worker.id))
+
+        assertEquals(
+            listOf("configService", "incomingPacket", "outgoingPacket"),
+            suggestions.take(3).map { it.label },
+        )
+        assertTrue(suggestions.any { it.label == "incomingPacket.push(item)" })
+        assertTrue(suggestions.any { it.label == "incomingPacket.id" })
+        assertTrue(suggestions.any { it.label == "Packet.id" })
+        assertEquals(
+            CompletionSuggestionKind.ServiceInstance,
+            suggestions.single { it.label == "configService" }.kind,
+        )
+    }
+
     @Test
     fun `suggests ports and relatives`() {
         val repository = InMemoryDocumentRepository(newDocument("completion"))
@@ -121,5 +167,28 @@ class ModelAwareCompletionServiceTest {
         assertTrue("children" in labels)
         assertTrue("payload" in labels)
         assertTrue("result" in labels)
+    }
+
+    private fun requestFor(nodeId: com.threadwork.core.model.NodeId): CompletionRequest = CompletionRequest(
+        nodeId = nodeId,
+        textSection = NodeTextSection.Declaration,
+        languageId = "javascript",
+        technologyId = "nodejs",
+        cursorOffset = 0,
+        fullText = "",
+        currentLine = "",
+        prefix = "",
+    )
+
+    private object CodeIntelligenceCompiler : CompilerPlugin {
+        override val id: String = "test-code-intelligence"
+        override val displayName: String = "Test code intelligence"
+
+        override fun supports(document: ThreadworkDocument): Boolean = true
+
+        override fun validate(document: ThreadworkDocument): List<Diagnostic> = emptyList()
+
+        override fun compile(document: ThreadworkDocument, options: CompilerOptions): CompilationResult =
+            CompilationResult(generatedProject = null, diagnostics = emptyList(), success = true)
     }
 }

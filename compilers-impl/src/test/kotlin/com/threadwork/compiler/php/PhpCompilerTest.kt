@@ -37,7 +37,7 @@ class PhpCompilerTest {
         val generated = requireNotNull(result.generatedProject).files.joinToString("\n") { it.content }
         assertTrue(generated.contains("final class WorkOrder"))
         assertTrue(generated.contains("public float \$id"))
-        assertTrue(generated.contains("transport_orders(\$orders_a_port, \$orders_b_port)"))
+        assertTrue(generated.contains("transport_orders1(\$orders1_a_port, \$orders1_b_port)"))
     }
 
     @Test
@@ -78,11 +78,11 @@ class PhpCompilerTest {
         assertTrue(result.success)
         val project = requireNotNull(result.generatedProject)
         val generated = project.files.joinToString("\n") { it.content }
-        assertTrue(generated.contains("\$input_record_a_port = [];"))
-        assertTrue(generated.contains("\$input_record_b_port = [];"))
-        assertTrue(generated.contains("function transport_input_record(array &\$a, array &\$b)"))
-        assertTrue(generated.contains("read_file(\$context, \$input_record_a_port);"))
-        assertTrue(generated.contains("write_file(\$context, \$input_record_b_port);"))
-        assertTrue(generated.contains("transport_input_record(\$input_record_a_port, \$input_record_b_port);"))
+        assertTrue(generated.contains("\$inputRecord1_a_port = [];"))
+        assertTrue(generated.contains("\$inputRecord1_b_port = [];"))
+        assertTrue(generated.contains("function transport_inputRecord1(array &\$a, array &\$b)"))
+        assertTrue(generated.contains("read_file(\$context, \$inputRecord1_a_port);"))
+        assertTrue(generated.contains("write_file(\$context, \$inputRecord1_b_port);"))
+        assertTrue(generated.contains("transport_inputRecord1(\$inputRecord1_a_port, \$inputRecord1_b_port);"))
     }
 }
