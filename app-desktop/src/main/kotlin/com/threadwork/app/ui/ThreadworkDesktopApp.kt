@@ -2370,6 +2370,10 @@ class GraphCanvas(
 
     private fun drawCachedStaticScene(g2: Graphics2D) {
         if (width <= 0 || height <= 0) return
+        // Tiles are rendered at discrete zoom buckets, then scaled to the active zoom.
+        // Interpolation keeps diagonal route segments continuous between bucket levels.
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
         val bucket = zoomBucket()
         val bucketZoom = zoomForBucket(bucket)
         val tileModelSize = TILE_SIZE_PX / bucketZoom
@@ -3039,7 +3043,7 @@ class GraphCanvas(
             LinkStereotype.UsageImport -> 1.8
             else -> 1.5
         }
-        val dash = if (stereotype == LinkStereotype.DependencyInjection) "8 6" else null
+        val dash = linkDashPattern(stereotype, isBackflow(route))
         svgPath(svg, route.points, color, strokeWidth, dash)
         svgArrowAlongRoute(svg, route.points, color)
         svgPortMarker(svg, route.source, route.sourceDirection, outgoing = true, color = color)
@@ -3504,7 +3508,7 @@ class GraphCanvas(
         val stereotype = LinkClassifier.classify(repository.getDocument(), node)
         val color = linkColor(stereotype, selected)
         g2.color = color
-        g2.stroke = linkStroke(stereotype, selected)
+        g2.stroke = linkStroke(stereotype, selected, isBackflow(route))
         route.points.zipWithNext().forEach { (a, b) -> g2.drawLine(a.x, a.y, b.x, b.y) }
         drawArrowAlongRoute(g2, route.points)
         g2.color = color
@@ -4742,12 +4746,41 @@ class GraphCanvas(
         else -> Color(0x222222)
     }
 
-    private fun linkStroke(stereotype: LinkStereotype, selected: Boolean): Stroke = when {
-        selected -> BasicStroke(3f)
-        stereotype == LinkStereotype.UsageImport -> BasicStroke(1.8f)
-        stereotype == LinkStereotype.ErrorPipe -> BasicStroke(2f)
-        stereotype == LinkStereotype.DependencyInjection -> BasicStroke(1.6f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f, floatArrayOf(8f, 6f), 0f)
-        else -> BasicStroke(1.5f)
+    private fun isBackflow(route: LinkRoute): Boolean = route.source.x < route.target.x
+
+    private fun linkDashPattern(stereotype: LinkStereotype, backflow: Boolean): String? = when {
+        backflow -> "10 6"
+        stereotype == LinkStereotype.DependencyInjection -> "8 6"
+        else -> null
+    }
+
+    private fun linkDashArray(stereotype: LinkStereotype, backflow: Boolean): FloatArray? = when {
+        backflow -> floatArrayOf(10f, 6f)
+        stereotype == LinkStereotype.DependencyInjection -> floatArrayOf(8f, 6f)
+        else -> null
+    }
+
+    private fun linkStroke(stereotype: LinkStereotype, selected: Boolean, backflow: Boolean): Stroke {
+        val width = when {
+            selected -> 3f
+            stereotype == LinkStereotype.UsageImport -> 1.8f
+            stereotype == LinkStereotype.ErrorPipe -> 2f
+            stereotype == LinkStereotype.DependencyInjection -> 1.6f
+            else -> 1.5f
+        }
+        val dash = linkDashArray(stereotype, backflow)
+        return if (dash == null) {
+            BasicStroke(width)
+        } else {
+            BasicStroke(
+                width,
+                BasicStroke.CAP_BUTT,
+                BasicStroke.JOIN_MITER,
+                10f,
+                dash,
+                0f,
+            )
+        }
     }
 }
 
