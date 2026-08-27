@@ -3213,8 +3213,7 @@ class GraphCanvas(
             if (scopeIds != null && type.id !in scopeIds) return@forEach
             val r = type.layout.rect()
             usages.forEachIndexed { index, link ->
-                val (name, typeName) = linkLabelParts(link)
-                val label = name + typeName.orEmpty().let { if (it.isEmpty()) "" else ":$it" }
+                val label = link.name
                 val width = max(110, label.length * 8 + 24)
                 val y = r.y + 10 + index * 32
                 val x = r.x + r.width + 34
@@ -3222,10 +3221,7 @@ class GraphCanvas(
                 svgLine(svg, r.x + r.width, anchorY, x, anchorY, "#00897b", strokeWidth = 1.5)
                 svgCircle(svg, r.x + r.width, anchorY, 4, "#00897b")
                 svgRect(svg, Rectangle(x, y, width, 24), fill = "#f1fbf9", stroke = "#00897b", strokeWidth = 1.5)
-                svgText(svg, name, x + 10, y + 17, 12, "#00695c")
-                typeName?.let {
-                    svgText(svg, ":$it", x + 10 + monospaceTextWidth(name + ":", 8, 0), y + 17, 12, "#008c4a")
-                }
+                svgText(svg, label, x + 10, y + 17, 12, "#00695c")
             }
         }
     }
@@ -3840,8 +3836,7 @@ class GraphCanvas(
             val previousFont = g2.font
             g2.font = designerFont.deriveFont(12f)
             usages.forEachIndexed { index, link ->
-                val (name, typeName) = linkLabelParts(link)
-                val label = name + typeName.orEmpty().let { if (it.isEmpty()) "" else ":$it" }
+                val label = link.name
                 val width = max(110, monospaceTextWidth(label, 8, 24))
                 val y = r.y + 10 + index * 32
                 val x = r.x + r.width + 34
@@ -3856,7 +3851,7 @@ class GraphCanvas(
                 g2.fillRect(x, y, width, 24)
                 g2.color = color
                 g2.drawRect(x, y, width, 24)
-                drawColoredLinkLabel(g2, name, typeName, x + 10, y + 17, color)
+                g2.drawString(label, x + 10, y + 17)
             }
             g2.stroke = previousStroke
             g2.font = previousFont
