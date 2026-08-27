@@ -217,6 +217,7 @@ class ThreadworkDesktopApp(
         ::exportDocumentationPdf,
         ::exportDocumentationHtml,
         ::exportDocumentationMarkdown,
+        ::showCommandContextMenu,
     )
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
@@ -459,6 +460,7 @@ class ThreadworkDesktopApp(
             add(commandItem("edit.cut"))
             add(commandItem("edit.copy"))
             add(commandItem("edit.paste"))
+            add(commandItem("edit.copyComponentFiches"))
             addSeparator()
             add(JMenu("Align and Distribute").apply {
                 add(commandItem("edit.align.top", "align_top"))
@@ -518,6 +520,17 @@ class ThreadworkDesktopApp(
         registerCommand(AppCommand("edit.cut", "Edit: Cut", KeyStroke.getKeyStroke(KeyEvent.VK_X, shortcut)) { cut() })
         registerCommand(AppCommand("edit.copy", "Edit: Copy", KeyStroke.getKeyStroke(KeyEvent.VK_C, shortcut)) { copy() })
         registerCommand(AppCommand("edit.paste", "Edit: Paste", KeyStroke.getKeyStroke(KeyEvent.VK_V, shortcut)) { paste() })
+        registerCommand(
+            AppCommand(
+                "edit.copyComponentFiches",
+                "Edit: Copy Selected Component Fiches as Markdown",
+                enabled = {
+                    selection.any { id ->
+                        repository.getNode(id)?.let { !it.isLink && it.kind !in setOf(NodeKind.Note, NodeKind.Type) } == true
+                    }
+                },
+            ) { copySelectedComponentFiches() },
+        )
         registerCommand(AppCommand("edit.align.top", "Edit: Align Top") { alignAndDistribute(AlignmentOperation.AlignTop) })
         registerCommand(AppCommand("edit.align.bottom", "Edit: Align Bottom") { alignAndDistribute(AlignmentOperation.AlignBottom) })
         registerCommand(AppCommand("edit.align.left", "Edit: Align Left") { alignAndDistribute(AlignmentOperation.AlignLeft) })
@@ -595,6 +608,24 @@ class ThreadworkDesktopApp(
         }
     }
 
+    private fun showCommandContextMenu(component: Component, x: Int, y: Int) {
+        val popup = JPopupMenu()
+        var previousGroup: String? = null
+        commands.values
+            .filter { it.enabled() }
+            .distinctBy { it.title }
+            .forEach { command ->
+                val group = command.title.substringBefore(": ", missingDelimiterValue = "")
+                if (previousGroup != null && group != previousGroup) popup.addSeparator()
+                popup.add(JMenuItem(command.title).apply {
+                    accelerator = command.keyStroke
+                    addActionListener { executeCommand(command.id) }
+                })
+                previousGroup = group
+            }
+        if (popup.componentCount > 0) popup.show(component, x, y)
+    }
+
     private fun updateTileProgress(done: Int, total: Int, active: Boolean) {
         val maximum = if (total <= 0) 1 else total
         val value = if (total <= 0) 0 else done.coerceIn(0, total)
@@ -668,6 +699,24 @@ class ThreadworkDesktopApp(
             is GridCodeEditorAdapter -> focusOwner.commandCopy()
             is JTextComponent -> focusOwner.copy()
             else -> if (graphShortcutEnabled()) canvas.copySelection()
+        }
+    }
+
+    private fun copySelectedComponentFiches() {
+        val fiches = documentationCompiler.componentFiches(repository.getDocument(), selection)
+        if (fiches.isBlank()) {
+            status.text = "Select at least one processing node to copy its component fiche."
+            return
+        }
+        runCatching {
+            Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(fiches), null)
+        }.onSuccess {
+            val count = selection.count { id ->
+                repository.getNode(id)?.let { !it.isLink && it.kind !in setOf(NodeKind.Note, NodeKind.Type) } == true
+            }
+            status.text = "Copied $count component fiche${if (count == 1) "" else "s"} as Markdown."
+        }.onFailure {
+            status.text = "Could not copy component fiches: ${it.message}"
         }
     }
 
@@ -1691,11 +1740,14 @@ class GraphCanvas(
     private val onPdfSheetExported: (File) -> Unit = {},
     private val onSvgSheetExported: (File) -> Unit = {},
     private val onPngSheetExported: (File) -> Unit = {},
+    private val onContextMenu: (Component, Int, Int) -> Unit = { _, _, _ -> },
 ) : JPanel() {
     var mode: CanvasMode = CanvasMode.Select
         private set
     private var dragStart: Point? = null
     private var selectionDragLeftToRight = true
+    private var contextMenuPending = false
+    private var contextMenuShown = false
     private var dragAllowsReparent = false
     private var moveDragReference: Point? = null
     private var panDragStart: Point? = null
@@ -1858,9 +1910,27 @@ class GraphCanvas(
         preferredSize = Dimension(900, 700)
         toolTipText = ""
         val mouse = object : MouseAdapter() {
-            override fun mousePressed(e: MouseEvent) = handlePressed(e)
+            override fun mousePressed(e: MouseEvent) {
+                if (isContextGesture(e)) {
+                    contextMenuPending = !e.isPopupTrigger
+                    if (e.isPopupTrigger) {
+                        showContextMenu(e)
+                        contextMenuShown = true
+                    }
+                    return
+                }
+                handlePressed(e)
+            }
             override fun mouseDragged(e: MouseEvent) = handleDragged(e)
-            override fun mouseReleased(e: MouseEvent) = handleReleased(e)
+            override fun mouseReleased(e: MouseEvent) {
+                if (contextMenuPending || contextMenuShown || e.isPopupTrigger) {
+                    if (!contextMenuShown) showContextMenu(e)
+                    contextMenuPending = false
+                    contextMenuShown = false
+                    return
+                }
+                handleReleased(e)
+            }
             override fun mouseClicked(e: MouseEvent) = handleClicked(e)
             override fun mouseWheelMoved(e: MouseWheelEvent) {
                 val before = modelPoint(e.point)
@@ -4324,8 +4394,22 @@ class GraphCanvas(
         onNodeDoubleClicked(id)
     }
 
+    private fun isContextGesture(e: MouseEvent): Boolean =
+        e.isPopupTrigger || SwingUtilities.isRightMouseButton(e)
+
+    private fun showContextMenu(e: MouseEvent) {
+        val point = modelPoint(e.point)
+        val hit = hitNode(point) ?: hitLink(point)
+        if (hit != null && hit !in selection) {
+            selection.clear()
+            selection += hit
+            onSelectionChanged()
+        }
+        onContextMenu(this, e.x, e.y)
+    }
+
     private fun handlePressed(e: MouseEvent) {
-        if (SwingUtilities.isMiddleMouseButton(e) || SwingUtilities.isRightMouseButton(e)) {
+        if (SwingUtilities.isMiddleMouseButton(e)) {
             panDragStart = e.point
             return
         }

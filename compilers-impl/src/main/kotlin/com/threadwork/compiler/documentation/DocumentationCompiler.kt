@@ -56,6 +56,25 @@ class DocumentationCompiler : CompilerPlugin {
         )
     }
 
+    /** Builds the complete Markdown dossier for explicitly selected processing nodes only. */
+    fun componentFiches(document: ThreadworkDocument, nodeIds: Collection<NodeId>): String {
+        val nodes = nodeIds
+            .distinct()
+            .mapNotNull(document.nodes::get)
+            .filter { !it.isLink && it.kind !in setOf(NodeKind.Note, NodeKind.Type) }
+        if (nodes.isEmpty()) return ""
+        return buildString {
+            appendLine("# Selected Component Fiches")
+            nodes.forEachIndexed { index, node ->
+                if (index > 0) {
+                    appendLine(PAGE_BREAK_MARKER)
+                    appendLine()
+                }
+                appendComponentFiche(document, node)
+            }
+        }.trimEnd() + "\n"
+    }
+
     private fun projectDocumentation(document: ThreadworkDocument, scope: DocumentationScope): String =
         buildString {
             appendLine("# ${scope.title} Functional and Technical Specification")
@@ -101,24 +120,28 @@ class DocumentationCompiler : CompilerPlugin {
             scope.processingNodes.forEach { node ->
                 appendLine(PAGE_BREAK_MARKER)
                 appendLine()
-                appendLine("## ${node.name.ifBlank { node.id.value }}")
-                appendLine()
-                appendLine("- **Path:** `${nodePath(document, node)}`")
-                appendLine("- **Role:** `${node.stereotype(document).name}`")
-                appendLine()
-                appendDirectTechnology(node)
-                appendSpecification(node.text.specification, node.text.specificationLanguageId)
-                appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
-                appendComponentLinkDocumentation(document, dataInputs(document, node), "Incoming Link Contracts")
-                appendLinkTable("Outputs", dataOutputs(document, node), document, incoming = false)
-                appendComponentLinkDocumentation(document, dataOutputs(document, node), "Outgoing Link Contracts")
-                appendUsedTypes(document, node)
-                appendComponentDependencies(document, node)
-                appendDirectChildren(document, node)
-                appendUsageInstructions(node)
-                appendTestData(node)
+                appendComponentFiche(document, node)
             }
         }.trimEnd() + "\n"
+
+    private fun StringBuilder.appendComponentFiche(document: ThreadworkDocument, node: Node) {
+        appendLine("## ${node.name.ifBlank { node.id.value }}")
+        appendLine()
+        appendLine("- **Path:** `${nodePath(document, node)}`")
+        appendLine("- **Role:** `${node.stereotype(document).name}`")
+        appendLine()
+        appendDirectTechnology(node)
+        appendSpecification(node.text.specification, node.text.specificationLanguageId)
+        appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
+        appendComponentLinkDocumentation(document, dataInputs(document, node), "Incoming Link Contracts")
+        appendLinkTable("Outputs", dataOutputs(document, node), document, incoming = false)
+        appendComponentLinkDocumentation(document, dataOutputs(document, node), "Outgoing Link Contracts")
+        appendUsedTypes(document, node)
+        appendComponentDependencies(document, node)
+        appendDirectChildren(document, node)
+        appendUsageInstructions(node)
+        appendTestData(node)
+    }
 
     private fun StringBuilder.appendTableOfContents(entries: List<String>) {
         appendLine("## Contents")

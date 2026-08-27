@@ -111,4 +111,34 @@ class DocumentationCompilerTest {
         assertTrue(documentation.contains("Validates the order."))
         assertFalse(documentation.contains("Charges the customer."))
     }
+
+    @Test
+    fun `copies complete fiches for explicitly selected processing nodes only`() {
+        val repository = InMemoryDocumentRepository(newDocument("Fiche Project"))
+        val root = repository.getDocument().rootNodeId
+        val selected = repository.createNode(root, "selected processor", NodeKind.Processor)
+        val excluded = repository.createNode(root, "excluded processor", NodeKind.Processor)
+        val type = repository.createNode(root, "Packet", NodeKind.Type)
+        repository.updateNodeText(
+            selected.id,
+            selected.text.copy(
+                specification = "Processes incoming packets.",
+                aiInstructions = "Invoke after validation.",
+                tests = "{\"packet\": true}",
+            ),
+        )
+        val link = repository.createLink(root, "packets", selected.id, "out", excluded.id, "in")
+
+        val fiches = DocumentationCompiler().componentFiches(
+            repository.getDocument(),
+            listOf(selected.id, type.id, link.id),
+        )
+
+        assertTrue(fiches.contains("# Selected Component Fiches"))
+        assertTrue(fiches.contains("## selected processor"))
+        assertTrue(fiches.contains("Processes incoming packets."))
+        assertTrue(fiches.contains("Invoke after validation."))
+        assertTrue(fiches.contains("{\"packet\": true}"))
+        assertFalse(fiches.contains("## excluded processor"))
+    }
 }
