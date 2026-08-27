@@ -4741,7 +4741,7 @@ class GraphCanvas(
         else -> Color(0x222222)
     }
 
-    private fun isBackflow(route: LinkRoute): Boolean = route.source.x < route.target.x
+    private fun isBackflow(route: LinkRoute): Boolean = route.source.x > route.target.x
 
     private fun linkDashPattern(stereotype: LinkStereotype, backflow: Boolean): String? = when {
         backflow -> "10 6"
