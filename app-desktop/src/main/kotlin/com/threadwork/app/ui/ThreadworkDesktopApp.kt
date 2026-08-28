@@ -96,6 +96,7 @@ import java.awt.Stroke
 import java.awt.Toolkit
 import java.awt.geom.Path2D
 import java.awt.geom.Line2D
+import java.awt.print.PrinterJob
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.awt.datatransfer.Transferable
@@ -228,6 +229,7 @@ class ThreadworkDesktopApp(
     private var restoringTreeExpansion = false
     private val compilerCompiler = CompilerCompiler()
     private val documentationCompiler = DocumentationCompiler()
+    private val printProfiles = ThreadworkPrintProfileStore()
     private val markdownOptions = MutableDataSet().set(Parser.EXTENSIONS, listOf(TablesExtension.create()))
     private val markdownParser = Parser.builder(markdownOptions).build()
     private val markdownHtmlRenderer = HtmlRenderer.builder(markdownOptions).build()
@@ -285,6 +287,10 @@ class ThreadworkDesktopApp(
     private lateinit var projectPanels: JTabbedPane
     private val modeButtons = mutableMapOf<CanvasMode, JToggleButton>()
     private var sheetButton: JToggleButton? = null
+    private var sheetFormatSelector: JComboBox<String>? = null
+    private var sheetScaleSelector: JComboBox<String>? = null
+    private var multipageSheetSelector: JCheckBox? = null
+    private var sheetOverlapSelector: JSpinner? = null
     private val commands = linkedMapOf<String, AppCommand>()
     private val pluginToolbarButtons = mutableListOf<PluginToolbarButton>()
     private val pluginContentTabs = mutableListOf<PluginContentTab>()
@@ -373,26 +379,26 @@ class ThreadworkDesktopApp(
                 addActionListener { canvas.setSheetFormatChoice(selectedItem?.toString().orEmpty()) }
                 preferredSize = Dimension(120, preferredSize.height)
                 maximumSize = preferredSize
-            })
+            }.also { sheetFormatSelector = it })
             add(JComboBox(canvas.sheetScaleChoices().toTypedArray()).apply {
                 isEditable = false
                 selectedItem = canvas.selectedSheetScaleChoice()
                 addActionListener { canvas.setSheetScaleChoice(selectedItem?.toString().orEmpty()) }
                 preferredSize = Dimension(80, preferredSize.height)
                 maximumSize = preferredSize
-            })
+            }.also { sheetScaleSelector = it })
             add(JCheckBox("Multi-page PDF").apply {
                 toolTipText = "Split fixed-format PDF output across multiple overlapping pages."
                 isSelected = canvas.isMultipagePdfEnabled()
                 addActionListener { canvas.setMultipagePdfEnabled(isSelected) }
-            })
+            }.also { multipageSheetSelector = it })
             add(JLabel("Overlap"))
             add(JSpinner(SpinnerNumberModel(canvas.sheetOverlapMm(), 0.0, 50.0, 0.5)).apply {
                 toolTipText = "Paper-space overlap between adjacent pages, in millimetres."
                 preferredSize = Dimension(64, preferredSize.height)
                 maximumSize = preferredSize
                 addChangeListener { canvas.setSheetOverlapMm((value as Number).toDouble()) }
-            })
+            }.also { sheetOverlapSelector = it })
             add(JLabel("mm"))
             pluginToolbarButtons.forEach { button ->
                 add(JButton(button.label).apply { addActionListener { button.action() } })
@@ -451,14 +457,15 @@ class ThreadworkDesktopApp(
             add(commandItem("file.open", "open"))
             add(commandItem("file.save", "save"))
             add(commandItem("file.saveAs", "disk"))
+            add(commandItem("file.printPreview", "sheet"))
             add(JMenu("Export").apply {
-                add(commandItem("export.plan.pdf", "sheet"))
-                add(commandItem("export.plan.svg", "sheet"))
-                add(commandItem("export.plan.png", "sheet"))
+                add(commandItem("export.plan.pdf", "pdf"))
+                add(commandItem("export.plan.svg", "svg"))
+                add(commandItem("export.plan.png", "png"))
                 addSeparator()
-                add(commandItem("export.documentation.pdf"))
-                add(commandItem("export.documentation.html"))
-                add(commandItem("export.documentation.markdown"))
+                add(commandItem("export.documentation.pdf", "pdf"))
+                add(commandItem("export.documentation.html", "html"))
+                add(commandItem("export.documentation.markdown", "md"))
             })
             add(commandItem("app.options"))
             add(commandItem("file.quit"))
@@ -528,6 +535,7 @@ class ThreadworkDesktopApp(
         registerCommand(AppCommand("file.open", "File: Open...", KeyStroke.getKeyStroke(KeyEvent.VK_O, shortcut)) { openFile() })
         registerCommand(AppCommand("file.save", "File: Save", KeyStroke.getKeyStroke(KeyEvent.VK_S, shortcut)) { saveFile() })
         registerCommand(AppCommand("file.saveAs", "File: Save As...", KeyStroke.getKeyStroke(KeyEvent.VK_S, shiftShortcut)) { saveAsFile() })
+        registerCommand(AppCommand("file.printPreview", "File: Print Preview...", KeyStroke.getKeyStroke(KeyEvent.VK_P, shortcut)) { showPreprintDialog() })
         registerCommand(AppCommand("file.quit", "File: Quit", KeyStroke.getKeyStroke(KeyEvent.VK_Q, shortcut)) { quit() })
         registerCommand(AppCommand("app.options", "Application: Options...") { showOptions() })
         registerCommand(AppCommand("edit.undo", "Edit: Undo", KeyStroke.getKeyStroke(KeyEvent.VK_Z, shortcut)) { undo() })
@@ -1262,6 +1270,96 @@ class ThreadworkDesktopApp(
                 "Export Documentation",
                 JOptionPane.ERROR_MESSAGE,
             )
+        }
+    }
+
+    private fun showPreprintDialog() {
+        canvas.showSheetPreview()
+        sheetButton?.isSelected = true
+        PreprintDialog(
+            parent = frame,
+            profiles = printProfiles,
+            formatChoices = canvas.sheetFormatChoices(),
+            scaleChoices = canvas.sheetScaleChoices(),
+            fallbackSettings = canvas::paginationSettings,
+            applySettings = { _, settings ->
+                canvas.applyPaginationSettings(settings)
+                synchronizeSheetControls()
+            },
+            planPreview = { canvas.renderPlanPreview() },
+            documentationAssets = ::preprintDocumentationAssets,
+            savePdf = ::savePreprintPdf,
+            print = ::printPreprint,
+            reportStatus = { message -> status.text = message },
+        ).isVisible = true
+    }
+
+    private fun synchronizeSheetControls() {
+        sheetFormatSelector?.selectedItem = canvas.selectedSheetFormatChoice()
+        sheetScaleSelector?.selectedItem = canvas.selectedSheetScaleChoice()
+        multipageSheetSelector?.isSelected = canvas.isMultipagePdfEnabled()
+        sheetOverlapSelector?.value = canvas.sheetOverlapMm()
+    }
+
+    private fun preprintDocumentationAssets(): List<PrintDocumentationAsset> =
+        compileDocumentationFiles().map { markdownFile ->
+            PrintDocumentationAsset(
+                title = markdownFile.path,
+                pages = renderMarkdownPages(markdownFile.content),
+            )
+        }
+
+    private fun preprintPdfPages(documents: List<PrintDocumentationAsset>): List<PdfRasterPage> =
+        canvas.renderPdfPages() + documents.flatMap { asset ->
+            asset.pages.map { image ->
+                PdfRasterPage(
+                    image = image,
+                    widthPoints = 210.0 * 72.0 / 25.4,
+                    heightPoints = 297.0 * 72.0 / 25.4,
+                )
+            }
+        }
+
+    private fun savePreprintPdf(documents: List<PrintDocumentationAsset>) {
+        val dialog = FileDialog(frame, "Save Print PDF", FileDialog.SAVE).apply {
+            directory = currentFile?.parent?.toString() ?: Path.of(".").toAbsolutePath().toString()
+            file = "${repository.getDocument().projectName()}-print.pdf"
+        }
+        dialog.isVisible = true
+        val directory = dialog.directory?.takeIf { it.isNotBlank() } ?: return
+        val selected = dialog.file?.takeIf { it.isNotBlank() } ?: return
+        val output = Path.of(directory).resolve(selected).let { path ->
+            if (path.fileName.toString().endsWith(".pdf", ignoreCase = true)) path else Path.of("${path}.pdf")
+        }
+        runCatching {
+            RasterPdfWriter.write(output, preprintPdfPages(documents))
+        }.onSuccess {
+            status.text = "Saved print PDF to ${output.toAbsolutePath()}"
+        }.onFailure { error ->
+            status.text = "Print PDF export failed: ${error.message}"
+            JOptionPane.showMessageDialog(frame, error.message ?: "Could not save the PDF.", "Print Preview", JOptionPane.ERROR_MESSAGE)
+        }
+    }
+
+    private fun printPreprint(service: javax.print.PrintService, documents: List<PrintDocumentationAsset>) {
+        runCatching {
+            val pages = preprintPdfPages(documents)
+            val spoolFile = Files.createTempFile("threadwork-print-", ".pdf")
+            RasterPdfWriter.write(spoolFile, pages)
+            spoolFile.toFile().deleteOnExit()
+
+            val printerJob = PrinterJob.getPrinterJob().apply {
+                printService = service
+                jobName = "Threadwork ${repository.getDocument().projectName()}"
+                setPrintable(RasterPagesPrintable(pages))
+            }
+            if (printerJob.printDialog()) {
+                printerJob.print()
+                status.text = "Submitted ${pages.size} print page(s) to ${service.name}"
+            }
+        }.onFailure { error ->
+            status.text = "Printing failed: ${error.message}"
+            JOptionPane.showMessageDialog(frame, error.message ?: "Could not submit the print job.", "Print Preview", JOptionPane.ERROR_MESSAGE)
         }
     }
 
@@ -2157,6 +2255,13 @@ class GraphCanvas(
         return showSheet
     }
 
+    fun showSheetPreview() {
+        if (showSheet) return
+        showSheet = true
+        invalidateRenderCache()
+        repaint()
+    }
+
     fun sheetFormatChoices(): List<String> = listOf(AUTO_SHEET_FORMAT) + SHEET_FORMATS.map { it.id }
 
     fun selectedSheetFormatChoice(): String = sheetFormatChoice
@@ -2200,6 +2305,37 @@ class GraphCanvas(
         val next = overlapMm.coerceIn(0.0, 50.0)
         if (sheetOverlapMm == next) return
         sheetOverlapMm = next
+        invalidateRenderCache()
+        repaint()
+    }
+
+    internal fun paginationSettings(): SheetPaginationSettings = SheetPaginationSettings(
+        formatChoice = sheetFormatChoice,
+        scaleChoice = selectedSheetScaleChoice(),
+        multipage = multipagePdfEnabled,
+        overlapMm = sheetOverlapMm,
+    )
+
+    internal fun applyPaginationSettings(settings: SheetPaginationSettings) {
+        val nextFormat = settings.formatChoice.ifBlank { AUTO_SHEET_FORMAT }
+        val nextScale = settings.scaleChoice.substringAfter(':', settings.scaleChoice)
+            .trim()
+            .toIntOrNull()
+            ?.takeIf { it in SHEET_SCALES }
+            ?: 1
+        val nextOverlap = settings.overlapMm.coerceIn(0.0, 50.0)
+        if (
+            sheetFormatChoice == nextFormat &&
+            sheetScale == nextScale &&
+            multipagePdfEnabled == settings.multipage &&
+            sheetOverlapMm == nextOverlap
+        ) {
+            return
+        }
+        sheetFormatChoice = nextFormat
+        sheetScale = nextScale
+        multipagePdfEnabled = settings.multipage
+        sheetOverlapMm = nextOverlap
         invalidateRenderCache()
         repaint()
     }
@@ -3118,6 +3254,40 @@ class GraphCanvas(
         return image
     }
 
+    /**
+     * Renders the same technical-sheet view shown on the canvas, constrained only for dialog
+     * preview. The print/export path still renders at its full paper resolution.
+     */
+    fun renderPlanPreview(maxWidth: Int = 1_200, maxHeight: Int = 760): BufferedImage? {
+        val plan = sheetPlan(requestMultipage = multipagePdfEnabled) ?: return null
+        val scale = minOf(
+            maxWidth.toDouble() / plan.sheet.width.coerceAtLeast(1),
+            maxHeight.toDouble() / plan.sheet.height.coerceAtLeast(1),
+            1.0,
+        )
+        val image = BufferedImage(
+            (plan.sheet.width * scale).roundToInt().coerceAtLeast(1),
+            (plan.sheet.height * scale).roundToInt().coerceAtLeast(1),
+            BufferedImage.TYPE_INT_ARGB,
+        )
+        val graphics = image.createGraphics()
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            graphics.color = Color.WHITE
+            graphics.fillRect(0, 0, image.width, image.height)
+            graphics.scale(scale, scale)
+            graphics.translate(-plan.sheet.x, -plan.sheet.y)
+            graphics.font = designerFont
+            graphics.clip = plan.sheet
+            drawIsoSheet(graphics, plan, includeGrid = false, drawPreviewGuides = true)
+            graphics.clip = plan.drawing
+            withPalette(technicalPalette) { drawGraph(graphics, plan.scopeIds) }
+        } finally {
+            graphics.dispose()
+        }
+        return image
+    }
+
     private fun withExtension(file: File, extension: String): File =
         if (file.name.endsWith(".$extension", ignoreCase = true)) file else File(file.parentFile, "${file.name}.$extension")
 
@@ -3603,8 +3773,12 @@ class GraphCanvas(
         if (value % 1.0 == 0.0) value.toInt().toString() else "%.2f".format(java.util.Locale.ROOT, value)
 
     private fun writePdfSheet(file: File) {
+        RasterPdfWriter.write(file.toPath(), renderPdfPages())
+    }
+
+    internal fun renderPdfPages(): List<PdfRasterPage> {
         val plan = sheetPlan(requestMultipage = multipagePdfEnabled) ?: error("Nothing to export.")
-        val pages = plan.pages.map { page ->
+        return plan.pages.map { page ->
             val image = renderPdfPage(plan, page)
             val widthMm = page.sheet.width / SHEET_UNITS_PER_MM / plan.scale
             val heightMm = page.sheet.height / SHEET_UNITS_PER_MM / plan.scale
@@ -3614,7 +3788,6 @@ class GraphCanvas(
                 heightPoints = heightMm * PDF_POINTS_PER_MM,
             )
         }
-        RasterPdfWriter.write(file.toPath(), pages)
     }
 
     private fun renderPdfPage(plan: SheetPlan, page: SheetPage): BufferedImage {
