@@ -9,7 +9,8 @@
             "kind": "Group",
             "parentId": null,
             "children": [
-                "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552"
+                "node_311ba1d2-bfc7-408f-bbf5-31e75eb43552",
+                "node_75268041-5780-4e90-8b46-b3b97212a207"
             ],
             "incomingLinks": [],
             "outgoingLinks": [],
@@ -17,8 +18,14 @@
                 "x": 73.0,
                 "y": -1000.0,
                 "width": 1147.0,
-                "height": 582.0
+                "height": 582.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -38,8 +45,18 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T11:56:04.289340838Z",
+                "user": "devlin"
+            },
             "ports": [],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -58,11 +75,17 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 105.0,
-                "y": -920.0,
-                "width": 1083.0,
-                "height": 454.0
+                "x": -40.0,
+                "y": -950.0,
+                "width": 1002.0,
+                "height": 487.0,
+                "closedWidth": 276.0,
+                "closedHeight": 100.0,
+                "openWidth": 1002.0,
+                "openHeight": 487.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -82,8 +105,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": null,
+            "responsible": null,
+            "modified": {
+                "date": "",
+                "user": ""
+            },
             "ports": [],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -99,8 +129,14 @@
                 "x": 140.0,
                 "y": -840.0,
                 "width": 316.0,
-                "height": 90.0
+                "height": 100.0,
+                "closedWidth": 316.0,
+                "closedHeight": 100.0,
+                "openWidth": 316.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "// generic override for generator generation\n  template: generator init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
                 "initializationLanguageId": "",
@@ -120,8 +156,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": null,
+            "responsible": null,
+            "modified": {
+                "date": "",
+                "user": ""
+            },
             "ports": [],
             "link": null,
+            "typeDefinition": null,
             "metadata": {
                 "path": "compiler-overrides/transformer.template"
             },
@@ -136,11 +179,17 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 786.0,
-                "y": -839.0,
-                "width": 364.0,
-                "height": 90.0
+                "x": 503.0,
+                "y": -837.0,
+                "width": 276.0,
+                "height": 100.0,
+                "closedWidth": 276.0,
+                "closedHeight": 100.0,
+                "openWidth": 276.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "// generic override for transformer generation\n  template: transformer init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
                 "initializationLanguageId": "",
@@ -160,8 +209,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": null,
+            "responsible": null,
+            "modified": {
+                "date": "",
+                "user": ""
+            },
             "ports": [],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -174,11 +230,17 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 137.0,
-                "y": -738.0,
-                "width": 364.0,
-                "height": 90.0
+                "x": 145.0,
+                "y": -722.0,
+                "width": 276.0,
+                "height": 100.0,
+                "closedWidth": 276.0,
+                "closedHeight": 100.0,
+                "openWidth": 276.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "// generic override for sink generation\n  template: sink init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
                 "initializationLanguageId": "",
@@ -198,8 +260,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": null,
+            "responsible": null,
+            "modified": {
+                "date": "",
+                "user": ""
+            },
             "ports": [],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -212,11 +281,17 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 792.0,
-                "y": -732.0,
-                "width": 364.0,
-                "height": 90.0
+                "x": 506.0,
+                "y": -721.0,
+                "width": 276.0,
+                "height": 100.0,
+                "closedWidth": 276.0,
+                "closedHeight": 100.0,
+                "openWidth": 276.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "// generic override for service library generation\n  template: service library init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
                 "initializationLanguageId": "",
@@ -236,8 +311,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": null,
+            "responsible": null,
+            "modified": {
+                "date": "",
+                "user": ""
+            },
             "ports": [],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -250,11 +332,17 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 149.0,
-                "y": -604.0,
-                "width": 364.0,
-                "height": 90.0
+                "x": 146.0,
+                "y": -611.0,
+                "width": 276.0,
+                "height": 100.0,
+                "closedWidth": 276.0,
+                "closedHeight": 100.0,
+                "openWidth": 276.0,
+                "openHeight": 100.0,
+                "isExpanded": true
             },
+            "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "// generic override for static file generation\n  template: static file init\n\n  node: ${node.name}\n  options.projectName:${options.projectName}\n\nnode.id:${node.id}\nnode.name:${node.name}\nnode.kind.name:${node.kind.name}\nnode.kind.ordinal:${node.kind.ordinal}\nnode.children.size:${node.children.size}\nnode.incomingLinks:${node.incomingLinks}\nnode.incomingLinks:${node.incomingLinks.first().value}\nnode.isComposite:${node.isComposite}\nnode.isLink:${node.isLink}\nnode.isTerminal:${node.isTerminal}\nnode.layout:${node.layout}\nnode.link.sourceNodeId:${node.link?.sourceNodeId}\nnode.link.targetNodeId:${node.link?.targetNodeId}\nnode.link.sourcePortName:${node.link?.sourcePortName}\nnode.link.targetPortName:${node.link?.targetPortName}\nnode.metadata.size:${node.metadata.size}\nnode.metadata:${node.metadata}\nnode.outgoingLinks:${node.outgoingLinks}\nnode.parentId:${node.parentId}\nnode.pluginData:${node.pluginData}\nnode.ports:${node.ports}\nnode.pluginData:${node.pluginData}\nnode.text.initializationLanguageId:${node.text.initializationLanguageId}\nnode.text.initialization:${node.text.initialization}\nnode.text.sourceLanguageId:${node.text.sourceLanguageId}\nnode.text.source:${node.text.source}\nnode.text.specificationLanguageId:${node.text.specificationLanguageId}\nnode.text.specification:${node.text.specification}\nnode.text.aiInstructionsLanguageId:${node.text.aiInstructionsLanguageId}\nnode.text.aiInstructions:${node.text.aiInstructions}\nnode.text.testsLanguageId:${node.text.testsLanguageId}\nnode.text.tests:${node.text.tests}",
                 "initializationLanguageId": "",
@@ -274,11 +362,76 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": null,
+            "responsible": null,
+            "modified": {
+                "date": "",
+                "user": ""
+            },
             "ports": [],
             "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_75268041-5780-4e90-8b46-b3b97212a207",
+            "name": "New Node",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 1194.0,
+                "y": -679.0,
+                "width": 284.0,
+                "height": 90.0,
+                "closedWidth": 284.0,
+                "closedHeight": 90.0,
+                "openWidth": 284.0,
+                "openHeight": 90.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T11:56:04.289340838Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         }
     ],
-    "metadata": {}
+    "metadata": {},
+    "masterRevision": {
+        "name": "",
+        "date": ""
+    }
 }

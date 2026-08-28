@@ -131,6 +131,7 @@ import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JCheckBox
+import javax.swing.JColorChooser
 import javax.swing.JComponent
 import javax.swing.JDialog
 import javax.swing.JEditorPane
@@ -874,6 +875,11 @@ class ThreadworkDesktopApp(
     }
 
     private fun showOptions() {
+        val originalTheme = ThreadworkAppearance.theme
+        val originalPalette = ThreadworkAppearance.palette(originalTheme)
+        val themeSelector = JComboBox(ApplicationTheme.entries.map { it.label }.toTypedArray()).apply {
+            selectedItem = originalTheme.label
+        }
         val designerSelector = JComboBox(ThreadworkFonts.designerOptions.map { it.label }.toTypedArray()).apply {
             selectedItem = ThreadworkFonts.optionLabel(ThreadworkFonts.designerFontId, ThreadworkFonts.designerOptions)
         }
@@ -890,9 +896,29 @@ class ThreadworkDesktopApp(
         val compositeReferenceHeight = JSpinner(
             SpinnerNumberModel(ThreadworkDesignerSettings.compositeReferenceViewportHeight, 300.0, 10000.0, 50.0),
         )
+        var selectedPalette = originalPalette
+        val paletteHost = JPanel(BorderLayout())
+        fun rebuildPaletteEditor(theme: ApplicationTheme) {
+            selectedPalette = ThreadworkAppearance.palette(theme)
+            paletteHost.removeAll()
+            paletteHost.add(createPaletteEditor(selectedPalette) { palette ->
+                selectedPalette = palette
+                canvas.setPalette(palette)
+            }, BorderLayout.CENTER)
+            paletteHost.revalidate()
+            paletteHost.repaint()
+            canvas.setPalette(selectedPalette)
+        }
+        themeSelector.addActionListener {
+            rebuildPaletteEditor(ApplicationTheme.fromLabel(themeSelector.selectedItem?.toString().orEmpty()))
+        }
+        rebuildPaletteEditor(originalTheme)
+
         val generalContent = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
+            add(JLabel("Application theme"))
+            add(themeSelector)
             add(JLabel("Flow Designer font"))
             add(designerSelector)
             add(JLabel("Composite title target screen size").apply { border = BorderFactory.createEmptyBorder(12, 0, 0, 0) })
@@ -909,12 +935,21 @@ class ThreadworkDesktopApp(
         val aiOptions = AiSupportProviders.optionsPanel()
         val content = JTabbedPane().apply {
             addTab("General", generalContent)
+            addTab("Flow Designer colors", paletteHost)
             addTab("Inference Providers", aiOptions.component)
             preferredSize = Dimension(560, 500)
         }
         val result = JOptionPane.showConfirmDialog(frame, content, "Options", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
-        if (result != JOptionPane.OK_OPTION) return
+        if (result != JOptionPane.OK_OPTION) {
+            canvas.setPalette(originalPalette)
+            return
+        }
 
+        val selectedTheme = ApplicationTheme.fromLabel(themeSelector.selectedItem?.toString().orEmpty())
+        ThreadworkAppearance.theme = selectedTheme
+        ThreadworkAppearance.updatePalette(selectedTheme, selectedPalette)
+        ThreadworkAppearance.applyLookAndFeel()
+        SwingUtilities.updateComponentTreeUI(frame)
         ThreadworkFonts.designerFontId = ThreadworkFonts.optionId(designerSelector.selectedItem?.toString().orEmpty(), ThreadworkFonts.designerOptions)
         ThreadworkFonts.codeFontId = ThreadworkFonts.optionId(codeSelector.selectedItem?.toString().orEmpty(), ThreadworkFonts.codeOptions)
         ThreadworkEditorSettings.indentSpaces = (indentSpaces.value as? Int) ?: ThreadworkEditorSettings.indentSpaces
@@ -923,9 +958,46 @@ class ThreadworkDesktopApp(
         ThreadworkDesignerSettings.compositeReferenceViewportHeight = (compositeReferenceHeight.value as Number).toDouble()
         aiOptions.commit()
         applyFontOptions()
+        canvas.setPalette(ThreadworkAppearance.palette())
         canvas.refreshBoundsFromChildren()
         canvas.repaint()
         status.text = "Options updated"
+    }
+
+    private fun createPaletteEditor(
+        initial: DesignerPalette,
+        onPaletteChanged: (DesignerPalette) -> Unit,
+    ): JComponent {
+        var palette = initial
+        val rows = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        }
+        DesignerColorKey.entries.forEach { key ->
+            val valueField = JTextField(ThreadworkAppearance.colorToHex(palette[key]), 9)
+            fun applyColor() {
+                val color = ThreadworkAppearance.colorFromHex(valueField.text) ?: return
+                palette = palette.withColor(key, color)
+                onPaletteChanged(palette)
+            }
+            valueField.document.addDocumentListener(SimpleDocumentListener(::applyColor))
+            val picker = JButton("Pick").apply {
+                toolTipText = "Choose ${key.label}"
+                addActionListener {
+                    JColorChooser.showDialog(frame, "Choose ${key.label}", palette[key])?.let { color ->
+                        valueField.text = ThreadworkAppearance.colorToHex(color)
+                    }
+                }
+            }
+            rows.add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 2)).apply {
+                add(JLabel(key.label).apply { preferredSize = Dimension(185, 24) })
+                add(valueField)
+                add(picker)
+            })
+        }
+        return JScrollPane(rows).apply {
+            border = BorderFactory.createEmptyBorder()
+        }
     }
 
     private fun applyFontOptions() {
@@ -1850,6 +1922,8 @@ class GraphCanvas(
     private var multipagePdfEnabled = false
     private var sheetOverlapMm = DEFAULT_SHEET_OVERLAP_MM
     private var designerFont: Font = ThreadworkFonts.designerFont(13f)
+    private var activePalette: DesignerPalette = ThreadworkAppearance.palette()
+    private val technicalPalette: DesignerPalette = ThreadworkAppearance.defaultPalette(ApplicationTheme.Light)
     private val routeCache = mutableMapOf<NodeId, LinkRoute>()
     private val activeRouteLinks = mutableSetOf<NodeId>()
     private val rerouteTimer = Timer(180) { rebuildRouteCache() }.apply { isRepeats = false }
@@ -1993,7 +2067,7 @@ class GraphCanvas(
     }
 
     init {
-        background = Color(0xf7f7f7)
+        background = activePalette[DesignerColorKey.CanvasBackground]
         preferredSize = Dimension(900, 700)
         toolTipText = ""
         val mouse = object : MouseAdapter() {
@@ -2067,6 +2141,13 @@ class GraphCanvas(
         renderRevision++
         tileCache.clear()
         onTileProgress(0, 0, false)
+    }
+
+    fun setPalette(palette: DesignerPalette) {
+        activePalette = palette
+        background = palette[DesignerColorKey.CanvasBackground]
+        invalidateRenderCache()
+        repaint()
     }
 
     fun toggleSheet(): Boolean {
@@ -2423,9 +2504,10 @@ class GraphCanvas(
         val previousFont = g2.font
         selectionRect?.let { rect ->
             val screenRect = modelRectToScreen(rect)
-            g2.color = Color(0x3366cc55, true)
+            val selectionColor = activePalette[DesignerColorKey.Selection]
+            g2.color = Color(selectionColor.red, selectionColor.green, selectionColor.blue, 0x55)
             g2.fill(screenRect)
-            g2.color = Color(0x3366cc)
+            g2.color = selectionColor
             g2.stroke = if (selectionDragLeftToRight) {
                 BasicStroke(1f)
             } else {
@@ -2443,7 +2525,7 @@ class GraphCanvas(
         if (selection.isEmpty()) return
         val bounds = selectionBounds() ?: return
         val screenRect = modelRectToScreen(bounds).apply { grow(6, 6) }
-        g2.color = Color(0x1f5fd8)
+        g2.color = activePalette[DesignerColorKey.Selection]
         g2.stroke = BasicStroke(1.5f)
         g2.draw(screenRect)
     }
@@ -2492,7 +2574,7 @@ class GraphCanvas(
         val text = fitScreenText(hierarchyPath(fillingNode), metrics, width - 16)
         g2.color = Color(0xccffffff.toInt(), true)
         g2.drawString(text, 9, 19)
-        g2.color = Color(0x202020)
+        g2.color = activePalette[DesignerColorKey.TextPrimary]
         g2.drawString(text, 8, 18)
     }
 
@@ -2586,10 +2668,24 @@ class GraphCanvas(
 
     private fun drawStaticScene(g2: Graphics2D, viewport: Rectangle) {
         val activeSheetPlan = if (showSheet) sheetPlan() else null
-        activeSheetPlan?.let { drawIsoSheet(g2, it, includeGrid = true, drawPreviewGuides = false) }
+        activeSheetPlan?.let { withPalette(technicalPalette) { drawIsoSheet(g2, it, includeGrid = true, drawPreviewGuides = false) } }
         if (!showSheet) drawGrid(g2, viewport)
-        drawGraph(g2, viewport = viewport)
+        if (activeSheetPlan == null) {
+            drawGraph(g2, viewport = viewport)
+        } else {
+            withPalette(technicalPalette) { drawGraph(g2, viewport = viewport) }
+        }
         activeSheetPlan?.let { drawSheetPreviewGuides(g2, it) }
+    }
+
+    private inline fun <T> withPalette(palette: DesignerPalette, block: () -> T): T {
+        val previous = activePalette
+        activePalette = palette
+        return try {
+            block()
+        } finally {
+            activePalette = previous
+        }
     }
 
     private fun zoomBucket(): Int =
@@ -2599,18 +2695,18 @@ class GraphCanvas(
         ZOOM_BUCKET_STEP.pow(bucket.toDouble())
 
     private fun drawGrid(g2: Graphics2D, bounds: Rectangle? = null) {
-        g2.color = Color(0xe2e2e2)
+        g2.color = activePalette[DesignerColorKey.GridMinor]
         val step = 40
         val minX = bounds?.x?.let { floor(it.toDouble() / step).toInt() * step } ?: (floor(-panX / step).toInt() * step)
         val minY = bounds?.y?.let { floor(it.toDouble() / step).toInt() * step } ?: (floor(-panY / step).toInt() * step)
         val maxX = bounds?.let { ceil((it.x + it.width).toDouble() / step).toInt() * step } ?: (ceil((width / zoom - panX) / step).toInt() * step)
         val maxY = bounds?.let { ceil((it.y + it.height).toDouble() / step).toInt() * step } ?: (ceil((height / zoom - panY) / step).toInt() * step)
         for (x in minX..maxX step step) {
-            g2.color = if (x % 200 == 0) Color(0xd1d1df) else Color(0xe2e2e2)
+            g2.color = if (x % 200 == 0) activePalette[DesignerColorKey.GridMajor] else activePalette[DesignerColorKey.GridMinor]
             g2.drawLine(x, minY, x, maxY)
         }
         for (y in minY..maxY step step) {
-            g2.color = if (y % 200 == 0) Color(0xd1d1df) else Color(0xe2e2e2)
+            g2.color = if (y % 200 == 0) activePalette[DesignerColorKey.GridMajor] else activePalette[DesignerColorKey.GridMinor]
             g2.drawLine(minX, y, maxX, y)
         }
     }
@@ -3016,7 +3112,7 @@ class GraphCanvas(
         g2.clip = plan.sheet
         drawIsoSheet(g2, plan, includeGrid = false, drawPreviewGuides = false)
         g2.clip = plan.drawing
-        drawGraph(g2, plan.scopeIds)
+        withPalette(technicalPalette) { drawGraph(g2, plan.scopeIds) }
         g2.clip = previousClip
         g2.dispose()
         return image
@@ -3536,7 +3632,7 @@ class GraphCanvas(
         drawTechnicalSheet(g2, plan)
         g2.clip = page.sheet
         g2.clip(plan.drawing)
-        drawGraph(g2, plan.scopeIds)
+        withPalette(technicalPalette) { drawGraph(g2, plan.scopeIds) }
         g2.clip = page.sheet
         if (plan.isMultipage) drawAlignmentCrosses(g2, plan, page)
         g2.dispose()
@@ -3574,32 +3670,32 @@ class GraphCanvas(
         g2.color = strokeFor(node, selected)
         g2.stroke = nodeStroke(node, selected)
         g2.drawRect(r.x, r.y, r.width, r.height)
-        g2.color = Color(0x222222)
+        g2.color = activePalette[DesignerColorKey.TextPrimary]
         val compact = node.children.isEmpty() || !node.layout.isExpanded
         if (node.isComposite && node.layout.isExpanded) {
             val metrics = compositeTextMetrics(node)
             g2.font = designerFont.deriveFont(metrics.titleSize)
             g2.drawString(node.name, r.x + 12, r.y + metrics.titleBaselineOffset)
-            g2.color = Color(0x555555)
+            g2.color = activePalette[DesignerColorKey.TextSecondary]
             g2.font = designerFont.deriveFont(metrics.infoSize)
             g2.drawString(stereotype.name, r.x + 12, r.y + metrics.stereotypeBaselineOffset)
             technologyLabel(node)?.let {
-                g2.color = Color(0x666666)
+                g2.color = activePalette[DesignerColorKey.TextMuted]
                 g2.drawString(it, r.x + 12, r.y + metrics.technologyBaselineOffset)
             }
         } else {
             g2.font = g2.font.deriveFont(if (compact) 13f else 12f)
             val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
             g2.drawString(node.name, r.x + 12, r.y + 22 + headerOffset)
-            g2.color = Color(0x555555)
+            g2.color = activePalette[DesignerColorKey.TextSecondary]
             g2.drawString(stereotype.name, r.x + 12, r.y + 42 + headerOffset)
             technologyLabel(node)?.let {
-                g2.color = Color(0x666666)
+                g2.color = activePalette[DesignerColorKey.TextMuted]
                 g2.font = g2.font.deriveFont(11f)
                 g2.drawString(it, r.x + 12, r.y + 58 + headerOffset)
             }
             if (node.isType) {
-                g2.color = Color(0x00695c)
+                g2.color = activePalette[DesignerColorKey.TypeStroke]
                 g2.font = designerFont.deriveFont(11f)
                 typeFieldLabels(node).forEachIndexed { index, label ->
                     g2.drawString(label, r.x + 12, r.y + 64 + index * 18)
@@ -3614,11 +3710,11 @@ class GraphCanvas(
         val label = if (node.layout.isExpanded) "-" else "+"
         val rect = compositeToggleRect(node,label) ?: return
         val selected = node.id in selection
-        val stroke = if (selected) Color(0x3366cc) else Color(0x666666)
+        val stroke = if (selected) activePalette[DesignerColorKey.Selection] else activePalette[DesignerColorKey.TextMuted]
         val previousColor = g2.color
         val previousStroke = g2.stroke
         val previousFont = g2.font
-        g2.color = Color.WHITE
+        g2.color = activePalette[DesignerColorKey.PortFill]
         g2.fillRect(rect.x, rect.y, rect.width, rect.height)
         g2.color = stroke
         g2.stroke = BasicStroke(1f)
@@ -3784,7 +3880,7 @@ class GraphCanvas(
     private fun drawBoundaryPierceMarker(g2: Graphics2D, point: Point, dx: Int, dy: Int) {
         val color = g2.color
         drawDirectionalArrow(g2, boundaryArrowCenter(point, dx, dy), dx, dy)
-        g2.color = Color.WHITE
+        g2.color = activePalette[DesignerColorKey.PortFill]
         g2.fillOval(point.x - 5, point.y - 5, 10, 10)
         g2.color = color
         g2.drawOval(point.x - 5, point.y - 5, 10, 10)
@@ -3924,12 +4020,12 @@ class GraphCanvas(
             val y = r.y + 10 + index * (labelHeight + 8)
             val x = r.x + r.width + 34
             val anchor = Point(r.x + r.width, y + labelHeight / 2)
-            val color = if (selected) Color(0x1565c0) else Color(0x3333cc)
+            val color = if (selected) activePalette[DesignerColorKey.Selection] else activePalette[DesignerColorKey.LinkLibrary]
             g2.color = color
             g2.stroke = BasicStroke(if (selected) 2.4f else 1.5f)
             g2.drawLine(anchor.x, anchor.y, x, anchor.y)
             g2.fillOval(anchor.x - 4, anchor.y - 4, 8, 8)
-            g2.color = Color(0xf8f9ff)
+            g2.color = activePalette[DesignerColorKey.AnnotationFill]
             g2.fillRect(x, y, labelWidth, labelHeight)
             g2.color = color
             g2.drawRect(x, y, labelWidth, labelHeight)
@@ -3953,7 +4049,7 @@ class GraphCanvas(
         val startY = r.y - rows.size * rowHeight - 16
         val stemBottom = r.y + 16
         val selected = rows.any { it.first.id in selection }
-        val color = if (selected) Color(0x1565c0) else Color(0x1037ff)
+        val color = if (selected) activePalette[DesignerColorKey.Selection] else activePalette[DesignerColorKey.LinkLibrary]
         g2.color = color
         g2.stroke = BasicStroke(if (selected) 2.2f else 1.5f)
         g2.drawLine(x, startY, x, stemBottom)
@@ -3987,12 +4083,12 @@ class GraphCanvas(
                 val x = r.x + r.width + 34
                 val anchorY = y + 12
                 val selected = link.id in selection
-                val color = if (selected) Color(0x1565c0) else Color(0x00897b)
+                val color = if (selected) activePalette[DesignerColorKey.Selection] else activePalette[DesignerColorKey.TypeStroke]
                 g2.color = color
                 g2.stroke = BasicStroke(if (selected) 2.4f else 1.5f)
                 g2.drawLine(r.x + r.width, anchorY, x, anchorY)
                 g2.fillOval(r.x + r.width - 4, anchorY - 4, 8, 8)
-                g2.color = Color(0xf1fbf9)
+                g2.color = activePalette[DesignerColorKey.TypeFill]
                 g2.fillRect(x, y, width, 24)
                 g2.color = color
                 g2.drawRect(x, y, width, 24)
@@ -4431,7 +4527,7 @@ class GraphCanvas(
         typeName?.let {
             g2.drawString(":", cursor, baseline)
             cursor += g2.fontMetrics.stringWidth(":")
-            g2.color = Color(0x008c4a)
+            g2.color = activePalette[DesignerColorKey.TypeText]
             g2.drawString(it, cursor, baseline)
         }
     }
@@ -4834,23 +4930,23 @@ class GraphCanvas(
     private fun modelPoint(point: Point): Point = Point(((point.x / zoom) - panX).toInt(), ((point.y / zoom) - panY).toInt())
 
     private fun fillFor(node: Node): Color = when {
-        node.isType -> Color(0xf1fbf9)
-        nodeStereotype(node) in compilerDesignStereotypes -> Color(0xfff4dc)
-        node.children.isNotEmpty() -> Color(0xfafafa)
-        nodeStereotype(node) == NodeStereotype.ServiceLibrary -> Color(0xf6f7ff)
-        nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> Color(0xfffbfb)
-        nodeStereotype(node) in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> Color(0xf8fff8)
-        else -> Color.WHITE
+        node.isType -> activePalette[DesignerColorKey.TypeFill]
+        nodeStereotype(node) in compilerDesignStereotypes -> activePalette[DesignerColorKey.CompilerFill]
+        node.children.isNotEmpty() -> activePalette[DesignerColorKey.NodeFill]
+        nodeStereotype(node) == NodeStereotype.ServiceLibrary -> activePalette[DesignerColorKey.LibraryFill]
+        nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> activePalette[DesignerColorKey.ErrorFill]
+        nodeStereotype(node) in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> activePalette[DesignerColorKey.TestFill]
+        else -> activePalette[DesignerColorKey.NodeFill]
     }
 
     private fun strokeFor(node: Node, selected: Boolean): Color = when {
-        selected -> Color(0x3366cc)
-        node.isType -> Color(0x00897b)
-        nodeStereotype(node) in compilerDesignStereotypes -> Color(0xaa6a00)
-        nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> Color(0xcc3333)
-        nodeStereotype(node) in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> Color(0x33aa33)
-        nodeStereotype(node) == NodeStereotype.ServiceLibrary -> Color(0x3333cc)
-        else -> Color(0x222222)
+        selected -> activePalette[DesignerColorKey.Selection]
+        node.isType -> activePalette[DesignerColorKey.TypeStroke]
+        nodeStereotype(node) in compilerDesignStereotypes -> activePalette[DesignerColorKey.CompilerStroke]
+        nodeStereotype(node) in setOf(NodeStereotype.ErrorHandler, NodeStereotype.CompositeErrorHandler) -> activePalette[DesignerColorKey.ErrorStroke]
+        nodeStereotype(node) in setOf(NodeStereotype.Test, NodeStereotype.TestSuite) -> activePalette[DesignerColorKey.TestStroke]
+        nodeStereotype(node) == NodeStereotype.ServiceLibrary -> activePalette[DesignerColorKey.LibraryStroke]
+        else -> activePalette[DesignerColorKey.NodeStroke]
     }
 
     private fun nodeStroke(node: Node, selected: Boolean): Stroke = when {
@@ -4886,11 +4982,11 @@ class GraphCanvas(
         (text.length * fontSize * 0.62f).roundToInt() + padding
 
     private fun linkColor(stereotype: LinkStereotype, selected: Boolean): Color = when {
-        selected -> Color(0x1565c0)
-        stereotype == LinkStereotype.UsageImport -> Color(0x3333cc)
-        stereotype == LinkStereotype.ErrorPipe -> Color(0xcc3333)
-        stereotype == LinkStereotype.DependencyInjection -> Color(0xb36b00)
-        else -> Color(0x222222)
+        selected -> activePalette[DesignerColorKey.Selection]
+        stereotype == LinkStereotype.UsageImport -> activePalette[DesignerColorKey.LinkLibrary]
+        stereotype == LinkStereotype.ErrorPipe -> activePalette[DesignerColorKey.LinkError]
+        stereotype == LinkStereotype.DependencyInjection -> activePalette[DesignerColorKey.LinkDependency]
+        else -> activePalette[DesignerColorKey.LinkDefault]
     }
 
     private fun isBackflow(route: LinkRoute): Boolean = route.source.x > route.target.x
@@ -6531,6 +6627,7 @@ private fun NodeLayout.center(): Point = Point((x + width / 2).toInt(), (y + hei
 
 fun launchDesktopApp(pluginsFolder: Path? = null) {
     SwingUtilities.invokeLater {
+        ThreadworkAppearance.applyLookAndFeel()
         ThreadworkDesktopApp(pluginsFolder = pluginsFolder ?: defaultPluginsFolder()).show()
     }
 }

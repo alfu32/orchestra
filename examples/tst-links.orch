@@ -1,6 +1,6 @@
 {
     "id": "document_1781101844547",
-    "name": "Untitled Threadwork",
+    "name": "tst_link_rendering",
     "rootNodeId": "root",
     "nodes": [
         {
@@ -17,7 +17,8 @@
                 "link_e000882e-7b98-4e0e-ac7c-1869a09d018f",
                 "link_9671b652-cc36-4dd7-9c4b-3a6e7e4cb657",
                 "link_5b568bc0-c16a-454c-b1a4-a80c5d07c93d",
-                "link_4993ef5f-90d9-432f-8d0b-36ebb6a71386"
+                "link_4993ef5f-90d9-432f-8d0b-36ebb6a71386",
+                "node_c6d4fa07-1d91-4673-8f5e-ae7077b87f17"
             ],
             "incomingLinks": [],
             "outgoingLinks": [],
@@ -52,8 +53,18 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:58.791354402Z",
+                "user": "devlin"
+            },
             "ports": [],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -66,10 +77,7 @@
                 "node_a37dc34a-2fb3-4a7e-a6d3-6b1bb4af66b8",
                 "node_42fd6b42-d4c7-4ab2-a43a-eded39593495",
                 "node_c8a6b087-8240-4c9d-9d0b-198a10429008",
-                "link_72aeff8b-7c58-40fb-b813-e011458b5b85",
-                "link_447146d6-fbd9-4c6d-ad80-994c93d4a8e1",
-                "link_f75fc6a7-cb36-4e1d-91e5-9385b9c226d7",
-                "link_878d2841-5e82-4c39-aa6f-e7f2ebf4ae7f"
+                "link_79c0da15-ff82-4411-980a-dbd786671bb7"
             ],
             "incomingLinks": [
                 "link_e000882e-7b98-4e0e-ac7c-1869a09d018f",
@@ -80,14 +88,14 @@
                 "link_4993ef5f-90d9-432f-8d0b-36ebb6a71386"
             ],
             "layout": {
-                "x": -237.0,
-                "y": 662.0,
-                "width": 699.0,
-                "height": 504.0,
+                "x": -578.0,
+                "y": 12.0,
+                "width": 848.0,
+                "height": 447.0,
                 "closedWidth": 220.0,
                 "closedHeight": 174.0,
-                "openWidth": 699.0,
-                "openHeight": 504.0,
+                "openWidth": 848.0,
+                "openHeight": 447.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -110,6 +118,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:58.791354402Z",
+                "user": "devlin"
+            },
             "ports": [
                 {
                     "id": "input_in",
@@ -127,6 +144,7 @@
                 }
             ],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -139,8 +157,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 210.0,
-                "y": 1028.0,
+                "x": -130.0,
+                "y": 317.0,
                 "width": 220.0,
                 "height": 90.0,
                 "closedWidth": 220.0,
@@ -169,8 +187,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": null,
+            "responsible": null,
+            "modified": {
+                "date": "",
+                "user": ""
+            },
             "ports": [],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -181,16 +206,12 @@
             "parentId": "node_ac66881c-afa0-4f45-b440-f31609ad1b9b",
             "children": [],
             "incomingLinks": [
-                "link_72aeff8b-7c58-40fb-b813-e011458b5b85",
-                "link_447146d6-fbd9-4c6d-ad80-994c93d4a8e1"
+                "link_79c0da15-ff82-4411-980a-dbd786671bb7"
             ],
-            "outgoingLinks": [
-                "link_f75fc6a7-cb36-4e1d-91e5-9385b9c226d7",
-                "link_878d2841-5e82-4c39-aa6f-e7f2ebf4ae7f"
-            ],
+            "outgoingLinks": [],
             "layout": {
-                "x": -39.0,
-                "y": 778.0,
+                "x": -398.0,
+                "y": 303.0,
                 "width": 220.0,
                 "height": 108.0,
                 "closedWidth": 220.0,
@@ -219,6 +240,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:08:44.304236899Z",
+                "user": "devlin"
+            },
             "ports": [
                 {
                     "id": "input_in",
@@ -236,6 +266,7 @@
                 }
             ],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -246,10 +277,12 @@
             "parentId": "node_ac66881c-afa0-4f45-b440-f31609ad1b9b",
             "children": [],
             "incomingLinks": [],
-            "outgoingLinks": [],
+            "outgoingLinks": [
+                "link_79c0da15-ff82-4411-980a-dbd786671bb7"
+            ],
             "layout": {
-                "x": -205.0,
-                "y": 995.0,
+                "x": -394.0,
+                "y": 110.0,
                 "width": 220.0,
                 "height": 90.0,
                 "closedWidth": 220.0,
@@ -278,14 +311,32 @@
                 "fileExtension": "",
                 "contentType": ""
             },
-            "ports": [],
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:08:44.304236899Z",
+                "user": "devlin"
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
         {
-            "id": "link_72aeff8b-7c58-40fb-b813-e011458b5b85",
-            "name": "INTERNAL_IN_A",
+            "id": "link_79c0da15-ff82-4411-980a-dbd786671bb7",
+            "name": "lib_io -> transformator",
             "kind": "Link",
             "parentId": "node_ac66881c-afa0-4f45-b440-f31609ad1b9b",
             "children": [],
@@ -306,7 +357,7 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;",
+                "source": "",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -322,172 +373,28 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:08:44.304236899Z",
+                "user": "devlin"
+            },
             "ports": [],
             "link": {
-                "sourceNodeId": "link_e000882e-7b98-4e0e-ac7c-1869a09d018f",
+                "sourceNodeId": "node_c8a6b087-8240-4c9d-9d0b-198a10429008",
                 "sourcePortName": "out",
                 "targetNodeId": "node_42fd6b42-d4c7-4ab2-a43a-eded39593495",
                 "targetPortName": "in",
                 "transportKind": "in-process",
                 "typeName": "",
-                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;"
+                "payloadDefinition": "",
+                "typeDefinitionId": "",
+                "compositeBoundaryIds": []
             },
-            "metadata": {},
-            "pluginData": {}
-        },
-        {
-            "id": "link_447146d6-fbd9-4c6d-ad80-994c93d4a8e1",
-            "name": "INTERNAL_IN_B",
-            "kind": "Link",
-            "parentId": "node_ac66881c-afa0-4f45-b440-f31609ad1b9b",
-            "children": [],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": 0.0,
-                "y": 0.0,
-                "width": 200.0,
-                "height": 100.0,
-                "closedWidth": 200.0,
-                "closedHeight": 100.0,
-                "openWidth": 200.0,
-                "openHeight": 100.0,
-                "isExpanded": true
-            },
-            "fileLayoutStrategyId": "none",
-            "text": {
-                "initialization": "",
-                "initializationLanguageId": "",
-                "source": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;",
-                "sourceLanguageId": "",
-                "specification": "",
-                "specificationLanguageId": "markdown",
-                "tests": "",
-                "testsLanguageId": "json",
-                "aiInstructions": "",
-                "aiInstructionsLanguageId": "markdown"
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "ports": [],
-            "link": {
-                "sourceNodeId": "link_9671b652-cc36-4dd7-9c4b-3a6e7e4cb657",
-                "sourcePortName": "out",
-                "targetNodeId": "node_42fd6b42-d4c7-4ab2-a43a-eded39593495",
-                "targetPortName": "in",
-                "transportKind": "in-process",
-                "typeName": "",
-                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;"
-            },
-            "metadata": {},
-            "pluginData": {}
-        },
-        {
-            "id": "link_f75fc6a7-cb36-4e1d-91e5-9385b9c226d7",
-            "name": "INTERNAL_OUT_B",
-            "kind": "Link",
-            "parentId": "node_ac66881c-afa0-4f45-b440-f31609ad1b9b",
-            "children": [],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": 0.0,
-                "y": 0.0,
-                "width": 200.0,
-                "height": 100.0,
-                "closedWidth": 200.0,
-                "closedHeight": 100.0,
-                "openWidth": 200.0,
-                "openHeight": 100.0,
-                "isExpanded": true
-            },
-            "fileLayoutStrategyId": "none",
-            "text": {
-                "initialization": "",
-                "initializationLanguageId": "",
-                "source": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;",
-                "sourceLanguageId": "",
-                "specification": "",
-                "specificationLanguageId": "markdown",
-                "tests": "",
-                "testsLanguageId": "json",
-                "aiInstructions": "",
-                "aiInstructionsLanguageId": "markdown"
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "ports": [],
-            "link": {
-                "sourceNodeId": "node_42fd6b42-d4c7-4ab2-a43a-eded39593495",
-                "sourcePortName": "out",
-                "targetNodeId": "link_4993ef5f-90d9-432f-8d0b-36ebb6a71386",
-                "targetPortName": "in",
-                "transportKind": "in-process",
-                "typeName": "",
-                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;"
-            },
-            "metadata": {},
-            "pluginData": {}
-        },
-        {
-            "id": "link_878d2841-5e82-4c39-aa6f-e7f2ebf4ae7f",
-            "name": "INTERNAL_OUT_A",
-            "kind": "Link",
-            "parentId": "node_ac66881c-afa0-4f45-b440-f31609ad1b9b",
-            "children": [],
-            "incomingLinks": [],
-            "outgoingLinks": [],
-            "layout": {
-                "x": 0.0,
-                "y": 0.0,
-                "width": 200.0,
-                "height": 100.0,
-                "closedWidth": 200.0,
-                "closedHeight": 100.0,
-                "openWidth": 200.0,
-                "openHeight": 100.0,
-                "isExpanded": true
-            },
-            "fileLayoutStrategyId": "none",
-            "text": {
-                "initialization": "",
-                "initializationLanguageId": "",
-                "source": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;",
-                "sourceLanguageId": "",
-                "specification": "",
-                "specificationLanguageId": "markdown",
-                "tests": "",
-                "testsLanguageId": "json",
-                "aiInstructions": "",
-                "aiInstructionsLanguageId": "markdown"
-            },
-            "technology": {
-                "languageId": "",
-                "technologyId": "",
-                "compilerId": "",
-                "fileExtension": "",
-                "contentType": ""
-            },
-            "ports": [],
-            "link": {
-                "sourceNodeId": "node_42fd6b42-d4c7-4ab2-a43a-eded39593495",
-                "sourcePortName": "out",
-                "targetNodeId": "link_5b568bc0-c16a-454c-b1a4-a80c5d07c93d",
-                "targetPortName": "in",
-                "transportKind": "in-process",
-                "typeName": "",
-                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;"
-            },
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -502,8 +409,8 @@
                 "link_e000882e-7b98-4e0e-ac7c-1869a09d018f"
             ],
             "layout": {
-                "x": -667.0,
-                "y": 631.0,
+                "x": -1066.0,
+                "y": -218.0,
                 "width": 220.0,
                 "height": 90.0,
                 "closedWidth": 220.0,
@@ -532,6 +439,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:45.561502146Z",
+                "user": "devlin"
+            },
             "ports": [
                 {
                     "id": "output_out",
@@ -542,6 +458,7 @@
                 }
             ],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -556,8 +473,8 @@
                 "link_9671b652-cc36-4dd7-9c4b-3a6e7e4cb657"
             ],
             "layout": {
-                "x": 658.0,
-                "y": 621.0,
+                "x": 563.0,
+                "y": 220.0,
                 "width": 220.0,
                 "height": 90.0,
                 "closedWidth": 220.0,
@@ -586,6 +503,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:50.925335989Z",
+                "user": "devlin"
+            },
             "ports": [
                 {
                     "id": "output_out",
@@ -596,6 +522,7 @@
                 }
             ],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -610,8 +537,8 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": -680.0,
-                "y": 820.0,
+                "x": -1050.0,
+                "y": 210.0,
                 "width": 220.0,
                 "height": 90.0,
                 "closedWidth": 220.0,
@@ -640,6 +567,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:55.107496422Z",
+                "user": "devlin"
+            },
             "ports": [
                 {
                     "id": "input_in",
@@ -650,6 +586,7 @@
                 }
             ],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -664,8 +601,8 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 657.0,
-                "y": 763.0,
+                "x": 563.0,
+                "y": 113.0,
                 "width": 220.0,
                 "height": 90.0,
                 "closedWidth": 220.0,
@@ -694,6 +631,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:58.791354402Z",
+                "user": "devlin"
+            },
             "ports": [
                 {
                     "id": "input_in",
@@ -704,6 +650,7 @@
                 }
             ],
             "link": null,
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -714,9 +661,7 @@
             "parentId": "root",
             "children": [],
             "incomingLinks": [],
-            "outgoingLinks": [
-                "link_72aeff8b-7c58-40fb-b813-e011458b5b85"
-            ],
+            "outgoingLinks": [],
             "layout": {
                 "x": 0.0,
                 "y": 0.0,
@@ -747,6 +692,15 @@
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:45.561502146Z",
+                "user": "devlin"
             },
             "ports": [
                 {
@@ -764,8 +718,11 @@
                 "targetPortName": "in",
                 "transportKind": "in-process",
                 "typeName": "",
-                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;"
+                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;",
+                "typeDefinitionId": "node_c6d4fa07-1d91-4673-8f5e-ae7077b87f17",
+                "compositeBoundaryIds": []
             },
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -776,9 +733,7 @@
             "parentId": "root",
             "children": [],
             "incomingLinks": [],
-            "outgoingLinks": [
-                "link_447146d6-fbd9-4c6d-ad80-994c93d4a8e1"
-            ],
+            "outgoingLinks": [],
             "layout": {
                 "x": 0.0,
                 "y": 0.0,
@@ -809,6 +764,15 @@
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:50.925335989Z",
+                "user": "devlin"
             },
             "ports": [
                 {
@@ -826,8 +790,11 @@
                 "targetPortName": "in",
                 "transportKind": "in-process",
                 "typeName": "",
-                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;"
+                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;",
+                "typeDefinitionId": "node_c6d4fa07-1d91-4673-8f5e-ae7077b87f17",
+                "compositeBoundaryIds": []
             },
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -837,9 +804,7 @@
             "kind": "Link",
             "parentId": "root",
             "children": [],
-            "incomingLinks": [
-                "link_878d2841-5e82-4c39-aa6f-e7f2ebf4ae7f"
-            ],
+            "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
                 "x": 0.0,
@@ -871,6 +836,15 @@
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:55.107496422Z",
+                "user": "devlin"
             },
             "ports": [
                 {
@@ -888,8 +862,11 @@
                 "targetPortName": "in",
                 "transportKind": "in-process",
                 "typeName": "",
-                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;"
+                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;",
+                "typeDefinitionId": "node_c6d4fa07-1d91-4673-8f5e-ae7077b87f17",
+                "compositeBoundaryIds": []
             },
+            "typeDefinition": null,
             "metadata": {},
             "pluginData": {}
         },
@@ -899,9 +876,7 @@
             "kind": "Link",
             "parentId": "root",
             "children": [],
-            "incomingLinks": [
-                "link_f75fc6a7-cb36-4e1d-91e5-9385b9c226d7"
-            ],
+            "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
                 "x": 0.0,
@@ -934,6 +909,15 @@
                 "fileExtension": "",
                 "contentType": ""
             },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:58.791354402Z",
+                "user": "devlin"
+            },
             "ports": [
                 {
                     "id": "input_in",
@@ -950,11 +934,105 @@
                 "targetPortName": "in",
                 "transportKind": "in-process",
                 "typeName": "",
-                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;"
+                "payloadDefinition": "typedef struct data_s {\n    int len;\n    char* b;\n} data_t;",
+                "typeDefinitionId": "node_c6d4fa07-1d91-4673-8f5e-ae7077b87f17",
+                "compositeBoundaryIds": []
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_c6d4fa07-1d91-4673-8f5e-ae7077b87f17",
+            "name": "DataPackage",
+            "kind": "Type",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": -496.0,
+                "y": -208.0,
+                "width": 220.0,
+                "height": 186.0,
+                "closedWidth": 220.0,
+                "closedHeight": 186.0,
+                "openWidth": 220.0,
+                "openHeight": 186.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-28T12:12:14.287083340Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": null,
+            "typeDefinition": {
+                "fields": [
+                    {
+                        "name": "id",
+                        "typeId": "string",
+                        "isReference": false
+                    },
+                    {
+                        "name": "created",
+                        "typeId": "string",
+                        "isReference": false
+                    },
+                    {
+                        "name": "modified",
+                        "typeId": "number",
+                        "isReference": false
+                    },
+                    {
+                        "name": "contents",
+                        "typeId": "number",
+                        "isReference": false
+                    },
+                    {
+                        "name": "modified_by",
+                        "typeId": "string",
+                        "isReference": false
+                    },
+                    {
+                        "name": "created_by",
+                        "typeId": "string",
+                        "isReference": false
+                    }
+                ]
             },
             "metadata": {},
             "pluginData": {}
         }
     ],
-    "metadata": {}
+    "metadata": {},
+    "masterRevision": {
+        "name": "",
+        "date": ""
+    }
 }
