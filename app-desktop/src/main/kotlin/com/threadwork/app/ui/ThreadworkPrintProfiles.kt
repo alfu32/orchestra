@@ -17,10 +17,21 @@ internal data class SheetPaginationSettings(
     val overlapMm: Double,
 )
 
+/** Page geometry for reflowed documentation; unlike plans, documents do not use drawing scale. */
+internal data class DocumentationPrintSettings(
+    val formatChoice: String,
+    val includeHeader: Boolean,
+    val includeFooter: Boolean,
+    val marginTopMm: Double,
+    val marginLeftMm: Double,
+    val marginRightMm: Double,
+    val marginBottomMm: Double,
+)
+
 /** Separate pagination settings are retained for the plan and generated documentation. */
 internal data class PrinterPaginationProfile(
     val plan: SheetPaginationSettings,
-    val documentation: SheetPaginationSettings,
+    val documentation: DocumentationPrintSettings,
 )
 
 internal data class PrinterTarget(
@@ -80,15 +91,15 @@ internal class ThreadworkPrintProfileStore(
     fun profileFor(
         printerKey: String,
         planFallback: SheetPaginationSettings,
-        documentationFallback: SheetPaginationSettings,
+        documentationFallback: DocumentationPrintSettings,
     ): PrinterPaginationProfile = configuredProfiles()[printerKey]
         ?: PrinterPaginationProfile(planFallback.normalized(), documentationFallback.normalized())
 
     fun save(printerKey: String, profile: PrinterPaginationProfile) {
         val profiles = configuredProfiles().toMutableMap()
         profiles[printerKey] = PrinterPaginationProfile(
-            plan = profile.plan.normalized(),
-            documentation = profile.documentation.normalized(),
+                plan = profile.plan.normalized(),
+                documentation = profile.documentation.normalized(),
         )
         persist(profiles)
     }
@@ -112,7 +123,7 @@ internal class ThreadworkPrintProfileStore(
             val legacyPlan = value.paginationSettings()
             key to PrinterPaginationProfile(
                 plan = (value["plan"] as? JsonObject)?.paginationSettings() ?: legacyPlan,
-                documentation = (value["documentation"] as? JsonObject)?.paginationSettings()
+                documentation = (value["documentation"] as? JsonObject)?.documentationSettings()
                     ?: DEFAULT_DOCUMENTATION_SETTINGS,
             )
         }.toMap(LinkedHashMap())
@@ -154,6 +165,34 @@ internal class ThreadworkPrintProfileStore(
         put("overlap-mm", JsonPrimitive(overlapMm))
     }
 
+    private fun DocumentationPrintSettings.normalized(): DocumentationPrintSettings = copy(
+        formatChoice = formatChoice.ifBlank { "A4" },
+        marginTopMm = marginTopMm.coerceIn(0.0, 80.0),
+        marginLeftMm = marginLeftMm.coerceIn(0.0, 80.0),
+        marginRightMm = marginRightMm.coerceIn(0.0, 80.0),
+        marginBottomMm = marginBottomMm.coerceIn(0.0, 80.0),
+    )
+
+    private fun JsonObject.documentationSettings(): DocumentationPrintSettings = DocumentationPrintSettings(
+        formatChoice = string("format", "A4"),
+        includeHeader = boolean("header", true),
+        includeFooter = boolean("footer", true),
+        marginTopMm = double("margin-top-mm", 15.0),
+        marginLeftMm = double("margin-left-mm", 15.0),
+        marginRightMm = double("margin-right-mm", 15.0),
+        marginBottomMm = double("margin-bottom-mm", 15.0),
+    ).normalized()
+
+    private fun DocumentationPrintSettings.toJson(): JsonObject = buildJsonObject {
+        put("format", JsonPrimitive(formatChoice))
+        put("header", JsonPrimitive(includeHeader))
+        put("footer", JsonPrimitive(includeFooter))
+        put("margin-top-mm", JsonPrimitive(marginTopMm))
+        put("margin-left-mm", JsonPrimitive(marginLeftMm))
+        put("margin-right-mm", JsonPrimitive(marginRightMm))
+        put("margin-bottom-mm", JsonPrimitive(marginBottomMm))
+    }
+
     private fun JsonObject.string(name: String, fallback: String = ""): String =
         (this[name] as? JsonPrimitive)?.content ?: fallback
 
@@ -167,11 +206,14 @@ internal class ThreadworkPrintProfileStore(
         const val PREF_NODE = "com/threadwork/app/print"
         const val PROFILES_KEY = "printer-profiles"
         const val SYSTEM_PRINTER_KEY_PREFIX = "system:"
-        val DEFAULT_DOCUMENTATION_SETTINGS = SheetPaginationSettings(
+        val DEFAULT_DOCUMENTATION_SETTINGS = DocumentationPrintSettings(
             formatChoice = "A4",
-            scaleChoice = "1:1",
-            multipage = false,
-            overlapMm = 5.0,
+            includeHeader = true,
+            includeFooter = true,
+            marginTopMm = 15.0,
+            marginLeftMm = 15.0,
+            marginRightMm = 15.0,
+            marginBottomMm = 15.0,
         )
 
         fun systemPrinterKey(name: String): String = "$SYSTEM_PRINTER_KEY_PREFIX$name"

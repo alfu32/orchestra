@@ -45,12 +45,12 @@ internal class PreprintDialog(
     private val formatChoices: List<String>,
     private val scaleChoices: List<String>,
     private val planFallback: () -> SheetPaginationSettings,
-    private val documentationFallback: () -> SheetPaginationSettings,
+    private val documentationFallback: () -> DocumentationPrintSettings,
     private val applyPlanSettings: (String, SheetPaginationSettings) -> Unit,
     private val planPreview: () -> BufferedImage?,
-    private val documentationAssets: (SheetPaginationSettings) -> List<PrintDocumentationAsset>,
-    private val savePdf: (List<PrintDocumentationAsset>, SheetPaginationSettings) -> Unit,
-    private val print: (PrintService, List<PrintDocumentationAsset>, SheetPaginationSettings) -> Unit,
+    private val documentationAssets: (DocumentationPrintSettings) -> List<PrintDocumentationAsset>,
+    private val savePdf: (List<PrintDocumentationAsset>, DocumentationPrintSettings) -> Unit,
+    private val print: (PrintService, List<PrintDocumentationAsset>, DocumentationPrintSettings) -> Unit,
     private val reportStatus: (String) -> Unit,
 ) : JDialog() {
     private val printerModel = DefaultListModel<PrinterTarget>()
@@ -66,7 +66,9 @@ internal class PreprintDialog(
         verticalAlignment = SwingConstants.TOP
     }
     private val planControls = PaginationControls("Plan", formatChoices, scaleChoices)
-    private val documentationControls = PaginationControls("Documentation", formatChoices, scaleChoices)
+    private val documentationControls = DocumentationControls(
+        formatChoices.filter { choice -> choice != "Auto" && !choice.contains("-roll") },
+    )
     private val planPreviewLabel = JLabel("No plan to preview", SwingConstants.CENTER)
     private val documentPreviewPanel = JPanel().apply {
         layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
@@ -124,6 +126,11 @@ internal class PreprintDialog(
     }
 
     private fun previewTab(controls: PaginationControls, preview: JScrollPane): JPanel = JPanel(BorderLayout(0, 8)).apply {
+        add(controls.panel, BorderLayout.NORTH)
+        add(preview, BorderLayout.CENTER)
+    }
+
+    private fun previewTab(controls: DocumentationControls, preview: JScrollPane): JPanel = JPanel(BorderLayout(0, 8)).apply {
         add(controls.panel, BorderLayout.NORTH)
         add(preview, BorderLayout.CENTER)
     }
@@ -319,6 +326,66 @@ internal class PreprintDialog(
             multipage = multipageBox.isSelected,
             overlapMm = (overlapSpinner.value as Number).toDouble(),
         )
+    }
+
+    private class DocumentationControls(formatChoices: List<String>) {
+        private val formatBox = JComboBox(formatChoices.toTypedArray())
+        private val headerBox = JCheckBox("Header", true)
+        private val footerBox = JCheckBox("Footer", true)
+        private val topMargin = marginSpinner()
+        private val leftMargin = marginSpinner()
+        private val rightMargin = marginSpinner()
+        private val bottomMargin = marginSpinner()
+        val panel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+            border = BorderFactory.createTitledBorder("Documentation page")
+            add(JLabel("Format"))
+            add(formatBox.apply { preferredSize = Dimension(118, preferredSize.height) })
+            add(headerBox)
+            add(footerBox)
+            add(JLabel("Top (mm)"))
+            add(topMargin)
+            add(JLabel("Left (mm)"))
+            add(leftMargin)
+            add(JLabel("Right (mm)"))
+            add(rightMargin)
+            add(JLabel("Bottom (mm)"))
+            add(bottomMargin)
+        }
+
+        fun onChange(listener: () -> Unit) {
+            formatBox.addActionListener { listener() }
+            headerBox.addActionListener { listener() }
+            footerBox.addActionListener { listener() }
+            listOf(topMargin, leftMargin, rightMargin, bottomMargin).forEach { spinner ->
+                spinner.addChangeListener(ChangeListener { listener() })
+            }
+        }
+
+        fun setSettings(settings: DocumentationPrintSettings) {
+            formatBox.selectedItem = settings.formatChoice
+            headerBox.isSelected = settings.includeHeader
+            footerBox.isSelected = settings.includeFooter
+            topMargin.value = settings.marginTopMm
+            leftMargin.value = settings.marginLeftMm
+            rightMargin.value = settings.marginRightMm
+            bottomMargin.value = settings.marginBottomMm
+        }
+
+        fun settings(): DocumentationPrintSettings = DocumentationPrintSettings(
+            formatChoice = formatBox.selectedItem?.toString().orEmpty(),
+            includeHeader = headerBox.isSelected,
+            includeFooter = footerBox.isSelected,
+            marginTopMm = topMargin.numberValue(),
+            marginLeftMm = leftMargin.numberValue(),
+            marginRightMm = rightMargin.numberValue(),
+            marginBottomMm = bottomMargin.numberValue(),
+        )
+
+        private fun marginSpinner(): JSpinner = JSpinner(SpinnerNumberModel(15.0, 0.0, 80.0, 0.5)).apply {
+            preferredSize = Dimension(70, preferredSize.height)
+        }
+
+        private fun JSpinner.numberValue(): Double = (value as Number).toDouble()
     }
 
     private class PrinterTargetRenderer : DefaultListCellRenderer() {

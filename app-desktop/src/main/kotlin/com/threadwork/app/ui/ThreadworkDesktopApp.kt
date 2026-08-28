@@ -118,6 +118,8 @@ import java.nio.file.Path
 import java.nio.file.Files
 import java.net.URLClassLoader
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.LinkedHashMap
 import java.util.ServiceLoader
@@ -199,6 +201,13 @@ import kotlin.math.min
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
+
+private data class DocumentationPageMetadata(
+    val projectDate: String,
+    val revisionName: String,
+    val revisionDate: String,
+    val printDate: String,
+)
 
 class ThreadworkDesktopApp(
     private val repository: DocumentRepository = InMemoryDocumentRepository(newDocument("Untitled Threadwork")),
@@ -1268,7 +1277,7 @@ class ThreadworkDesktopApp(
         ).isVisible = true
     }
 
-    private fun defaultDocumentationPaginationSettings(): SheetPaginationSettings =
+    private fun defaultDocumentationPaginationSettings(): DocumentationPrintSettings =
         ThreadworkPrintProfileStore.DEFAULT_DOCUMENTATION_SETTINGS
 
     private fun applyPdfPlanSettings() {
@@ -1280,18 +1289,18 @@ class ThreadworkDesktopApp(
         canvas.applyPaginationSettings(profile.plan)
     }
 
-    private fun preprintDocumentationAssets(settings: SheetPaginationSettings): List<PrintDocumentationAsset> =
+    private fun preprintDocumentationAssets(settings: DocumentationPrintSettings): List<PrintDocumentationAsset> =
         compileDocumentationFiles().map { markdownFile ->
             PrintDocumentationAsset(
                 title = markdownFile.path,
                 markdown = markdownFile.content,
-                pages = renderMarkdownPages(markdownFile.content, settings),
+                pages = renderMarkdownPages(markdownFile.content, settings, documentationPageMetadata()),
             )
         }
 
     private fun preprintPdfPages(
         documents: List<PrintDocumentationAsset>,
-        documentationSettings: SheetPaginationSettings,
+        documentationSettings: DocumentationPrintSettings,
     ): List<PdfRasterPage> {
         val paperSize = canvas.paperSizeMm(documentationSettings.formatChoice)
         return canvas.renderPdfPages() + documents.flatMap { asset ->
@@ -1307,7 +1316,7 @@ class ThreadworkDesktopApp(
 
     private fun savePreprintPdf(
         documents: List<PrintDocumentationAsset>,
-        documentationSettings: SheetPaginationSettings,
+        documentationSettings: DocumentationPrintSettings,
     ) {
         val dialog = FileDialog(frame, "Save Print PDF", FileDialog.SAVE).apply {
             directory = currentFile?.parent?.toString() ?: Path.of(".").toAbsolutePath().toString()
@@ -1332,7 +1341,7 @@ class ThreadworkDesktopApp(
     private fun writePreprintPdf(
         output: Path,
         documents: List<PrintDocumentationAsset>,
-        documentationSettings: SheetPaginationSettings,
+        documentationSettings: DocumentationPrintSettings,
     ) {
         val temporaryFiles = mutableListOf<Path>()
         try {
@@ -1342,7 +1351,7 @@ class ThreadworkDesktopApp(
             val documentationPdfs = documents.map { asset ->
                 Files.createTempFile("threadwork-documentation-", ".pdf").also { file ->
                     temporaryFiles.add(file)
-                    Files.write(file, renderDocumentationPdf(asset.markdown, documentationSettings))
+                    Files.write(file, renderDocumentationPdf(asset.markdown, documentationSettings, documentationPageMetadata()))
                 }
             }
             PDFMergerUtility().apply {
@@ -1359,7 +1368,7 @@ class ThreadworkDesktopApp(
     private fun printPreprint(
         service: javax.print.PrintService,
         documents: List<PrintDocumentationAsset>,
-        documentationSettings: SheetPaginationSettings,
+        documentationSettings: DocumentationPrintSettings,
     ) {
         runCatching {
             val spoolFile = Files.createTempFile("threadwork-print-", ".pdf")
@@ -1389,15 +1398,19 @@ class ThreadworkDesktopApp(
         documentation.forEach { markdownFile ->
             val pdfPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".pdf")
             Files.createDirectories(requireNotNull(pdfPath.parent))
-            Files.write(pdfPath, renderDocumentationPdf(markdownFile.content, settings))
+            Files.write(pdfPath, renderDocumentationPdf(markdownFile.content, settings, documentationPageMetadata()))
         }
     }
 
-    private fun renderDocumentationPdf(markdown: String, settings: SheetPaginationSettings): ByteArray {
+    private fun renderDocumentationPdf(
+        markdown: String,
+        settings: DocumentationPrintSettings,
+        metadata: DocumentationPageMetadata,
+    ): ByteArray {
         val output = ByteArrayOutputStream()
         PdfRendererBuilder()
             .useFastMode()
-            .withHtmlContent(markdownToHtml(markdown, settings), null)
+            .withHtmlContent(markdownToHtml(markdown, settings, metadata), null)
             .toStream(output)
             .run()
         return output.toByteArray()
@@ -1410,7 +1423,7 @@ class ThreadworkDesktopApp(
         documentation.forEach { markdownFile ->
             val htmlPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".html")
             Files.createDirectories(requireNotNull(htmlPath.parent))
-            Files.writeString(htmlPath, markdownToHtml(markdownFile.content, settings))
+            Files.writeString(htmlPath, markdownToHtml(markdownFile.content, settings, documentationPageMetadata()))
         }
     }
 
@@ -1437,33 +1450,64 @@ class ThreadworkDesktopApp(
         }
     }
 
-    private fun renderMarkdownPages(markdown: String, settings: SheetPaginationSettings): List<BufferedImage> {
+    private fun renderMarkdownPages(
+        markdown: String,
+        settings: DocumentationPrintSettings,
+        metadata: DocumentationPageMetadata,
+    ): List<BufferedImage> {
         val pageSize = canvas.documentationPreviewPageSize(settings)
         return markdown
             .split(DOCUMENTATION_PAGE_BREAK)
             .filter(String::isNotBlank)
-            .flatMap { section -> renderHtmlPages(markdownToHtml(section, settings), pageSize) }
+            .flatMap { section -> renderHtmlPages(markdownToHtml(section, settings, metadata), pageSize, settings, metadata) }
     }
 
-    private fun renderHtmlPages(html: String, pageSize: Dimension): List<BufferedImage> {
+    private fun renderHtmlPages(
+        html: String,
+        pageSize: Dimension,
+        settings: DocumentationPrintSettings,
+        metadata: DocumentationPageMetadata,
+    ): List<BufferedImage> {
         val pageWidth = pageSize.width
         val pageHeight = pageSize.height
+        val pixelsPerMm = 3.78
+        val leftMargin = (settings.marginLeftMm * pixelsPerMm).roundToInt()
+        val rightMargin = (settings.marginRightMm * pixelsPerMm).roundToInt()
+        val topMargin = (settings.marginTopMm * pixelsPerMm).roundToInt()
+        val bottomMargin = (settings.marginBottomMm * pixelsPerMm).roundToInt()
+        val contentWidth = (pageWidth - leftMargin - rightMargin).coerceAtLeast(80)
+        val contentHeight = (pageHeight - topMargin - bottomMargin).coerceAtLeast(80)
         val editor = JEditorPane("text/html", html).apply {
             isEditable = false
             border = null
-            setSize(pageWidth, 1_000_000)
+            isOpaque = true
+            background = Color.WHITE
+            foreground = Color(0x222222)
+            setSize(contentWidth, 1_000_000)
         }
-        val contentHeight = editor.preferredSize.height.coerceAtLeast(pageHeight)
+        val documentHeight = editor.preferredSize.height.coerceAtLeast(contentHeight)
+        val pageCount = ((documentHeight + contentHeight - 1) / contentHeight).coerceAtLeast(1)
         return buildList {
-            for (offset in 0 until contentHeight step pageHeight) {
+            for (pageIndex in 0 until pageCount) {
+                val offset = pageIndex * contentHeight
                 val image = BufferedImage(pageWidth, pageHeight, BufferedImage.TYPE_INT_RGB)
                 val graphics = image.createGraphics()
                 try {
                     graphics.color = Color.WHITE
                     graphics.fillRect(0, 0, pageWidth, pageHeight)
-                    graphics.clip = Rectangle(0, 0, pageWidth, pageHeight)
-                    graphics.translate(0, -offset)
+                    graphics.clip = Rectangle(leftMargin, topMargin, contentWidth, contentHeight)
+                    graphics.translate(leftMargin, topMargin - offset)
                     editor.paint(graphics)
+                    graphics.clip = null
+                    drawDocumentationPageDecoration(
+                        graphics,
+                        pageWidth,
+                        pageHeight,
+                        settings,
+                        metadata,
+                        pageIndex + 1,
+                        pageCount,
+                    )
                 } finally {
                     graphics.dispose()
                 }
@@ -1474,7 +1518,8 @@ class ThreadworkDesktopApp(
 
     private fun markdownToHtml(
         markdown: String,
-        settings: SheetPaginationSettings = defaultDocumentationPaginationSettings(),
+        settings: DocumentationPrintSettings = defaultDocumentationPaginationSettings(),
+        metadata: DocumentationPageMetadata = documentationPageMetadata(),
     ): String {
         val body = markdownHtmlRenderer.render(
             markdownParser.parse(markdown.replace(DOCUMENTATION_PAGE_BREAK, "\n<div class=\"threadwork-page-break\"></div>\n")),
@@ -1484,7 +1529,12 @@ class ThreadworkDesktopApp(
             <html>
             <head>
               <style>
-                @page { size: ${pageSize.first}mm ${pageSize.second}mm; margin: 12mm; }
+                @page {
+                  size: ${pageSize.first}mm ${pageSize.second}mm;
+                  margin: ${settings.marginTopMm}mm ${settings.marginRightMm}mm ${settings.marginBottomMm}mm ${settings.marginLeftMm}mm;
+                  ${documentationMarginBoxes(settings, metadata)}
+                }
+                html, body { background: #fff; }
                 body { font-family: sans-serif; margin: 0; color: #222; }
                 h1 { font-size: 28px; border-bottom:2px solid #000; break-before: page; page-break-before: always; }
                 h1:first-child { break-before: auto; page-break-before: auto; }
@@ -1503,6 +1553,64 @@ class ThreadworkDesktopApp(
             <body>$body</body>
             </html>
         """.trimIndent()
+    }
+
+    private fun documentationPageMetadata(): DocumentationPageMetadata {
+        val document = repository.getDocument()
+        val revision = document.masterRevision
+        return DocumentationPageMetadata(
+            projectDate = document.rootNode().modified.date.trim().ifBlank { revision.date.trim() },
+            revisionName = revision.name.trim(),
+            revisionDate = revision.date.trim(),
+            printDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
+        )
+    }
+
+    private fun documentationMarginBoxes(
+        settings: DocumentationPrintSettings,
+        metadata: DocumentationPageMetadata,
+    ): String = buildString {
+        if (settings.includeHeader) {
+            append("@top-left { content: \"Project date: ${cssContent(metadata.projectDate)}\"; font-size: 8pt; color: #555; }\n")
+            append("@top-right { content: \"Revision: ${cssContent(metadata.revisionName)} ${cssContent(metadata.revisionDate)}\"; font-size: 8pt; color: #555; }\n")
+        }
+        if (settings.includeFooter) {
+            append("@bottom-left { content: \"Printed: ${cssContent(metadata.printDate)}\"; font-size: 8pt; color: #555; }\n")
+            append("@bottom-right { content: \"Page \" counter(page) \" / \" counter(pages); font-size: 8pt; color: #555; }\n")
+        }
+    }
+
+    private fun cssContent(value: String): String = value
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace('\n', ' ')
+
+    private fun drawDocumentationPageDecoration(
+        graphics: Graphics2D,
+        pageWidth: Int,
+        pageHeight: Int,
+        settings: DocumentationPrintSettings,
+        metadata: DocumentationPageMetadata,
+        pageNumber: Int,
+        pageCount: Int,
+    ) {
+        graphics.font = Font(Font.SANS_SERIF, Font.PLAIN, 11)
+        graphics.color = Color(0x555555)
+        val metrics = graphics.fontMetrics
+        if (settings.includeHeader) {
+            val left = "Project date: ${metadata.projectDate.ifBlank { "unspecified" }}"
+            val right = "Revision: ${listOf(metadata.revisionName, metadata.revisionDate).filter(String::isNotBlank).joinToString(" ").ifBlank { "unspecified" }}"
+            val baseline = (settings.marginTopMm * 3.78 / 2.0).roundToInt().coerceAtLeast(metrics.ascent + 4)
+            graphics.drawString(left, 8, baseline)
+            graphics.drawString(right, pageWidth - metrics.stringWidth(right) - 8, baseline)
+        }
+        if (settings.includeFooter) {
+            val left = "Printed: ${metadata.printDate}"
+            val right = "Page $pageNumber / $pageCount"
+            val baseline = (pageHeight - settings.marginBottomMm * 3.78 / 2.0).roundToInt().coerceAtMost(pageHeight - 5)
+            graphics.drawString(left, 8, baseline)
+            graphics.drawString(right, pageWidth - metrics.stringWidth(right) - 8, baseline)
+        }
     }
 
     private fun selectCompiler(document: ThreadworkDocument): CompilerPlugin? {
@@ -2299,7 +2407,7 @@ class GraphCanvas(
         return format.widthMm to format.heightMm
     }
 
-    internal fun documentationPreviewPageSize(settings: SheetPaginationSettings): Dimension {
+    internal fun documentationPreviewPageSize(settings: DocumentationPrintSettings): Dimension {
         val (widthMm, heightMm) = paperSizeMm(settings.formatChoice)
         val pixelsPerMm = 3.78
         return Dimension(
