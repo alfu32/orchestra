@@ -1491,18 +1491,18 @@ class ThreadworkDesktopApp(
                 }
                 html, body { background: #fff; }
                 body { font-family: sans-serif; margin: 0; color: #222; }
-                h1 { font-size: 28px; border-bottom:2px solid #000; break-before: page; page-break-before: always; }
-                h1:first-child { break-before: auto; page-break-before: auto; }
+                h1 { font-size: 28px; border-bottom:2px solid #000; page-break-before: always; }
+                h1:first-child { page-break-before: auto; }
                 h2 { margin:14px 0 6px;font-size:22px;border-bottom:1px solid #000; }
                 h3 { margin:12px 0 5px;font-size:17px;border-bottom:1px dotted #444; }
                 h4 { margin:10px 0 4px;font-size:14px;border-bottom:1px dashed #444; }
                 p, li { font-size: 11px; line-height: 1.35; }
                 strong, b { font-weight: bold; } em, i { font-style: italic; }
                 code, pre { font-family: monospace; font-size: 9px; }
-                code { background: #f3f3f3; } pre { white-space: pre-wrap; break-inside: avoid; page-break-inside: avoid; }
-                table { border-collapse: collapse; font-size: 9px; break-inside: avoid; page-break-inside: avoid; }
+                code { background: #f3f3f3; } pre { white-space: pre-wrap; page-break-inside: avoid; }
+                table { border-collapse: collapse; font-size: 9px; page-break-inside: avoid; }
                 th, td { border: 1px solid #999; padding: 3px; vertical-align: top; }
-                .threadwork-page-break { break-after: page; page-break-after: always; height: 0; }
+                .threadwork-page-break { page-break-after: always; height: 0; }
               </style>
             </head>
             <body>$body</body>
@@ -1723,7 +1723,7 @@ class ThreadworkDesktopApp(
         tree.showsRootHandles = true
         tree.isEditable = editable
         tree.invokesStopCellEditing = true
-        tree.font = tree.font.deriveFont(11f)
+        tree.font = tree.font.deriveFont(16.5f)
         tree.cellRenderer = HierarchyTreeCellRenderer()
         tree.selectionModel.selectionMode = TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION
         treeExpandedIds.getOrPut(tree) { mutableSetOf(repository.getDocument().rootNodeId.value) }
@@ -1991,7 +1991,7 @@ private class HierarchyTreeCellRenderer : DefaultTreeCellRenderer() {
         hasFocus: Boolean,
     ): Component {
         val component = super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus)
-        component.font = component.font.deriveFont(11f)
+        component.font = component.font.deriveFont(16.5f)
         icon = MarkerIcon((value as? TreeNodeRef)?.category?.marker ?: Color.WHITE)
         leafIcon = icon
         openIcon = icon
