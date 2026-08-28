@@ -12,6 +12,7 @@ dependencies {
     implementation("com.formdev:flatlaf:3.7.2")
     implementation("com.vladsch.flexmark:flexmark:0.64.8")
     implementation("com.vladsch.flexmark:flexmark-ext-tables:0.64.8")
+    implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
     testImplementation(kotlin("test"))
 }
 

@@ -109,6 +109,7 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseWheelEvent
 import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FilenameFilter
 import java.io.StringReader
@@ -120,6 +121,8 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.LinkedHashMap
 import java.util.ServiceLoader
+import org.apache.pdfbox.io.MemoryUsageSetting
+import org.apache.pdfbox.multipdf.PDFMergerUtility
 import javax.imageio.ImageIO
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
@@ -185,6 +188,7 @@ import com.vladsch.flexmark.ext.tables.TablesExtension
 import com.vladsch.flexmark.html.HtmlRenderer
 import com.vladsch.flexmark.parser.Parser
 import com.vladsch.flexmark.util.data.MutableDataSet
+import com.openhtmltopdf.pdfboxout.PdfRendererBuilder
 import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -287,10 +291,6 @@ class ThreadworkDesktopApp(
     private lateinit var projectPanels: JTabbedPane
     private val modeButtons = mutableMapOf<CanvasMode, JToggleButton>()
     private var sheetButton: JToggleButton? = null
-    private var sheetFormatSelector: JComboBox<String>? = null
-    private var sheetScaleSelector: JComboBox<String>? = null
-    private var multipageSheetSelector: JCheckBox? = null
-    private var sheetOverlapSelector: JSpinner? = null
     private val commands = linkedMapOf<String, AppCommand>()
     private val pluginToolbarButtons = mutableListOf<PluginToolbarButton>()
     private val pluginContentTabs = mutableListOf<PluginContentTab>()
@@ -373,37 +373,9 @@ class ThreadworkDesktopApp(
                     "Show or hide the technical drawing sheet preview.",
                 ) { executeCommand("sheet.toggle") }.also { sheetButton = it },
             )
-            add(JComboBox(canvas.sheetFormatChoices().toTypedArray()).apply {
-                isEditable = false
-                selectedItem = canvas.selectedSheetFormatChoice()
-                addActionListener { canvas.setSheetFormatChoice(selectedItem?.toString().orEmpty()) }
-                preferredSize = Dimension(120, preferredSize.height)
-                maximumSize = preferredSize
-            }.also { sheetFormatSelector = it })
-            add(JComboBox(canvas.sheetScaleChoices().toTypedArray()).apply {
-                isEditable = false
-                selectedItem = canvas.selectedSheetScaleChoice()
-                addActionListener { canvas.setSheetScaleChoice(selectedItem?.toString().orEmpty()) }
-                preferredSize = Dimension(80, preferredSize.height)
-                maximumSize = preferredSize
-            }.also { sheetScaleSelector = it })
-            add(JCheckBox("Multi-page PDF").apply {
-                toolTipText = "Split fixed-format PDF output across multiple overlapping pages."
-                isSelected = canvas.isMultipagePdfEnabled()
-                addActionListener { canvas.setMultipagePdfEnabled(isSelected) }
-            }.also { multipageSheetSelector = it })
-            add(JLabel("Overlap"))
-            add(JSpinner(SpinnerNumberModel(canvas.sheetOverlapMm(), 0.0, 50.0, 0.5)).apply {
-                toolTipText = "Paper-space overlap between adjacent pages, in millimetres."
-                preferredSize = Dimension(64, preferredSize.height)
-                maximumSize = preferredSize
-                addChangeListener { canvas.setSheetOverlapMm((value as Number).toDouble()) }
-            }.also { sheetOverlapSelector = it })
-            add(JLabel("mm"))
             pluginToolbarButtons.forEach { button ->
                 add(JButton(button.label).apply { addActionListener { button.action() } })
             }
-            add(button("About", "document") { executeCommand("help.about") })
             modeButtons[canvas.mode]?.isSelected = true
         }
 
@@ -586,6 +558,7 @@ class ThreadworkDesktopApp(
             if (graphShortcutEnabled()) deleteSelection()
         })
         registerCommand(AppCommand("sheet.toggle", "Sheet: Toggle Preview") {
+            applyPdfPlanSettings()
             sheetButton?.isSelected = canvas.toggleSheet()
         })
         registerCommand(AppCommand("export.plan.pdf", "Export: Plan PDF") { canvas.exportPlan(frame, SheetExportFormat.Pdf) })
@@ -1274,6 +1247,7 @@ class ThreadworkDesktopApp(
     }
 
     private fun showPreprintDialog() {
+        applyPdfPlanSettings()
         canvas.showSheetPreview()
         sheetButton?.isSelected = true
         PreprintDialog(
@@ -1281,10 +1255,10 @@ class ThreadworkDesktopApp(
             profiles = printProfiles,
             formatChoices = canvas.sheetFormatChoices(),
             scaleChoices = canvas.sheetScaleChoices(),
-            fallbackSettings = canvas::paginationSettings,
-            applySettings = { _, settings ->
+            planFallback = canvas::paginationSettings,
+            documentationFallback = ::defaultDocumentationPaginationSettings,
+            applyPlanSettings = { _, settings ->
                 canvas.applyPaginationSettings(settings)
-                synchronizeSheetControls()
             },
             planPreview = { canvas.renderPlanPreview() },
             documentationAssets = ::preprintDocumentationAssets,
@@ -1294,33 +1268,47 @@ class ThreadworkDesktopApp(
         ).isVisible = true
     }
 
-    private fun synchronizeSheetControls() {
-        sheetFormatSelector?.selectedItem = canvas.selectedSheetFormatChoice()
-        sheetScaleSelector?.selectedItem = canvas.selectedSheetScaleChoice()
-        multipageSheetSelector?.isSelected = canvas.isMultipagePdfEnabled()
-        sheetOverlapSelector?.value = canvas.sheetOverlapMm()
+    private fun defaultDocumentationPaginationSettings(): SheetPaginationSettings =
+        ThreadworkPrintProfileStore.DEFAULT_DOCUMENTATION_SETTINGS
+
+    private fun applyPdfPlanSettings() {
+        val profile = printProfiles.profileFor(
+            PrinterTarget.PDF_PRINTER_KEY,
+            canvas.paginationSettings(),
+            defaultDocumentationPaginationSettings(),
+        )
+        canvas.applyPaginationSettings(profile.plan)
     }
 
-    private fun preprintDocumentationAssets(): List<PrintDocumentationAsset> =
+    private fun preprintDocumentationAssets(settings: SheetPaginationSettings): List<PrintDocumentationAsset> =
         compileDocumentationFiles().map { markdownFile ->
             PrintDocumentationAsset(
                 title = markdownFile.path,
-                pages = renderMarkdownPages(markdownFile.content),
+                markdown = markdownFile.content,
+                pages = renderMarkdownPages(markdownFile.content, settings),
             )
         }
 
-    private fun preprintPdfPages(documents: List<PrintDocumentationAsset>): List<PdfRasterPage> =
-        canvas.renderPdfPages() + documents.flatMap { asset ->
+    private fun preprintPdfPages(
+        documents: List<PrintDocumentationAsset>,
+        documentationSettings: SheetPaginationSettings,
+    ): List<PdfRasterPage> {
+        val paperSize = canvas.paperSizeMm(documentationSettings.formatChoice)
+        return canvas.renderPdfPages() + documents.flatMap { asset ->
             asset.pages.map { image ->
                 PdfRasterPage(
                     image = image,
-                    widthPoints = 210.0 * 72.0 / 25.4,
-                    heightPoints = 297.0 * 72.0 / 25.4,
+                    widthPoints = paperSize.first * 72.0 / 25.4,
+                    heightPoints = paperSize.second * 72.0 / 25.4,
                 )
             }
         }
+    }
 
-    private fun savePreprintPdf(documents: List<PrintDocumentationAsset>) {
+    private fun savePreprintPdf(
+        documents: List<PrintDocumentationAsset>,
+        documentationSettings: SheetPaginationSettings,
+    ) {
         val dialog = FileDialog(frame, "Save Print PDF", FileDialog.SAVE).apply {
             directory = currentFile?.parent?.toString() ?: Path.of(".").toAbsolutePath().toString()
             file = "${repository.getDocument().projectName()}-print.pdf"
@@ -1332,7 +1320,7 @@ class ThreadworkDesktopApp(
             if (path.fileName.toString().endsWith(".pdf", ignoreCase = true)) path else Path.of("${path}.pdf")
         }
         runCatching {
-            RasterPdfWriter.write(output, preprintPdfPages(documents))
+            writePreprintPdf(output, documents, documentationSettings)
         }.onSuccess {
             status.text = "Saved print PDF to ${output.toAbsolutePath()}"
         }.onFailure { error ->
@@ -1341,12 +1329,43 @@ class ThreadworkDesktopApp(
         }
     }
 
-    private fun printPreprint(service: javax.print.PrintService, documents: List<PrintDocumentationAsset>) {
+    private fun writePreprintPdf(
+        output: Path,
+        documents: List<PrintDocumentationAsset>,
+        documentationSettings: SheetPaginationSettings,
+    ) {
+        val temporaryFiles = mutableListOf<Path>()
+        try {
+            val planPdf = Files.createTempFile("threadwork-plan-", ".pdf")
+            temporaryFiles.add(planPdf)
+            RasterPdfWriter.write(planPdf, canvas.renderPdfPages())
+            val documentationPdfs = documents.map { asset ->
+                Files.createTempFile("threadwork-documentation-", ".pdf").also { file ->
+                    temporaryFiles.add(file)
+                    Files.write(file, renderDocumentationPdf(asset.markdown, documentationSettings))
+                }
+            }
+            PDFMergerUtility().apply {
+                destinationFileName = output.toAbsolutePath().toString()
+                addSource(planPdf.toFile())
+                documentationPdfs.forEach { addSource(it.toFile()) }
+                mergeDocuments(MemoryUsageSetting.setupMainMemoryOnly())
+            }
+        } finally {
+            temporaryFiles.forEach { Files.deleteIfExists(it) }
+        }
+    }
+
+    private fun printPreprint(
+        service: javax.print.PrintService,
+        documents: List<PrintDocumentationAsset>,
+        documentationSettings: SheetPaginationSettings,
+    ) {
         runCatching {
-            val pages = preprintPdfPages(documents)
             val spoolFile = Files.createTempFile("threadwork-print-", ".pdf")
-            RasterPdfWriter.write(spoolFile, pages)
+            writePreprintPdf(spoolFile, documents, documentationSettings)
             spoolFile.toFile().deleteOnExit()
+            val pages = preprintPdfPages(documents, documentationSettings)
 
             val printerJob = PrinterJob.getPrinterJob().apply {
                 printService = service
@@ -1365,29 +1384,33 @@ class ThreadworkDesktopApp(
 
     private fun exportDocumentationPdf(directory: File) {
         val documentation = compileDocumentationFiles()
+        val settings = defaultDocumentationPaginationSettings()
         Files.createDirectories(directory.toPath())
         documentation.forEach { markdownFile ->
-            val pages = renderMarkdownPages(markdownFile.content)
-            if (pages.isNotEmpty()) {
-                val pdfPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".pdf")
-                Files.createDirectories(requireNotNull(pdfPath.parent))
-                RasterPdfWriter.write(
-                    pdfPath,
-                    pages.map { image ->
-                        PdfRasterPage(image, 210.0 * 72.0 / 25.4, 297.0 * 72.0 / 25.4)
-                    },
-                )
-            }
+            val pdfPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".pdf")
+            Files.createDirectories(requireNotNull(pdfPath.parent))
+            Files.write(pdfPath, renderDocumentationPdf(markdownFile.content, settings))
         }
+    }
+
+    private fun renderDocumentationPdf(markdown: String, settings: SheetPaginationSettings): ByteArray {
+        val output = ByteArrayOutputStream()
+        PdfRendererBuilder()
+            .useFastMode()
+            .withHtmlContent(markdownToHtml(markdown, settings), null)
+            .toStream(output)
+            .run()
+        return output.toByteArray()
     }
 
     private fun exportDocumentationHtml(directory: File) {
         val documentation = compileDocumentationFiles()
+        val settings = defaultDocumentationPaginationSettings()
         Files.createDirectories(directory.toPath())
         documentation.forEach { markdownFile ->
             val htmlPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".html")
             Files.createDirectories(requireNotNull(htmlPath.parent))
-            Files.writeString(htmlPath, markdownToHtml(markdownFile.content))
+            Files.writeString(htmlPath, markdownToHtml(markdownFile.content, settings))
         }
     }
 
@@ -1414,15 +1437,17 @@ class ThreadworkDesktopApp(
         }
     }
 
-    private fun renderMarkdownPages(markdown: String): List<BufferedImage> =
-        markdown
+    private fun renderMarkdownPages(markdown: String, settings: SheetPaginationSettings): List<BufferedImage> {
+        val pageSize = canvas.documentationPreviewPageSize(settings)
+        return markdown
             .split(DOCUMENTATION_PAGE_BREAK)
             .filter(String::isNotBlank)
-            .flatMap { section -> renderHtmlPages(markdownToHtml(section)) }
+            .flatMap { section -> renderHtmlPages(markdownToHtml(section, settings), pageSize) }
+    }
 
-    private fun renderHtmlPages(html: String): List<BufferedImage> {
-        val pageWidth = 794
-        val pageHeight = 1123
+    private fun renderHtmlPages(html: String, pageSize: Dimension): List<BufferedImage> {
+        val pageWidth = pageSize.width
+        val pageHeight = pageSize.height
         val editor = JEditorPane("text/html", html).apply {
             isEditable = false
             border = null
@@ -1447,31 +1472,34 @@ class ThreadworkDesktopApp(
         }
     }
 
-    private fun markdownToHtml(markdown: String): String {
-        val body = markdownHtmlRenderer.render(markdownParser.parse(markdown))
+    private fun markdownToHtml(
+        markdown: String,
+        settings: SheetPaginationSettings = defaultDocumentationPaginationSettings(),
+    ): String {
+        val body = markdownHtmlRenderer.render(
+            markdownParser.parse(markdown.replace(DOCUMENTATION_PAGE_BREAK, "\n<div class=\"threadwork-page-break\"></div>\n")),
+        )
+        val pageSize = canvas.paperSizeMm(settings.formatChoice)
         return """
             <html>
             <head>
               <style>
-
-                body { font-family: sans-serif; margin: 36px; color: #222; }
-                h1 { font-size: 36px; border-bottom:2px solid #000;page-break-before: always;page-break-after: always;}
-                h2 { margin:5px;font-size: 28px;border-bottom:1px solid #000; }
-                h3 { margin:10px;font-size: 22px;border-bottom:1px dotted #444; }
-                h4 { margin:15px;font-size: 18px;border-bottom:1px dashed #444; }
-                p, li { font-size: 14px; line-height: 1.35; }
+                @page { size: ${pageSize.first}mm ${pageSize.second}mm; margin: 12mm; }
+                body { font-family: sans-serif; margin: 0; color: #222; }
+                h1 { font-size: 28px; border-bottom:2px solid #000; break-before: page; page-break-before: always; }
+                h1:first-child { break-before: auto; page-break-before: auto; }
+                h2 { margin:14px 0 6px;font-size:22px;border-bottom:1px solid #000; }
+                h3 { margin:12px 0 5px;font-size:17px;border-bottom:1px dotted #444; }
+                h4 { margin:10px 0 4px;font-size:14px;border-bottom:1px dashed #444; }
+                p, li { font-size: 11px; line-height: 1.35; }
                 strong, b { font-weight: bold; } em, i { font-style: italic; }
-                code, pre { font-family: monospace; font-size: 12px; }
-                code { background: #f3f3f3; } pre { white-space: pre-wrap; }
-                table { border-collapse: collapse; font-size: 12px; }
+                code, pre { font-family: monospace; font-size: 9px; }
+                code { background: #f3f3f3; } pre { white-space: pre-wrap; break-inside: avoid; page-break-inside: avoid; }
+                table { border-collapse: collapse; font-size: 9px; break-inside: avoid; page-break-inside: avoid; }
                 th, td { border: 1px solid #999; padding: 3px; vertical-align: top; }
+                .threadwork-page-break { break-after: page; page-break-after: always; height: 0; }
               </style>
             </head>
-            <script>
-                document.onreadystatechange = (event)=>{
-                    console.log({message,'document.onreadystatechange',event})
-                }
-            </script>
             <body>$body</body>
             </html>
         """.trimIndent()
@@ -2263,6 +2291,22 @@ class GraphCanvas(
     }
 
     fun sheetFormatChoices(): List<String> = listOf(AUTO_SHEET_FORMAT) + SHEET_FORMATS.map { it.id }
+
+    /** Paper size used by documentation previews and text PDF output; Auto defaults to A4. */
+    internal fun paperSizeMm(formatChoice: String): Pair<Double, Double> {
+        val format = SHEET_FORMATS.firstOrNull { it.id == formatChoice }
+            ?: SHEET_FORMATS.first { it.id == "A4" }
+        return format.widthMm to format.heightMm
+    }
+
+    internal fun documentationPreviewPageSize(settings: SheetPaginationSettings): Dimension {
+        val (widthMm, heightMm) = paperSizeMm(settings.formatChoice)
+        val pixelsPerMm = 3.78
+        return Dimension(
+            (widthMm * pixelsPerMm).roundToInt().coerceIn(320, 1800),
+            (heightMm * pixelsPerMm).roundToInt().coerceIn(420, 2400),
+        )
+    }
 
     fun selectedSheetFormatChoice(): String = sheetFormatChoice
 

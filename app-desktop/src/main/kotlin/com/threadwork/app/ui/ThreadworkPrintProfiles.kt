@@ -17,6 +17,12 @@ internal data class SheetPaginationSettings(
     val overlapMm: Double,
 )
 
+/** Separate pagination settings are retained for the plan and generated documentation. */
+internal data class PrinterPaginationProfile(
+    val plan: SheetPaginationSettings,
+    val documentation: SheetPaginationSettings,
+)
+
 internal data class PrinterTarget(
     val key: String,
     val label: String,
@@ -71,12 +77,19 @@ internal class ThreadworkPrintProfileStore(
         ) + discovered + missing
     }
 
-    fun settingsFor(printerKey: String, fallback: SheetPaginationSettings): SheetPaginationSettings =
-        configuredProfiles()[printerKey] ?: fallback
+    fun profileFor(
+        printerKey: String,
+        planFallback: SheetPaginationSettings,
+        documentationFallback: SheetPaginationSettings,
+    ): PrinterPaginationProfile = configuredProfiles()[printerKey]
+        ?: PrinterPaginationProfile(planFallback.normalized(), documentationFallback.normalized())
 
-    fun save(printerKey: String, settings: SheetPaginationSettings) {
+    fun save(printerKey: String, profile: PrinterPaginationProfile) {
         val profiles = configuredProfiles().toMutableMap()
-        profiles[printerKey] = settings.normalized()
+        profiles[printerKey] = PrinterPaginationProfile(
+            plan = profile.plan.normalized(),
+            documentation = profile.documentation.normalized(),
+        )
         persist(profiles)
     }
 
@@ -88,32 +101,31 @@ internal class ThreadworkPrintProfileStore(
 
     fun remove(printerKey: String) = reset(printerKey)
 
-    private fun configuredProfiles(): LinkedHashMap<String, SheetPaginationSettings> {
+    private fun configuredProfiles(): LinkedHashMap<String, PrinterPaginationProfile> {
         val raw = preferences.get(PROFILES_KEY, "[]")
         val rows = runCatching { Json.parseToJsonElement(raw) as? JsonArray }.getOrNull().orEmpty()
         return rows.mapNotNull { row ->
             val value = row as? JsonObject ?: return@mapNotNull null
             val key = value.string("printer-key").trim()
             if (key.isBlank()) return@mapNotNull null
-            key to SheetPaginationSettings(
-                formatChoice = value.string("format", "Auto"),
-                scaleChoice = value.string("scale", "1:1"),
-                multipage = value.boolean("multipage", false),
-                overlapMm = value.double("overlap-mm", 5.0),
-            ).normalized()
+            // Retain profiles saved by the first preprint implementation, which only had plan settings.
+            val legacyPlan = value.paginationSettings()
+            key to PrinterPaginationProfile(
+                plan = (value["plan"] as? JsonObject)?.paginationSettings() ?: legacyPlan,
+                documentation = (value["documentation"] as? JsonObject)?.paginationSettings()
+                    ?: DEFAULT_DOCUMENTATION_SETTINGS,
+            )
         }.toMap(LinkedHashMap())
     }
 
-    private fun persist(profiles: Map<String, SheetPaginationSettings>) {
+    private fun persist(profiles: Map<String, PrinterPaginationProfile>) {
         val content = buildJsonArray {
-            profiles.toSortedMap().forEach { (key, settings) ->
+            profiles.toSortedMap().forEach { (key, profile) ->
                 add(
                     buildJsonObject {
                         put("printer-key", JsonPrimitive(key))
-                        put("format", JsonPrimitive(settings.formatChoice))
-                        put("scale", JsonPrimitive(settings.scaleChoice))
-                        put("multipage", JsonPrimitive(settings.multipage))
-                        put("overlap-mm", JsonPrimitive(settings.overlapMm))
+                        put("plan", profile.plan.toJson())
+                        put("documentation", profile.documentation.toJson())
                     },
                 )
             }
@@ -128,6 +140,20 @@ internal class ThreadworkPrintProfileStore(
             overlapMm = overlapMm.coerceIn(0.0, 50.0),
         )
 
+    private fun JsonObject.paginationSettings(): SheetPaginationSettings = SheetPaginationSettings(
+        formatChoice = string("format", "Auto"),
+        scaleChoice = string("scale", "1:1"),
+        multipage = boolean("multipage", false),
+        overlapMm = double("overlap-mm", 5.0),
+    ).normalized()
+
+    private fun SheetPaginationSettings.toJson(): JsonObject = buildJsonObject {
+        put("format", JsonPrimitive(formatChoice))
+        put("scale", JsonPrimitive(scaleChoice))
+        put("multipage", JsonPrimitive(multipage))
+        put("overlap-mm", JsonPrimitive(overlapMm))
+    }
+
     private fun JsonObject.string(name: String, fallback: String = ""): String =
         (this[name] as? JsonPrimitive)?.content ?: fallback
 
@@ -137,10 +163,16 @@ internal class ThreadworkPrintProfileStore(
     private fun JsonObject.double(name: String, fallback: Double): Double =
         (this[name] as? JsonPrimitive)?.content?.toDoubleOrNull() ?: fallback
 
-    private companion object {
+    internal companion object {
         const val PREF_NODE = "com/threadwork/app/print"
         const val PROFILES_KEY = "printer-profiles"
         const val SYSTEM_PRINTER_KEY_PREFIX = "system:"
+        val DEFAULT_DOCUMENTATION_SETTINGS = SheetPaginationSettings(
+            formatChoice = "A4",
+            scaleChoice = "1:1",
+            multipage = false,
+            overlapMm = 5.0,
+        )
 
         fun systemPrinterKey(name: String): String = "$SYSTEM_PRINTER_KEY_PREFIX$name"
     }

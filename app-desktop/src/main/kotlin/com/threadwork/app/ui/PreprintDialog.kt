@@ -13,8 +13,8 @@ import java.awt.print.PageFormat
 import java.awt.print.Printable
 import javax.print.PrintService
 import javax.swing.BorderFactory
-import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListCellRenderer
+import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
@@ -25,38 +25,53 @@ import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JSpinner
 import javax.swing.JTabbedPane
+import javax.swing.ListSelectionModel
 import javax.swing.SwingConstants
 import javax.swing.WindowConstants
 import javax.swing.event.ChangeListener
+import javax.swing.event.ListSelectionListener
 import javax.swing.SpinnerNumberModel
 
 internal data class PrintDocumentationAsset(
     val title: String,
+    val markdown: String,
     val pages: List<BufferedImage>,
 )
 
+/** Unified per-printer print setup, keeping plan and documentation pagination independent. */
 internal class PreprintDialog(
     parent: Component,
     private val profiles: ThreadworkPrintProfileStore,
     private val formatChoices: List<String>,
     private val scaleChoices: List<String>,
-    private val fallbackSettings: () -> SheetPaginationSettings,
-    private val applySettings: (String, SheetPaginationSettings) -> Unit,
+    private val planFallback: () -> SheetPaginationSettings,
+    private val documentationFallback: () -> SheetPaginationSettings,
+    private val applyPlanSettings: (String, SheetPaginationSettings) -> Unit,
     private val planPreview: () -> BufferedImage?,
-    private val documentationAssets: () -> List<PrintDocumentationAsset>,
-    private val savePdf: (List<PrintDocumentationAsset>) -> Unit,
-    private val print: (PrintService, List<PrintDocumentationAsset>) -> Unit,
+    private val documentationAssets: (SheetPaginationSettings) -> List<PrintDocumentationAsset>,
+    private val savePdf: (List<PrintDocumentationAsset>, SheetPaginationSettings) -> Unit,
+    private val print: (PrintService, List<PrintDocumentationAsset>, SheetPaginationSettings) -> Unit,
     private val reportStatus: (String) -> Unit,
 ) : JDialog() {
-    private val printerChoices = JComboBox<PrinterTarget>()
-    private val formatChoicesBox = JComboBox(DefaultComboBoxModel(formatChoices.toTypedArray()))
-    private val scaleChoicesBox = JComboBox(DefaultComboBoxModel(scaleChoices.toTypedArray()))
-    private val multipageBox = JCheckBox("Split fixed sheets across pages")
-    private val overlapSpinner = JSpinner(SpinnerNumberModel(5.0, 0.0, 50.0, 0.5))
+    private val printerModel = DefaultListModel<PrinterTarget>()
+    private val printerList = JList(printerModel).apply {
+        selectionMode = ListSelectionModel.SINGLE_SELECTION
+        cellRenderer = PrinterTargetRenderer()
+    }
+    private val printerDetails = JLabel().apply {
+        border = BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, Color(0x969696)),
+            BorderFactory.createEmptyBorder(10, 8, 8, 8),
+        )
+        verticalAlignment = SwingConstants.TOP
+    }
+    private val planControls = PaginationControls("Plan", formatChoices, scaleChoices)
+    private val documentationControls = PaginationControls("Documentation", formatChoices, scaleChoices)
     private val planPreviewLabel = JLabel("No plan to preview", SwingConstants.CENTER)
     private val documentPreviewPanel = JPanel().apply {
         layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
-        border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        border = BorderFactory.createEmptyBorder(18, 18, 18, 18)
+        background = Color(0x6d6d6d)
     }
     private val savePdfButton = JButton("Save PDF...")
     private val printButton = JButton("Print...")
@@ -71,55 +86,46 @@ internal class PreprintDialog(
         defaultCloseOperation = WindowConstants.DISPOSE_ON_CLOSE
         minimumSize = Dimension(1080, 700)
         setSize(1280, 840)
-        setLocationRelativeTo(parent)
 
-        printerChoices.renderer = PrinterTargetRenderer()
-        refreshPrinterChoices()
         installListeners()
-        documents = runCatching(documentationAssets).getOrElse {
-            reportStatus("Documentation preview failed: ${it.message}")
-            emptyList()
-        }
-        refreshDocumentPreview()
-        refreshPlanPreview()
+        refreshPrinterTargets()
 
-        contentPane = JPanel(BorderLayout(8, 8)).apply {
+        contentPane = JPanel(BorderLayout(10, 10)).apply {
             border = BorderFactory.createEmptyBorder(10, 10, 10, 10)
-            add(settingsPanel(), BorderLayout.WEST)
+            add(printerPanel(), BorderLayout.WEST)
             add(previewPanel(), BorderLayout.CENTER)
             add(actionsPanel(), BorderLayout.SOUTH)
         }
+        setLocationRelativeTo(parent)
     }
 
-    private fun settingsPanel(): JPanel = JPanel().apply {
-        layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
-        preferredSize = Dimension(300, 600)
-        add(JLabel("Printer"))
-        add(printerChoices)
-        add(verticalGap())
-        add(JLabel("Page format"))
-        add(formatChoicesBox)
-        add(verticalGap())
-        add(JLabel("Scale"))
-        add(scaleChoicesBox)
-        add(verticalGap())
-        add(multipageBox)
-        add(verticalGap())
-        add(JLabel("Page overlap (mm)"))
-        add(overlapSpinner)
-        add(verticalGap())
-        add(JLabel("Pagination settings are saved per printer."))
+    private fun printerPanel(): JPanel = JPanel(BorderLayout(0, 8)).apply {
+        preferredSize = Dimension(285, 600)
+        add(JLabel("Printers"), BorderLayout.NORTH)
+        add(JScrollPane(printerList).apply {
+            border = BorderFactory.createEtchedBorder()
+            verticalScrollBar.unitIncrement = 28
+        }, BorderLayout.CENTER)
+        add(printerDetails, BorderLayout.SOUTH)
     }
 
     private fun previewPanel(): JTabbedPane = JTabbedPane().apply {
-        addTab("Plan", JScrollPane(planPreviewLabel).apply {
+        addTab("Plan", previewTab(planControls, JScrollPane(planPreviewLabel).apply {
             border = BorderFactory.createEmptyBorder()
-            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
-            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
-        })
-        addTab("Documentation", JScrollPane(documentPreviewPanel).apply {
+            verticalScrollBar.unitIncrement = 32
+            horizontalScrollBar.unitIncrement = 32
+        }))
+        addTab("Documentation", previewTab(documentationControls, JScrollPane(documentPreviewPanel).apply {
             border = BorderFactory.createEmptyBorder()
-        })
+            verticalScrollBar.unitIncrement = 32
+            horizontalScrollBar.unitIncrement = 32
+            viewport.background = documentPreviewPanel.background
+        }))
+    }
+
+    private fun previewTab(controls: PaginationControls, preview: JScrollPane): JPanel = JPanel(BorderLayout(0, 8)).apply {
+        add(controls.panel, BorderLayout.NORTH)
+        add(preview, BorderLayout.CENTER)
     }
 
     private fun actionsPanel(): JPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply {
@@ -131,16 +137,11 @@ internal class PreprintDialog(
     }
 
     private fun installListeners() {
-        printerChoices.addActionListener {
-            if (!updating) loadSelectedProfile()
-        }
-        val settingsChanged = ChangeListener {
-            if (!updating) saveCurrentProfileAndRefresh()
-        }
-        formatChoicesBox.addActionListener { if (!updating) saveCurrentProfileAndRefresh() }
-        scaleChoicesBox.addActionListener { if (!updating) saveCurrentProfileAndRefresh() }
-        multipageBox.addActionListener { if (!updating) saveCurrentProfileAndRefresh() }
-        overlapSpinner.addChangeListener(settingsChanged)
+        printerList.addListSelectionListener(ListSelectionListener {
+            if (!it.valueIsAdjusting && !updating) loadSelectedProfile()
+        })
+        planControls.onChange { if (!updating) saveProfileAndRefreshPlan() }
+        documentationControls.onChange { if (!updating) saveProfileAndRefreshDocumentation() }
         resetButton.addActionListener {
             selectedTarget()?.let { target ->
                 profiles.reset(target.key)
@@ -149,29 +150,30 @@ internal class PreprintDialog(
             }
         }
         removeButton.addActionListener {
-            selectedTarget()?.let { target ->
-                if (!target.isPdf) {
-                    profiles.remove(target.key)
-                    refreshPrinterChoices(target.key)
-                    reportStatus("Removed stored settings for ${target.label}")
-                }
+            selectedTarget()?.takeUnless(PrinterTarget::isPdf)?.let { target ->
+                profiles.remove(target.key)
+                refreshPrinterTargets(target.key)
+                reportStatus("Removed stored settings for ${target.label}")
             }
         }
-        savePdfButton.addActionListener { savePdf(documents) }
+        savePdfButton.addActionListener { savePdf(documents, documentationControls.settings()) }
         printButton.addActionListener {
-            selectedTarget()?.service?.let { service -> print(service, documents) }
+            selectedTarget()?.service?.let { service ->
+                print(service, documents, documentationControls.settings())
+            }
         }
     }
 
-    private fun refreshPrinterChoices(preferredKey: String? = null) {
+    private fun refreshPrinterTargets(preferredKey: String? = null) {
         val targets = profiles.targets()
         updating = true
         try {
-            printerChoices.model = DefaultComboBoxModel(targets.toTypedArray())
-            val selected = targets.firstOrNull { it.key == preferredKey }
-                ?: targets.firstOrNull { it.isPdf }
-                ?: targets.firstOrNull()
-            printerChoices.selectedItem = selected
+            printerModel.clear()
+            targets.forEach(printerModel::addElement)
+            val selectedIndex = targets.indexOfFirst { it.key == preferredKey }
+                .takeIf { it >= 0 }
+                ?: targets.indexOfFirst(PrinterTarget::isPdf).coerceAtLeast(0)
+            if (printerModel.size > 0) printerList.selectedIndex = selectedIndex
         } finally {
             updating = false
         }
@@ -180,13 +182,12 @@ internal class PreprintDialog(
 
     private fun loadSelectedProfile() {
         val target = selectedTarget() ?: return
-        val settings = profiles.settingsFor(target.key, fallbackSettings())
+        val profile = profiles.profileFor(target.key, planFallback(), documentationFallback())
         updating = true
         try {
-            formatChoicesBox.selectedItem = settings.formatChoice
-            scaleChoicesBox.selectedItem = settings.scaleChoice
-            multipageBox.isSelected = settings.multipage
-            overlapSpinner.value = settings.overlapMm
+            planControls.setSettings(profile.plan)
+            documentationControls.setSettings(profile.documentation)
+            printerDetails.text = printerDetailHtml(target)
             savePdfButton.isVisible = target.isPdf
             printButton.isVisible = !target.isPdf
             printButton.isEnabled = target.reachable && target.service != null
@@ -194,26 +195,28 @@ internal class PreprintDialog(
         } finally {
             updating = false
         }
-        applySettings(target.key, settings)
+        applyPlanSettings(target.key, profile.plan)
         refreshPlanPreview()
+        refreshDocumentationPreview()
     }
 
-    private fun saveCurrentProfileAndRefresh() {
+    private fun saveProfileAndRefreshPlan() {
         val target = selectedTarget() ?: return
-        val settings = selectedSettings()
-        profiles.save(target.key, settings)
-        applySettings(target.key, settings)
+        val current = profiles.profileFor(target.key, planFallback(), documentationFallback())
+        val profile = current.copy(plan = planControls.settings())
+        profiles.save(target.key, profile)
+        applyPlanSettings(target.key, profile.plan)
         refreshPlanPreview()
     }
 
-    private fun selectedSettings(): SheetPaginationSettings = SheetPaginationSettings(
-        formatChoice = formatChoicesBox.selectedItem?.toString().orEmpty(),
-        scaleChoice = scaleChoicesBox.selectedItem?.toString().orEmpty(),
-        multipage = multipageBox.isSelected,
-        overlapMm = (overlapSpinner.value as Number).toDouble(),
-    )
+    private fun saveProfileAndRefreshDocumentation() {
+        val target = selectedTarget() ?: return
+        val current = profiles.profileFor(target.key, planFallback(), documentationFallback())
+        profiles.save(target.key, current.copy(documentation = documentationControls.settings()))
+        refreshDocumentationPreview()
+    }
 
-    private fun selectedTarget(): PrinterTarget? = printerChoices.selectedItem as? PrinterTarget
+    private fun selectedTarget(): PrinterTarget? = printerList.selectedValue
 
     private fun refreshPlanPreview() {
         val image = planPreview()
@@ -223,23 +226,32 @@ internal class PreprintDialog(
         planPreviewLabel.repaint()
     }
 
-    private fun refreshDocumentPreview() {
+    private fun refreshDocumentationPreview() {
+        documents = runCatching { documentationAssets(documentationControls.settings()) }.getOrElse {
+            reportStatus("Documentation preview failed: ${it.message}")
+            emptyList()
+        }
         documentPreviewPanel.removeAll()
         if (documents.isEmpty()) {
-            documentPreviewPanel.add(JLabel("No documentation pages available."))
+            documentPreviewPanel.add(JLabel("No documentation pages available.").apply {
+                foreground = Color.WHITE
+                alignmentX = Component.CENTER_ALIGNMENT
+            })
         } else {
             documents.forEach { asset ->
                 documentPreviewPanel.add(JLabel(asset.title).apply {
-                    alignmentX = Component.LEFT_ALIGNMENT
-                    border = BorderFactory.createEmptyBorder(8, 4, 4, 4)
+                    alignmentX = Component.CENTER_ALIGNMENT
+                    foreground = Color.WHITE
+                    border = BorderFactory.createEmptyBorder(0, 4, 8, 4)
                 })
-                asset.pages.forEachIndexed { index, image ->
-                    documentPreviewPanel.add(JLabel("Page ${index + 1}", javax.swing.ImageIcon(scalePreview(image, 420, 594)), SwingConstants.LEFT).apply {
-                        alignmentX = Component.LEFT_ALIGNMENT
-                        verticalTextPosition = SwingConstants.TOP
-                        horizontalTextPosition = SwingConstants.CENTER
-                        border = BorderFactory.createEmptyBorder(4, 4, 12, 4)
+                asset.pages.forEach { image ->
+                    documentPreviewPanel.add(JLabel(javax.swing.ImageIcon(scalePreview(image, 620, 840))).apply {
+                        alignmentX = Component.CENTER_ALIGNMENT
+                        isOpaque = true
+                        background = Color.WHITE
+                        border = BorderFactory.createLineBorder(Color(0x9a9a9a))
                     })
+                    documentPreviewPanel.add(javax.swing.Box.createVerticalStrut(22))
                 }
             }
         }
@@ -247,7 +259,11 @@ internal class PreprintDialog(
         documentPreviewPanel.repaint()
     }
 
-    private fun verticalGap(): Component = javax.swing.Box.createVerticalStrut(8)
+    private fun printerDetailHtml(target: PrinterTarget): String = buildString {
+        append("<html><b>").append(escapeHtml(target.label)).append("</b><br>")
+        append(if (target.isPdf) "Built-in PDF output" else if (target.reachable) "Available system printer" else "Unavailable stored printer")
+        append("<br><span style='font-size:9px'>").append(escapeHtml(target.key)).append("</span></html>")
+    }
 
     private fun scalePreview(image: BufferedImage, maxWidth: Int, maxHeight: Int): Image {
         val scale = minOf(maxWidth.toDouble() / image.width, maxHeight.toDouble() / image.height, 1.0)
@@ -255,6 +271,53 @@ internal class PreprintDialog(
             (image.width * scale).toInt().coerceAtLeast(1),
             (image.height * scale).toInt().coerceAtLeast(1),
             Image.SCALE_SMOOTH,
+        )
+    }
+
+    private fun escapeHtml(value: String): String = value
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+
+    private class PaginationControls(
+        label: String,
+        formatChoices: List<String>,
+        scaleChoices: List<String>,
+    ) {
+        private val formatBox = JComboBox(formatChoices.toTypedArray())
+        private val scaleBox = JComboBox(scaleChoices.toTypedArray())
+        private val multipageBox = JCheckBox("Split fixed sheets across pages")
+        private val overlapSpinner = JSpinner(SpinnerNumberModel(5.0, 0.0, 50.0, 0.5))
+        val panel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+            border = BorderFactory.createTitledBorder("$label pagination")
+            add(JLabel("Format"))
+            add(formatBox.apply { preferredSize = Dimension(118, preferredSize.height) })
+            add(JLabel("Scale"))
+            add(scaleBox.apply { preferredSize = Dimension(76, preferredSize.height) })
+            add(multipageBox)
+            add(JLabel("Overlap (mm)"))
+            add(overlapSpinner.apply { preferredSize = Dimension(76, preferredSize.height) })
+        }
+
+        fun onChange(listener: () -> Unit) {
+            formatBox.addActionListener { listener() }
+            scaleBox.addActionListener { listener() }
+            multipageBox.addActionListener { listener() }
+            overlapSpinner.addChangeListener(ChangeListener { listener() })
+        }
+
+        fun setSettings(settings: SheetPaginationSettings) {
+            formatBox.selectedItem = settings.formatChoice
+            scaleBox.selectedItem = settings.scaleChoice
+            multipageBox.isSelected = settings.multipage
+            overlapSpinner.value = settings.overlapMm
+        }
+
+        fun settings(): SheetPaginationSettings = SheetPaginationSettings(
+            formatChoice = formatBox.selectedItem?.toString().orEmpty(),
+            scaleChoice = scaleBox.selectedItem?.toString().orEmpty(),
+            multipage = multipageBox.isSelected,
+            overlapMm = (overlapSpinner.value as Number).toDouble(),
         )
     }
 
@@ -268,12 +331,15 @@ internal class PreprintDialog(
         ): Component {
             val label = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
             val target = value as? PrinterTarget ?: return label
-            label.text = target.label
+            label.text = "<html><b>${escape(target.label)}</b><br><span style='font-size:9px'>${if (target.isPdf) "PDF output" else if (target.reachable) "Available" else "Unavailable"}</span></html>"
             label.icon = ReachabilityIcon(if (target.reachable) Color(0x35a854) else Color(0xd64545))
-            label.iconTextGap = 7
+            label.iconTextGap = 8
+            label.border = BorderFactory.createEmptyBorder(7, 7, 7, 7)
             label.toolTipText = target.key
             return label
         }
+
+        private fun escape(value: String): String = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     }
 
     private class ReachabilityIcon(private val color: Color) : javax.swing.Icon {
@@ -290,7 +356,7 @@ internal class PreprintDialog(
     }
 }
 
-/** Renders the same internally generated PDF pages into a physical printer job. */
+/** Renders the internally generated print pages into a physical printer job. */
 internal class RasterPagesPrintable(
     private val pages: List<PdfRasterPage>,
 ) : Printable {
