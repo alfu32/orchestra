@@ -218,9 +218,6 @@ class ThreadworkDesktopApp(
         ::onCanvasModeChanged,
         ::updateTileProgress,
         ::openNodeInEntityEditor,
-        ::exportDocumentationPdf,
-        ::exportDocumentationHtml,
-        ::exportDocumentationMarkdown,
         ::showCommandContextMenu,
     )
     private val hierarchyTree = JTree()
@@ -453,7 +450,15 @@ class ThreadworkDesktopApp(
             add(commandItem("file.open", "open"))
             add(commandItem("file.save", "save"))
             add(commandItem("file.saveAs", "disk"))
-            add(commandItem("sheet.export", "sheet"))
+            add(JMenu("Export").apply {
+                add(commandItem("export.plan.pdf", "sheet"))
+                add(commandItem("export.plan.svg", "sheet"))
+                add(commandItem("export.plan.png", "sheet"))
+                addSeparator()
+                add(commandItem("export.documentation.pdf"))
+                add(commandItem("export.documentation.html"))
+                add(commandItem("export.documentation.markdown"))
+            })
             add(commandItem("app.options"))
             add(commandItem("file.quit"))
         })
@@ -574,7 +579,12 @@ class ThreadworkDesktopApp(
         registerCommand(AppCommand("sheet.toggle", "Sheet: Toggle Preview") {
             sheetButton?.isSelected = canvas.toggleSheet()
         })
-        registerCommand(AppCommand("sheet.export", "Sheet: Export...") { canvas.exportSheet(frame) })
+        registerCommand(AppCommand("export.plan.pdf", "Export: Plan PDF") { canvas.exportPlan(frame, SheetExportFormat.Pdf) })
+        registerCommand(AppCommand("export.plan.svg", "Export: Plan SVG") { canvas.exportPlan(frame, SheetExportFormat.Svg) })
+        registerCommand(AppCommand("export.plan.png", "Export: Plan PNG") { canvas.exportPlan(frame, SheetExportFormat.Png) })
+        registerCommand(AppCommand("export.documentation.pdf", "Export: Documentation PDF") { exportDocumentation(DocumentationExportFormat.Pdf) })
+        registerCommand(AppCommand("export.documentation.html", "Export: Documentation HTML") { exportDocumentation(DocumentationExportFormat.Html) })
+        registerCommand(AppCommand("export.documentation.markdown", "Export: Documentation Markdown") { exportDocumentation(DocumentationExportFormat.Markdown) })
         registerCommand(AppCommand("compile.project", "Build: Project or Selection") { compileProject() })
         registerCommand(AppCommand("compile.compiler", "Build: Generate Compiler From @Compiler") { generateCompilerFromDesign() })
         registerCommand(AppCommand("compile.documentation", "Build: Compile Documentation") { compileDocumentation() })
@@ -1156,13 +1166,41 @@ class ThreadworkDesktopApp(
         }
     }
 
-    private fun exportDocumentationPdf(sheetPdf: File) {
-        val directory = sheetPdf.parentFile ?: File(".")
+    private fun exportDocumentation(format: DocumentationExportFormat) {
+        val output = chooseOutputDirectory("${repository.getDocument().projectName()}-documentation") ?: return
+        runCatching {
+            when (format) {
+                DocumentationExportFormat.Pdf -> exportDocumentationPdf(output.toFile())
+                DocumentationExportFormat.Html -> exportDocumentationHtml(output.toFile())
+                DocumentationExportFormat.Markdown -> exportDocumentationMarkdown(output.toFile())
+            }
+        }.onSuccess {
+            status.text = "Exported $format documentation to ${output.toAbsolutePath()}"
+            JOptionPane.showMessageDialog(
+                frame,
+                "Saved $format documentation to ${output.toAbsolutePath()}",
+                "Export Documentation",
+                JOptionPane.INFORMATION_MESSAGE,
+            )
+        }.onFailure {
+            status.text = "Documentation export failed: ${it.message}"
+            JOptionPane.showMessageDialog(
+                frame,
+                it.message ?: "Documentation export failed.",
+                "Export Documentation",
+                JOptionPane.ERROR_MESSAGE,
+            )
+        }
+    }
+
+    private fun exportDocumentationPdf(directory: File) {
         val documentation = compileDocumentationFiles()
+        Files.createDirectories(directory.toPath())
         documentation.forEach { markdownFile ->
             val pages = renderMarkdownPages(markdownFile.content)
             if (pages.isNotEmpty()) {
                 val pdfPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".pdf")
+                Files.createDirectories(requireNotNull(pdfPath.parent))
                 RasterPdfWriter.write(
                     pdfPath,
                     pages.map { image ->
@@ -1173,17 +1211,17 @@ class ThreadworkDesktopApp(
         }
     }
 
-    private fun exportDocumentationHtml(sheetSvg: File) {
-        val directory = sheetSvg.parentFile ?: File(".")
+    private fun exportDocumentationHtml(directory: File) {
         val documentation = compileDocumentationFiles()
+        Files.createDirectories(directory.toPath())
         documentation.forEach { markdownFile ->
             val htmlPath = directory.toPath().resolve(markdownFile.path.removeSuffix(".md") + ".html")
+            Files.createDirectories(requireNotNull(htmlPath.parent))
             Files.writeString(htmlPath, markdownToHtml(markdownFile.content))
         }
     }
 
-    private fun exportDocumentationMarkdown(sheetPng: File) {
-        val directory = sheetPng.parentFile ?: File(".")
+    private fun exportDocumentationMarkdown(directory: File) {
         writeDocumentationMarkdown(directory, compileDocumentationFiles())
     }
 
@@ -1748,13 +1786,22 @@ enum class CanvasMode {
     CreateLink,
 }
 
-private enum class SheetExportPackage(
+enum class SheetExportFormat(
     val extension: String,
     private val label: String,
 ) {
-    Pdf("pdf", "PDF plan + PDF documentation"),
-    Svg("svg", "SVG plan + HTML documentation"),
-    Png("png", "PNG plan + Markdown documentation"),
+    Pdf("pdf", "Plan PDF"),
+    Svg("svg", "Plan SVG"),
+    Png("png", "Plan PNG"),
+    ;
+
+    override fun toString(): String = label
+}
+
+private enum class DocumentationExportFormat(private val label: String) {
+    Pdf("PDF"),
+    Html("HTML"),
+    Markdown("Markdown"),
     ;
 
     override fun toString(): String = label
@@ -1780,9 +1827,6 @@ class GraphCanvas(
     private val onModeChanged: (CanvasMode) -> Unit,
     private val onTileProgress: (Int, Int, Boolean) -> Unit = { _, _, _ -> },
     private val onNodeDoubleClicked: (NodeId) -> Unit = {},
-    private val onPdfSheetExported: (File) -> Unit = {},
-    private val onSvgSheetExported: (File) -> Unit = {},
-    private val onPngSheetExported: (File) -> Unit = {},
     private val onContextMenu: (Component, Int, Int) -> Unit = { _, _, _ -> },
 ) : JPanel() {
     var mode: CanvasMode = CanvasMode.Select
@@ -2086,38 +2130,29 @@ class GraphCanvas(
         repaint()
     }
 
-    fun exportSheet(parent: JFrame) {
-        val exportPackage = JOptionPane.showInputDialog(
-            parent,
-            "Export package",
-            "Export Plan and Documentation",
-            JOptionPane.PLAIN_MESSAGE,
-            null,
-            SheetExportPackage.entries.toTypedArray(),
-            SheetExportPackage.Pdf,
-        ) as? SheetExportPackage ?: return
-        val dialog = FileDialog(parent, "Save ${exportPackage}", FileDialog.SAVE).apply {
-            file = "threadwork-sheet.${exportPackage.extension}"
+    fun exportPlan(parent: JFrame, format: SheetExportFormat) {
+        val dialog = FileDialog(parent, "Save ${format}", FileDialog.SAVE).apply {
+            file = "${repository.getDocument().projectName()}.${format.extension}"
         }
         dialog.isVisible = true
         val directory = dialog.directory?.takeIf { it.isNotBlank() } ?: return
         val selected = dialog.file?.takeIf { it.isNotBlank() } ?: return
-        val file = withExtension(Path.of(directory).resolve(selected).toFile(), exportPackage.extension)
+        val file = withExtension(Path.of(directory).resolve(selected).toFile(), format.extension)
         runCatching {
-            when (exportPackage) {
-                SheetExportPackage.Svg -> writeSvgSheet(file)
-                SheetExportPackage.Png -> writePngSheet(file)
-                SheetExportPackage.Pdf -> writePdfSheet(file)
+            when (format) {
+                SheetExportFormat.Svg -> writeSvgSheet(file)
+                SheetExportFormat.Png -> writePngSheet(file)
+                SheetExportFormat.Pdf -> writePdfSheet(file)
             }
         }.onSuccess {
             JOptionPane.showMessageDialog(
                 parent,
-                "Saved ${exportPackage} to ${file.parentFile.absolutePath}",
-                "Export Plan and Documentation",
+                "Saved $format to ${file.absolutePath}",
+                "Export Plan",
                 JOptionPane.INFORMATION_MESSAGE,
             )
         }.onFailure {
-            JOptionPane.showMessageDialog(parent, it.message ?: "Export failed.", "Export Plan and Documentation", JOptionPane.ERROR_MESSAGE)
+            JOptionPane.showMessageDialog(parent, it.message ?: "Export failed.", "Export Plan", JOptionPane.ERROR_MESSAGE)
         }
     }
 
@@ -3005,12 +3040,10 @@ class GraphCanvas(
         svg.appendLine("  </g>")
         svg.appendLine("</svg>")
         Files.writeString(file.toPath(), svg.toString())
-        onSvgSheetExported(file)
     }
 
     private fun writePngSheet(file: File) {
         ImageIO.write(renderSheetImage() ?: error("Nothing to export."), "png", file)
-        onPngSheetExported(file)
     }
 
     private fun svgSheet(svg: StringBuilder, plan: SheetPlan) {
@@ -3486,7 +3519,6 @@ class GraphCanvas(
             )
         }
         RasterPdfWriter.write(file.toPath(), pages)
-        onPdfSheetExported(file)
     }
 
     private fun renderPdfPage(plan: SheetPlan, page: SheetPage): BufferedImage {
