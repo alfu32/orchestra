@@ -125,6 +125,9 @@ import java.util.LinkedHashMap
 import java.util.ServiceLoader
 import org.apache.pdfbox.io.MemoryUsageSetting
 import org.apache.pdfbox.multipdf.PDFMergerUtility
+import org.apache.pdfbox.pdmodel.PDDocument
+import org.apache.pdfbox.rendering.ImageType
+import org.apache.pdfbox.rendering.PDFRenderer
 import javax.imageio.ImageIO
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
@@ -140,7 +143,6 @@ import javax.swing.JCheckBox
 import javax.swing.JColorChooser
 import javax.swing.JComponent
 import javax.swing.JDialog
-import javax.swing.JEditorPane
 import javax.swing.DropMode
 import javax.swing.Icon
 import javax.swing.JFrame
@@ -1294,7 +1296,7 @@ class ThreadworkDesktopApp(
             PrintDocumentationAsset(
                 title = markdownFile.path,
                 markdown = markdownFile.content,
-                pages = renderMarkdownPages(markdownFile.content, settings, documentationPageMetadata()),
+                pages = renderDocumentationPreviewPages(markdownFile.content, settings, documentationPageMetadata()),
             )
         }
 
@@ -1450,68 +1452,21 @@ class ThreadworkDesktopApp(
         }
     }
 
-    private fun renderMarkdownPages(
+    /**
+     * The preview is rendered from the final PDF rather than a separate Swing HTML layout.
+     * This keeps page breaks, page counters, margins, and running header/footer boxes identical
+     * between preview and exported documentation.
+     */
+    private fun renderDocumentationPreviewPages(
         markdown: String,
         settings: DocumentationPrintSettings,
         metadata: DocumentationPageMetadata,
     ): List<BufferedImage> {
-        val pageSize = canvas.documentationPreviewPageSize(settings)
-        return markdown
-            .split(DOCUMENTATION_PAGE_BREAK)
-            .filter(String::isNotBlank)
-            .flatMap { section -> renderHtmlPages(markdownToHtml(section, settings, metadata), pageSize, settings, metadata) }
-    }
-
-    private fun renderHtmlPages(
-        html: String,
-        pageSize: Dimension,
-        settings: DocumentationPrintSettings,
-        metadata: DocumentationPageMetadata,
-    ): List<BufferedImage> {
-        val pageWidth = pageSize.width
-        val pageHeight = pageSize.height
-        val pixelsPerMm = 3.78
-        val leftMargin = (settings.marginLeftMm * pixelsPerMm).roundToInt()
-        val rightMargin = (settings.marginRightMm * pixelsPerMm).roundToInt()
-        val topMargin = (settings.marginTopMm * pixelsPerMm).roundToInt()
-        val bottomMargin = (settings.marginBottomMm * pixelsPerMm).roundToInt()
-        val contentWidth = (pageWidth - leftMargin - rightMargin).coerceAtLeast(80)
-        val contentHeight = (pageHeight - topMargin - bottomMargin).coerceAtLeast(80)
-        val editor = JEditorPane("text/html", html).apply {
-            isEditable = false
-            border = null
-            isOpaque = true
-            background = Color.WHITE
-            foreground = Color(0x222222)
-            setSize(contentWidth, 1_000_000)
-        }
-        val documentHeight = editor.preferredSize.height.coerceAtLeast(contentHeight)
-        val pageCount = ((documentHeight + contentHeight - 1) / contentHeight).coerceAtLeast(1)
-        return buildList {
-            for (pageIndex in 0 until pageCount) {
-                val offset = pageIndex * contentHeight
-                val image = BufferedImage(pageWidth, pageHeight, BufferedImage.TYPE_INT_RGB)
-                val graphics = image.createGraphics()
-                try {
-                    graphics.color = Color.WHITE
-                    graphics.fillRect(0, 0, pageWidth, pageHeight)
-                    graphics.clip = Rectangle(leftMargin, topMargin, contentWidth, contentHeight)
-                    graphics.translate(leftMargin, topMargin - offset)
-                    editor.paint(graphics)
-                    graphics.clip = null
-                    drawDocumentationPageDecoration(
-                        graphics,
-                        pageWidth,
-                        pageHeight,
-                        settings,
-                        metadata,
-                        pageIndex + 1,
-                        pageCount,
-                    )
-                } finally {
-                    graphics.dispose()
-                }
-                add(image)
+        val pdf = renderDocumentationPdf(markdown, settings, metadata)
+        return PDDocument.load(pdf).use { document ->
+            val renderer = PDFRenderer(document)
+            (0 until document.numberOfPages).map { pageIndex ->
+                renderer.renderImageWithDPI(pageIndex, 120f, ImageType.RGB)
             }
         }
     }
@@ -1584,34 +1539,6 @@ class ThreadworkDesktopApp(
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
         .replace('\n', ' ')
-
-    private fun drawDocumentationPageDecoration(
-        graphics: Graphics2D,
-        pageWidth: Int,
-        pageHeight: Int,
-        settings: DocumentationPrintSettings,
-        metadata: DocumentationPageMetadata,
-        pageNumber: Int,
-        pageCount: Int,
-    ) {
-        graphics.font = Font(Font.SANS_SERIF, Font.PLAIN, 11)
-        graphics.color = Color(0x555555)
-        val metrics = graphics.fontMetrics
-        if (settings.includeHeader) {
-            val left = "Project date: ${metadata.projectDate.ifBlank { "unspecified" }}"
-            val right = "Revision: ${listOf(metadata.revisionName, metadata.revisionDate).filter(String::isNotBlank).joinToString(" ").ifBlank { "unspecified" }}"
-            val baseline = (settings.marginTopMm * 3.78 / 2.0).roundToInt().coerceAtLeast(metrics.ascent + 4)
-            graphics.drawString(left, 8, baseline)
-            graphics.drawString(right, pageWidth - metrics.stringWidth(right) - 8, baseline)
-        }
-        if (settings.includeFooter) {
-            val left = "Printed: ${metadata.printDate}"
-            val right = "Page $pageNumber / $pageCount"
-            val baseline = (pageHeight - settings.marginBottomMm * 3.78 / 2.0).roundToInt().coerceAtMost(pageHeight - 5)
-            graphics.drawString(left, 8, baseline)
-            graphics.drawString(right, pageWidth - metrics.stringWidth(right) - 8, baseline)
-        }
-    }
 
     private fun selectCompiler(document: ThreadworkDocument): CompilerPlugin? {
         val root = document.rootNode()
@@ -2400,20 +2327,11 @@ class GraphCanvas(
 
     fun sheetFormatChoices(): List<String> = listOf(AUTO_SHEET_FORMAT) + SHEET_FORMATS.map { it.id }
 
-    /** Paper size used by documentation previews and text PDF output; Auto defaults to A4. */
+    /** Paper size used by text PDF output; Auto defaults to A4. */
     internal fun paperSizeMm(formatChoice: String): Pair<Double, Double> {
         val format = SHEET_FORMATS.firstOrNull { it.id == formatChoice }
             ?: SHEET_FORMATS.first { it.id == "A4" }
         return format.widthMm to format.heightMm
-    }
-
-    internal fun documentationPreviewPageSize(settings: DocumentationPrintSettings): Dimension {
-        val (widthMm, heightMm) = paperSizeMm(settings.formatChoice)
-        val pixelsPerMm = 3.78
-        return Dimension(
-            (widthMm * pixelsPerMm).roundToInt().coerceIn(320, 1800),
-            (heightMm * pixelsPerMm).roundToInt().coerceIn(420, 2400),
-        )
     }
 
     fun selectedSheetFormatChoice(): String = sheetFormatChoice

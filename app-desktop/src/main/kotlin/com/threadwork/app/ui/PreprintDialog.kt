@@ -26,7 +26,9 @@ import javax.swing.JScrollPane
 import javax.swing.JSpinner
 import javax.swing.JTabbedPane
 import javax.swing.ListSelectionModel
+import javax.swing.SwingWorker
 import javax.swing.SwingConstants
+import javax.swing.Timer
 import javax.swing.WindowConstants
 import javax.swing.event.ChangeListener
 import javax.swing.event.ListSelectionListener
@@ -70,17 +72,39 @@ internal class PreprintDialog(
         formatChoices.filter { choice -> choice != "Auto" && !choice.contains("-roll") },
     )
     private val planPreviewLabel = JLabel("No plan to preview", SwingConstants.CENTER)
+    private val planPreviewScroll = JScrollPane(planPreviewLabel).apply {
+        border = BorderFactory.createEmptyBorder()
+        verticalScrollBar.unitIncrement = 32
+        horizontalScrollBar.unitIncrement = 32
+    }
+    private val planPreviewHost = JPanel(BorderLayout())
     private val documentPreviewPanel = JPanel().apply {
         layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
         border = BorderFactory.createEmptyBorder(18, 18, 18, 18)
         background = Color(0x6d6d6d)
     }
+    private val documentPreviewScroll = JScrollPane(documentPreviewPanel).apply {
+        border = BorderFactory.createEmptyBorder()
+        verticalScrollBar.unitIncrement = 32
+        horizontalScrollBar.unitIncrement = 32
+        viewport.background = documentPreviewPanel.background
+    }
+    private val documentPreviewHost = JPanel(BorderLayout())
     private val savePdfButton = JButton("Save PDF...")
     private val printButton = JButton("Print...")
     private val removeButton = JButton("Remove Stored Settings")
     private val resetButton = JButton("Reset Settings")
     private var documents = emptyList<PrintDocumentationAsset>()
     private var updating = false
+    private var documentationReady = false
+    private var planRefreshGeneration = 0L
+    private var documentationRefreshGeneration = 0L
+    private val planRefreshTimer = Timer(PREVIEW_DEBOUNCE_MS) {
+        renderPlanPreviewAsync(planRefreshGeneration)
+    }.apply { isRepeats = false }
+    private val documentationRefreshTimer = Timer(PREVIEW_DEBOUNCE_MS) {
+        renderDocumentationPreviewAsync(documentationRefreshGeneration)
+    }.apply { isRepeats = false }
 
     init {
         title = "Print Preview"
@@ -88,6 +112,9 @@ internal class PreprintDialog(
         defaultCloseOperation = WindowConstants.DISPOSE_ON_CLOSE
         minimumSize = Dimension(1080, 700)
         setSize(1280, 840)
+
+        planPreviewHost.add(planPreviewScroll, BorderLayout.CENTER)
+        documentPreviewHost.add(documentPreviewScroll, BorderLayout.CENTER)
 
         installListeners()
         refreshPrinterTargets()
@@ -112,25 +139,16 @@ internal class PreprintDialog(
     }
 
     private fun previewPanel(): JTabbedPane = JTabbedPane().apply {
-        addTab("Plan", previewTab(planControls, JScrollPane(planPreviewLabel).apply {
-            border = BorderFactory.createEmptyBorder()
-            verticalScrollBar.unitIncrement = 32
-            horizontalScrollBar.unitIncrement = 32
-        }))
-        addTab("Documentation", previewTab(documentationControls, JScrollPane(documentPreviewPanel).apply {
-            border = BorderFactory.createEmptyBorder()
-            verticalScrollBar.unitIncrement = 32
-            horizontalScrollBar.unitIncrement = 32
-            viewport.background = documentPreviewPanel.background
-        }))
+        addTab("Plan", previewTab(planControls, planPreviewHost))
+        addTab("Documentation", previewTab(documentationControls, documentPreviewHost))
     }
 
-    private fun previewTab(controls: PaginationControls, preview: JScrollPane): JPanel = JPanel(BorderLayout(0, 8)).apply {
+    private fun previewTab(controls: PaginationControls, preview: Component): JPanel = JPanel(BorderLayout(0, 8)).apply {
         add(controls.panel, BorderLayout.NORTH)
         add(preview, BorderLayout.CENTER)
     }
 
-    private fun previewTab(controls: DocumentationControls, preview: JScrollPane): JPanel = JPanel(BorderLayout(0, 8)).apply {
+    private fun previewTab(controls: DocumentationControls, preview: Component): JPanel = JPanel(BorderLayout(0, 8)).apply {
         add(controls.panel, BorderLayout.NORTH)
         add(preview, BorderLayout.CENTER)
     }
@@ -197,14 +215,14 @@ internal class PreprintDialog(
             printerDetails.text = printerDetailHtml(target)
             savePdfButton.isVisible = target.isPdf
             printButton.isVisible = !target.isPdf
-            printButton.isEnabled = target.reachable && target.service != null
             removeButton.isEnabled = !target.isPdf
         } finally {
             updating = false
         }
+        updateActionAvailability()
         applyPlanSettings(target.key, profile.plan)
-        refreshPlanPreview()
-        refreshDocumentationPreview()
+        requestPlanPreview(immediate = true)
+        requestDocumentationPreview(immediate = true)
     }
 
     private fun saveProfileAndRefreshPlan() {
@@ -213,31 +231,111 @@ internal class PreprintDialog(
         val profile = current.copy(plan = planControls.settings())
         profiles.save(target.key, profile)
         applyPlanSettings(target.key, profile.plan)
-        refreshPlanPreview()
+        requestPlanPreview()
     }
 
     private fun saveProfileAndRefreshDocumentation() {
         val target = selectedTarget() ?: return
         val current = profiles.profileFor(target.key, planFallback(), documentationFallback())
         profiles.save(target.key, current.copy(documentation = documentationControls.settings()))
-        refreshDocumentationPreview()
+        requestDocumentationPreview()
     }
 
     private fun selectedTarget(): PrinterTarget? = printerList.selectedValue
 
-    private fun refreshPlanPreview() {
-        val image = planPreview()
-        planPreviewLabel.icon = image?.let { javax.swing.ImageIcon(scalePreview(it, 1000, 680)) }
-        planPreviewLabel.text = if (image == null) "No plan to preview" else ""
-        planPreviewLabel.revalidate()
-        planPreviewLabel.repaint()
+    private fun requestPlanPreview(immediate: Boolean = false) {
+        planRefreshGeneration += 1
+        showPlanLoading()
+        if (immediate) {
+            planRefreshTimer.stop()
+            renderPlanPreviewAsync(planRefreshGeneration)
+        } else {
+            planRefreshTimer.restart()
+        }
     }
 
-    private fun refreshDocumentationPreview() {
-        documents = runCatching { documentationAssets(documentationControls.settings()) }.getOrElse {
-            reportStatus("Documentation preview failed: ${it.message}")
-            emptyList()
+    private fun requestDocumentationPreview(immediate: Boolean = false) {
+        documentationRefreshGeneration += 1
+        showDocumentationLoading()
+        if (immediate) {
+            documentationRefreshTimer.stop()
+            renderDocumentationPreviewAsync(documentationRefreshGeneration)
+        } else {
+            documentationRefreshTimer.restart()
         }
+    }
+
+    private fun renderPlanPreviewAsync(generation: Long) {
+        object : SwingWorker<BufferedImage?, Unit>() {
+            override fun doInBackground(): BufferedImage? = planPreview()
+
+            override fun done() {
+                if (generation != planRefreshGeneration) return
+                val image = runCatching { get() }.getOrElse { error ->
+                    reportStatus("Plan preview failed: ${error.cause?.message ?: error.message}")
+                    null
+                }
+                planPreviewLabel.icon = image?.let { javax.swing.ImageIcon(scalePreview(it, 1000, 680)) }
+                planPreviewLabel.text = if (image == null) "No plan to preview" else ""
+                planPreviewHost.removeAll()
+                planPreviewHost.add(planPreviewScroll, BorderLayout.CENTER)
+                planPreviewHost.revalidate()
+                planPreviewHost.repaint()
+            }
+        }.execute()
+    }
+
+    private fun renderDocumentationPreviewAsync(generation: Long) {
+        val settings = documentationControls.settings()
+        object : SwingWorker<List<PrintDocumentationAsset>, Unit>() {
+            override fun doInBackground(): List<PrintDocumentationAsset> = documentationAssets(settings)
+
+            override fun done() {
+                if (generation != documentationRefreshGeneration) return
+                documents = runCatching { get() }.getOrElse { error ->
+                    reportStatus("Documentation preview failed: ${error.cause?.message ?: error.message}")
+                    emptyList()
+                }
+                documentationReady = true
+                updateActionAvailability()
+                documentPreviewHost.removeAll()
+                documentPreviewHost.add(documentPreviewScroll, BorderLayout.CENTER)
+                populateDocumentationPreview()
+                documentPreviewHost.revalidate()
+                documentPreviewHost.repaint()
+            }
+        }.execute()
+    }
+
+    private fun showPlanLoading() {
+        planPreviewHost.removeAll()
+        planPreviewHost.add(loadingPanel("Rendering plan preview..."), BorderLayout.CENTER)
+        planPreviewHost.revalidate()
+        planPreviewHost.repaint()
+    }
+
+    private fun showDocumentationLoading() {
+        documentationReady = false
+        updateActionAvailability()
+        documentPreviewHost.removeAll()
+        documentPreviewHost.add(loadingPanel("Rendering documentation preview..."), BorderLayout.CENTER)
+        documentPreviewHost.revalidate()
+        documentPreviewHost.repaint()
+    }
+
+    private fun loadingPanel(message: String): JPanel = JPanel(BorderLayout(0, 12)).apply {
+        background = Color(0x6d6d6d)
+        border = BorderFactory.createEmptyBorder(32, 32, 32, 32)
+        add(JLabel(message, SwingConstants.CENTER).apply {
+            foreground = Color.WHITE
+        }, BorderLayout.CENTER)
+        add(javax.swing.JProgressBar().apply {
+            isIndeterminate = true
+            preferredSize = Dimension(220, preferredSize.height)
+        }, BorderLayout.SOUTH)
+    }
+
+    private fun populateDocumentationPreview() {
         documentPreviewPanel.removeAll()
         if (documents.isEmpty()) {
             documentPreviewPanel.add(JLabel("No documentation pages available.").apply {
@@ -266,6 +364,12 @@ internal class PreprintDialog(
         documentPreviewPanel.repaint()
     }
 
+    private fun updateActionAvailability() {
+        val target = selectedTarget()
+        savePdfButton.isEnabled = documentationReady && target?.isPdf == true
+        printButton.isEnabled = documentationReady && target?.reachable == true && target.service != null
+    }
+
     private fun printerDetailHtml(target: PrinterTarget): String = buildString {
         append("<html><b>").append(escapeHtml(target.label)).append("</b><br>")
         append(if (target.isPdf) "Built-in PDF output" else if (target.reachable) "Available system printer" else "Unavailable stored printer")
@@ -285,6 +389,10 @@ internal class PreprintDialog(
         .replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
+
+    private companion object {
+        const val PREVIEW_DEBOUNCE_MS = 220
+    }
 
     private class PaginationControls(
         label: String,
