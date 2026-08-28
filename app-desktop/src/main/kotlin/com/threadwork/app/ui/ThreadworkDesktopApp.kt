@@ -705,7 +705,6 @@ class ThreadworkDesktopApp(
         resetHistory()
         refreshAll()
         updateWindowTitle()
-        canvas.zoomExtents()
     }
 
     private fun quit() {
@@ -1067,6 +1066,7 @@ class ThreadworkDesktopApp(
         resetHistory()
         refreshAll()
         updateWindowTitle()
+        canvas.zoomExtentsAfterLayout()
     }
 
     private fun saveFile() {
@@ -2091,6 +2091,7 @@ class GraphCanvas(
     private val routeCache = mutableMapOf<NodeId, LinkRoute>()
     private val activeRouteLinks = mutableSetOf<NodeId>()
     private val rerouteTimer = Timer(180) { rebuildRouteCache() }.apply { isRepeats = false }
+    private var zoomExtentsPending = false
     private var renderRevision = 0L
     // In-memory only. Do not persist project image tiles without a user-selected project-owned cache path.
     private val tileCache = object : LinkedHashMap<FlowTileKey, BufferedImage>(128, 0.75f, true) {
@@ -2423,6 +2424,7 @@ class GraphCanvas(
     }
 
     fun zoomExtents() {
+        zoomExtentsPending = false
         if (width <= 0 || height <= 0) return
         val bounds = contentBounds(repository.getDocument().nodes.keys) ?: return
         val framedBounds = Rectangle(bounds).apply {
@@ -2437,6 +2439,11 @@ class GraphCanvas(
         panX = width.toDouble() / (2.0 * zoom) - framedBounds.centerX
         panY = height.toDouble() / (2.0 * zoom) - framedBounds.centerY
         repaint()
+    }
+
+    fun zoomExtentsAfterLayout() {
+        zoomExtentsPending = true
+        scheduleReroute()
     }
 
     fun exportPlan(parent: JFrame, format: SheetExportFormat) {
@@ -4411,6 +4418,9 @@ class GraphCanvas(
         routeCache.putAll(nextCache)
         invalidateRenderCache()
         repaint()
+        if (zoomExtentsPending) {
+            SwingUtilities.invokeLater(::zoomExtents)
+        }
     }
 
     private fun routedRoute(linkNode: Node, anchors: LinkAnchors, routedSegments: List<RouteSegment>): LinkRoute {
