@@ -472,6 +472,7 @@ class ThreadworkDesktopApp(
             })
         })
         add(JMenu("Graph").apply {
+            add(commandItem("graph.zoomExtents"))
             add(commandItem("graph.mode.select", "select"))
             add(commandItem("graph.mode.node", "node"))
             add(commandItem("graph.mode.link", "link"))
@@ -561,6 +562,7 @@ class ThreadworkDesktopApp(
         registerCommand(AppCommand("edit.align.right", "Edit: Align Right") { alignAndDistribute(AlignmentOperation.AlignRight) })
         registerCommand(AppCommand("edit.distribute.vertical", "Edit: Distribute Evenly Vertically") { alignAndDistribute(AlignmentOperation.DistributeVertical) })
         registerCommand(AppCommand("edit.distribute.horizontal", "Edit: Distribute Evenly Horizontally") { alignAndDistribute(AlignmentOperation.DistributeHorizontal) })
+        registerCommand(AppCommand("graph.zoomExtents", "Graph: Zoom Extents") { canvas.zoomExtents() })
         registerCommand(AppCommand("graph.mode.select", "Graph: Select Mode", KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0)) { canvas.setMode(CanvasMode.Select) })
         registerCommand(AppCommand("graph.mode.node", "Graph: Node Mode") { canvas.setMode(CanvasMode.CreateNode) })
         registerCommand(AppCommand("graph.mode.type", "Graph: Type Mode") { canvas.setMode(CanvasMode.CreateType) })
@@ -703,6 +705,7 @@ class ThreadworkDesktopApp(
         resetHistory()
         refreshAll()
         updateWindowTitle()
+        canvas.zoomExtents()
     }
 
     private fun quit() {
@@ -2185,6 +2188,8 @@ class GraphCanvas(
         const val MIN_ZOOM = 0.02
         const val MAX_ZOOM = 2.5
         const val ZOOM_STEP = 1.12
+        const val ZOOM_EXTENTS_SCREEN_MARGIN = 32
+        const val ZOOM_EXTENTS_MODEL_MARGIN = 40
         const val TILE_SIZE_PX = 512
         const val TILE_RENDER_PADDING = 240
         const val MAX_TILE_CACHE_ENTRIES = 384
@@ -2414,6 +2419,23 @@ class GraphCanvas(
         designerFont = font
         this.font = font
         invalidateRenderCache()
+        repaint()
+    }
+
+    fun zoomExtents() {
+        if (width <= 0 || height <= 0) return
+        val bounds = contentBounds(repository.getDocument().nodes.keys) ?: return
+        val framedBounds = Rectangle(bounds).apply {
+            grow(ZOOM_EXTENTS_MODEL_MARGIN, ZOOM_EXTENTS_MODEL_MARGIN)
+        }
+        val availableWidth = (width - ZOOM_EXTENTS_SCREEN_MARGIN * 2).coerceAtLeast(1)
+        val availableHeight = (height - ZOOM_EXTENTS_SCREEN_MARGIN * 2).coerceAtLeast(1)
+        zoom = min(
+            availableWidth.toDouble() / framedBounds.width.coerceAtLeast(1),
+            availableHeight.toDouble() / framedBounds.height.coerceAtLeast(1),
+        ).coerceIn(MIN_ZOOM, MAX_ZOOM)
+        panX = width.toDouble() / (2.0 * zoom) - framedBounds.centerX
+        panY = height.toDouble() / (2.0 * zoom) - framedBounds.centerY
         repaint()
     }
 
