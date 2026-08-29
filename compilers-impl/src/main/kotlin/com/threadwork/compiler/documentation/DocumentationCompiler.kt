@@ -98,11 +98,11 @@ class DocumentationCompiler : CompilerPlugin {
                 appendLine("- **Role:** `${node.stereotype(document).name}`")
                 appendLine()
                 appendDirectTechnology(node)
+                appendCompositeOverview(document, node)
                 appendSpecification(node.text.specification, node.text.specificationLanguageId)
                 appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
                 appendLinkTable("Outputs", dataOutputs(document, node), document, incoming = false)
                 appendDependencies(document, node)
-                appendDirectChildren(document, node)
                 appendUsageInstructions(node)
                 appendTestData(node)
             }
@@ -131,6 +131,7 @@ class DocumentationCompiler : CompilerPlugin {
         appendLine("- **Role:** `${node.stereotype(document).name}`")
         appendLine()
         appendDirectTechnology(node)
+        appendCompositeOverview(document, node)
         appendSpecification(node.text.specification, node.text.specificationLanguageId)
         appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
         appendComponentLinkDocumentation(document, dataInputs(document, node), "Incoming Link Contracts")
@@ -138,9 +139,53 @@ class DocumentationCompiler : CompilerPlugin {
         appendComponentLinkDocumentation(document, dataOutputs(document, node), "Outgoing Link Contracts")
         appendUsedTypes(document, node)
         appendComponentDependencies(document, node)
-        appendDirectChildren(document, node)
         appendUsageInstructions(node)
         appendTestData(node)
+    }
+
+    private fun StringBuilder.appendCompositeOverview(document: ThreadworkDocument, node: Node) {
+        if (!node.isComposite) return
+        appendDirectChildren(document, node)
+        appendLine("#### Flow Diagram (Mermaid)")
+        appendLine()
+        appendLine("```mermaid")
+        appendLine("flowchart LR")
+
+        val children = node.children
+            .mapNotNull(document.nodes::get)
+            .filterNot(Node::isLink)
+            .sortedWith(compareBy<Node>({ it.name.lowercase() }, { it.id.value }))
+        val childIds = children.mapTo(linkedSetOf()) { it.id }
+        val mermaidIds = children.associate { it.id to mermaidNodeId(it.id) }
+        children.forEach { child ->
+            val label = mermaidLabel(child, document)
+            appendLine("  ${mermaidIds.getValue(child.id)}[\"$label\"]")
+        }
+
+        document.nodes.values
+            .asSequence()
+            .filter { it.isLink && it.parentId == node.id }
+            .mapNotNull { linkNode ->
+                val link = linkNode.link ?: return@mapNotNull null
+                val source = mermaidIds[link.sourceNodeId] ?: return@mapNotNull null
+                val target = mermaidIds[link.targetNodeId] ?: return@mapNotNull null
+                Triple(source, target, linkNode.name.ifBlank { linkNode.id.value })
+            }
+            .sortedWith(compareBy<Triple<String, String, String>>({ it.third.lowercase() }, { it.first }, { it.second }))
+            .forEach { (source, target, name) ->
+                appendLine("  $source -->|${mermaidArrowLabel(name)}| $target")
+            }
+        if (children.isEmpty()) {
+            appendLine("  %% No direct child components.")
+        } else if (document.nodes.values.none { linkNode ->
+                if (!linkNode.isLink || linkNode.parentId != node.id) return@none false
+                val link = linkNode.link ?: return@none false
+                link.sourceNodeId in childIds && link.targetNodeId in childIds
+            }) {
+            appendLine("  %% No direct links between these components.")
+        }
+        appendLine("```")
+        appendLine()
     }
 
     private fun StringBuilder.appendTableOfContents(entries: List<String>) {
@@ -361,12 +406,24 @@ class DocumentationCompiler : CompilerPlugin {
         appendLine("| --- | --- |")
         node.children
             .mapNotNull(document.nodes::get)
+            .filterNot(Node::isLink)
             .sortedWith(compareBy<Node>({ it.name.lowercase() }, { it.id.value }))
             .forEach { child ->
                 appendLine("| ${tableCell(child.name.ifBlank { child.id.value })} | ${tableCell(child.stereotype(document).name)} |")
             }
         appendLine()
     }
+
+    private fun mermaidNodeId(id: NodeId): String =
+        "node_${id.value.replace(Regex("[^A-Za-z0-9_]"), "_")}"
+
+    private fun mermaidLabel(node: Node, document: ThreadworkDocument): String =
+        "${node.name.ifBlank { node.id.value }} (${node.stereotype(document).name})"
+            .replace('"', '\'')
+            .replace(Regex("\\s+"), " ")
+
+    private fun mermaidArrowLabel(value: String): String =
+        value.replace('|', '/').replace(Regex("\\s+"), " ").trim()
 
     private fun StringBuilder.appendSpecificationAnnexes(document: ThreadworkDocument, scope: DocumentationScope) {
         appendLine("## Annexes")

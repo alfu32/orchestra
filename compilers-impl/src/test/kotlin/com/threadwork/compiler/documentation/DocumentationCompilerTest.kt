@@ -93,8 +93,10 @@ class DocumentationCompilerTest {
         val root = repository.getDocument().rootNodeId
         val selected = repository.createNode(root, "Order Processing", NodeKind.Group)
         val child = repository.createNode(selected.id, "validate order", NodeKind.Processor)
+        val publish = repository.createNode(selected.id, "publish order", NodeKind.Processor)
         val excluded = repository.createNode(root, "billing", NodeKind.Processor)
         repository.updateNodeText(child.id, child.text.copy(specification = "Validates the order."))
+        repository.createLink(selected.id, "validated order", child.id, "out", publish.id, "in")
         repository.updateNodeText(excluded.id, excluded.text.copy(specification = "Charges the customer."))
 
         val result = DocumentationCompiler().compile(
@@ -110,6 +112,11 @@ class DocumentationCompilerTest {
         val documentation = project.files.single { it.path.endsWith(".SPEC.md") }.content
         assertTrue(documentation.contains("Validates the order."))
         assertFalse(documentation.contains("Charges the customer."))
+        assertTrue(documentation.contains("#### Direct Children"))
+        assertTrue(documentation.contains("#### Flow Diagram (Mermaid)"))
+        assertTrue(documentation.contains("flowchart LR"))
+        assertTrue(documentation.contains("-->|validated order|"))
+        assertTrue(documentation.indexOf("#### Direct Children") < documentation.indexOf("#### Specification"))
     }
 
     @Test
