@@ -7,6 +7,7 @@ import com.threadwork.compiler.api.SingleFileLayoutStrategy
 import com.threadwork.compiler.api.SourceSetLayoutStrategy
 import com.threadwork.compiler.generated.nodejs.JSCompiler
 import com.threadwork.core.model.NodeKind
+import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.TechnologyMetadata
@@ -14,7 +15,9 @@ import com.threadwork.core.model.TypeDefinition
 import com.threadwork.core.model.TypeFieldDefinition
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.newDocument
+import java.nio.file.Files
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -202,5 +205,89 @@ class JSCompilerTest {
         assertTrue(generated.contains("function worker(context = {}, configService)"))
         assertTrue(generated.contains("worker(context, configService1);"))
         assertFalse(generated.contains("transport_configService"))
+    }
+
+    @Test
+    fun `source and runnable capabilities compile as synchronous facades without transport buffers`() {
+        val repository = InMemoryDocumentRepository(newDocument("Capability JS"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
+        val page = repository.createNode(root, "page", NodeKind.Processor)
+        repository.updateNodeText(
+            page.id,
+            repository.requireNode(page.id).text.copy(declaration = "return 'Hello ${'$'}{name}';"),
+        )
+        val server = repository.createNode(root, "server", NodeKind.Processor)
+        repository.addPort(page.id, NodePort("src", "src", PortDirection.Output))
+        repository.addPort(page.id, NodePort("run", "run", PortDirection.Output))
+        repository.addPort(server.id, NodePort("source", "source", PortDirection.Input))
+        repository.addPort(server.id, NodePort("runnable", "runnable", PortDirection.Input))
+        repository.updateNodeText(
+            server.id,
+            repository.requireNode(server.id).text.copy(
+                declaration = """
+                    const generatedSource = pageSource.getSource({ name: "World" });
+                    if (!generatedSource.includes("Hello World")) {
+                      throw new Error("Source capability did not interpolate the compiled product.");
+                    }
+                    const generatedPage = pageRunnable.getRunnable({ name: "World" });
+                    if (generatedPage() !== "Hello World") {
+                      throw new Error("Runnable capability did not return the compiled provider.");
+                    }
+                """.trimIndent(),
+            ),
+        )
+        val source = repository.createLink(root, "page_source", page.id, "src", server.id, "source")
+        repository.updateLinkData(
+            source.id,
+            requireNotNull(source.link).copy(interactionKind = LinkInteractionKinds.Source),
+        )
+        val runnable = repository.createLink(root, "page_runnable", page.id, "run", server.id, "runnable")
+        repository.updateLinkData(
+            runnable.id,
+            requireNotNull(runnable.link).copy(interactionKind = LinkInteractionKinds.Runnable),
+        )
+
+        val result = JSCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val project = assertNotNull(result.generatedProject)
+        val generated = project.files.joinToString("\n") { it.content }
+        assertTrue(generated.contains("getSource(parameters = {})"))
+        assertTrue(generated.contains("getRunnable(parameters = {})"))
+        assertTrue(generated.contains("function page(context = {})"))
+        assertTrue(generated.contains("new Function("))
+        assertTrue(generated.contains("function server(context = {}, pageSource, pageRunnable)"))
+        assertTrue(generated.contains("server(context, pageSource1, pageRunnable2);"))
+        assertFalse(generated.contains("pageSource1_a_port"))
+        assertFalse(generated.contains("transport_pageSource"))
+
+        val scopedResult = JSCompiler().compile(
+            repository.getDocument(),
+            CompilerOptions(scopeNodeIds = setOf(server.id)),
+        )
+        assertTrue(scopedResult.success, scopedResult.diagnostics.joinToString { it.message })
+        val scopedSource = assertNotNull(scopedResult.generatedProject).files.joinToString("\n") { it.content }
+        assertTrue(scopedSource.contains("function page(context = {})"))
+        assertTrue(scopedSource.contains("getSource(parameters = {})"))
+        assertTrue(scopedSource.contains("function server(context = {}, pageSource, pageRunnable)"))
+
+        val nodeExecutable = System.getenv("PATH")
+            ?.split(System.getProperty("path.separator"))
+            ?.map { java.nio.file.Path.of(it).resolve("node") }
+            ?.firstOrNull(Files::isExecutable)
+            ?: return
+        val outputDirectory = Files.createTempDirectory("threadwork-capability-js")
+        try {
+            project.writeTo(outputDirectory)
+            val rootFile = project.files.single { it.originNodeId == root }
+            val process = ProcessBuilder(nodeExecutable.toString(), outputDirectory.resolve(rootFile.path).toString())
+                .redirectErrorStream(true)
+                .start()
+            val processOutput = process.inputStream.bufferedReader().use { it.readText() }
+            assertEquals(0, process.waitFor(), processOutput)
+        } finally {
+            outputDirectory.toFile().deleteRecursively()
+        }
     }
 }

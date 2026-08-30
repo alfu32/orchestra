@@ -540,11 +540,11 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
         val node = context.node
         val document = context.document
         val technology = effectiveTechnology(document, node)
-        val incoming = linkDescriptors(document, node.incomingLinks)
-        val outgoing = linkDescriptors(document, node.outgoingLinks)
-        val dependencies = incoming.filter(::isDependencyDescriptor)
-        val incomingDataLinks = incoming.filterNot(::isDependencyDescriptor)
-        val outgoingDataLinks = outgoing.filterNot(::isDependencyDescriptor)
+        val incoming = linkDescriptors(document, node.incomingLinks, context.compiledArtifacts)
+        val outgoing = linkDescriptors(document, node.outgoingLinks, context.compiledArtifacts)
+        val capabilities = incoming.filter(::isCapabilityDescriptor)
+        val incomingDataLinks = incoming.filterNot(::isCapabilityDescriptor)
+        val outgoingDataLinks = outgoing.filterNot(::isCapabilityDescriptor)
         val nodeView = nodeView(document, node)
         val typeFields = typeFieldViews(document, node)
         val symbol = safeIdentifier(node.name, preserveCase = true)
@@ -571,7 +571,11 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             "outgoingLinks" to outgoing,
             "incomingDataLinks" to incomingDataLinks,
             "outgoingDataLinks" to outgoingDataLinks,
-            "dependencyInjectionLinks" to dependencies,
+            "capabilityLinks" to capabilities,
+            "libraryCapabilityLinks" to capabilities.filter { it["isLibraryCapability"] == true },
+            "sourceCapabilityLinks" to capabilities.filter { it["isSourceCapability"] == true },
+            "runnableCapabilityLinks" to capabilities.filter { it["isRunnableCapability"] == true },
+            "dependencyInjectionLinks" to capabilities,
             "ports" to node.ports.map { port ->
                 mapOf("id" to port.id, "name" to port.name, "direction" to port.direction.name, "dataType" to port.dataType, "metadata" to port.metadata)
             },
@@ -592,7 +596,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             "outgoingArguments" to outgoingDataLinks.joinToString(", ") { it["argument"].toString() },
             "incomingTypeDefinitions" to incomingDataLinks.joinToString("\n\n") { it["typeDefinition"].toString() },
             "outgoingTypeDefinitions" to outgoingDataLinks.joinToString("\n\n") { it["typeDefinition"].toString() },
-            "dependencyInjectionArguments" to dependencies.joinToString(", ") { it["argument"].toString() },
+            "dependencyInjectionArguments" to capabilities.joinToString(", ") { it["argument"].toString() },
             "childDeclarations" to context.childDeclarations,
             "inlineChildDeclarations" to context.inlineChildDeclarations,
             "inlineChildDeclarationsWithoutPhpTag" to context.inlineChildDeclarations.replace("<?php", "").trim(),
@@ -620,7 +624,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             "safeProjectName" to safePathSegment(context.projectName),
             "safePackageName" to safePackageName(context.projectName),
             "projectIdentifier" to safeIdentifier(context.projectName),
-        ) + linkContext(document, node)
+        ) + linkContext(document, node, context.compiledArtifacts)
     }
 
     private fun projectTemplateContext(
@@ -784,8 +788,8 @@ private fun layoutView(node: Node): Map<String, Any?> = mapOf(
 )
 
 private fun artifactView(context: NodeCompilerContext, artifact: CompiledNodeArtifact): Map<String, Any?> {
-    val incoming = linkDescriptors(context.document, artifact.node.incomingLinks)
-    val outgoing = linkDescriptors(context.document, artifact.node.outgoingLinks)
+    val incoming = linkDescriptors(context.document, artifact.node.incomingLinks, context.compiledArtifacts)
+    val outgoing = linkDescriptors(context.document, artifact.node.outgoingLinks, context.compiledArtifacts)
     return mapOf(
         "node" to nodeView(context.document, artifact.node),
         "hoistedDeclaration" to artifact.hoistedDeclarationText,
@@ -802,14 +806,22 @@ private fun artifactView(context: NodeCompilerContext, artifact: CompiledNodeArt
         "relativePath" to artifact.primaryFile?.let { relativePath(context.primaryPath(), it.path) }.orEmpty(),
         "relativeModulePath" to artifact.primaryFile?.let { relativeModulePath(context.primaryPath(), it.path, context.extension) }.orEmpty(),
         "isInline" to (artifact.layoutStrategy.id == SingleFileLayoutStrategy.id),
-        "incomingDataLinks" to incoming.filterNot(::isDependencyDescriptor),
-        "outgoingDataLinks" to outgoing.filterNot(::isDependencyDescriptor),
-        "dependencyInjectionLinks" to incoming.filter(::isDependencyDescriptor),
-        "link" to linkContext(context.document, artifact.node)["link"],
+        "incomingDataLinks" to incoming.filterNot(::isCapabilityDescriptor),
+        "outgoingDataLinks" to outgoing.filterNot(::isCapabilityDescriptor),
+        "capabilityLinks" to incoming.filter(::isCapabilityDescriptor),
+        "libraryCapabilityLinks" to incoming.filter { it["isLibraryCapability"] == true },
+        "sourceCapabilityLinks" to incoming.filter { it["isSourceCapability"] == true },
+        "runnableCapabilityLinks" to incoming.filter { it["isRunnableCapability"] == true },
+        "dependencyInjectionLinks" to incoming.filter(::isCapabilityDescriptor),
+        "link" to linkContext(context.document, artifact.node, context.compiledArtifacts)["link"],
     )
 }
 
-private fun linkDescriptors(document: ThreadworkDocument, ids: Iterable<com.threadwork.core.model.NodeId>): List<Map<String, Any?>> =
+private fun linkDescriptors(
+    document: ThreadworkDocument,
+    ids: Iterable<com.threadwork.core.model.NodeId>,
+    compiledArtifacts: Map<com.threadwork.core.model.NodeId, CompiledNodeArtifact> = emptyMap(),
+): List<Map<String, Any?>> =
     ids.mapNotNull { id ->
         val node = document.getElementById(id) ?: return@mapNotNull null
         val link = node.link ?: return@mapNotNull null
@@ -818,10 +830,17 @@ private fun linkDescriptors(document: ThreadworkDocument, ids: Iterable<com.thre
         val symbol = camelCaseIdentifier(node.name)
         val sourceNode = document.getElementById(link.sourceNodeId)
         val targetNode = document.getElementById(link.targetNodeId)
+        val sourceCompilationProduct = compiledArtifacts[link.sourceNodeId]?.compiledProductText.orEmpty()
+            .ifBlank { sourceNode?.text?.declaration.orEmpty() }
         val dependencyIndex = dependencyLinkIndex(document, node, sourceNode)
         val allocationIndex = dataLinkIndex(document, node, sourceNode)
         val allocationSymbol = "$symbol${allocationIndex.coerceAtLeast(1)}"
         val dependencySymbol = "${symbol}${dependencyIndex.coerceAtLeast(1)}"
+        val capabilityTypeSymbol = dependencySymbol.replaceFirstChar { it.uppercase() } + "Capability"
+        val stereotype = LinkClassifier.classify(document, node)
+        val sourceCapability = stereotype == LinkStereotype.SourceCapability
+        val runnableCapability = stereotype == LinkStereotype.RunnableCapability
+        val libraryCapability = stereotype in setOf(LinkStereotype.UsageImport, LinkStereotype.DependencyInjection)
         mapOf(
             "id" to node.id.value,
             "name" to node.name,
@@ -840,16 +859,31 @@ private fun linkDescriptors(document: ThreadworkDocument, ids: Iterable<com.thre
             "typeDefinition" to link.payloadDefinition,
             "payloadDefinition" to link.payloadDefinition,
             "argument" to if (typeName.isBlank()) symbol else "$symbol:$typeName",
-            "stereotype" to LinkClassifier.classify(document, node).name,
+            "stereotype" to stereotype.name,
+            "interactionKind" to link.interactionKind,
+            "isCapability" to (sourceCapability || runnableCapability || libraryCapability),
+            "isLibraryCapability" to libraryCapability,
+            "isSourceCapability" to sourceCapability,
+            "isRunnableCapability" to runnableCapability,
+            "capabilityMethod" to when {
+                sourceCapability -> "getSource"
+                runnableCapability -> "getRunnable"
+                else -> ""
+            },
             "sourceNodeId" to link.sourceNodeId.value,
             "sourceNodeName" to sourceNode?.name.orEmpty(),
             "sourceNodeSymbol" to sourceNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
             "sourceNodeType" to sourceNode?.name.orEmpty(),
             "sourceNodeTypeSymbol" to sourceNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
             "sourceNodeInstantiation" to sourceNode?.text?.instantiation.orEmpty(),
+            "sourceNodeDeclaration" to sourceCompilationProduct,
+            "sourceNodeDeclarationDoubleQuoted" to sourceCompilationProduct.escapeDoubleQuotedLiteral(),
+            "sourceNodeDeclarationDollarEscaped" to sourceCompilationProduct.escapeDollarDoubleQuotedLiteral(),
+            "sourceRunSymbol" to sourceNode?.let { "run_${indexedNodeSymbol(document, it)}" }.orEmpty(),
             "libraryInstantiation" to sourceNode?.text?.instantiation.orEmpty(),
             "dependencyIndex" to dependencyIndex,
             "dependencySymbol" to dependencySymbol,
+            "capabilityTypeSymbol" to capabilityTypeSymbol,
             "targetNodeId" to link.targetNodeId.value,
             "targetNodeName" to targetNode?.name.orEmpty(),
             "targetNodeSymbol" to targetNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
@@ -858,10 +892,16 @@ private fun linkDescriptors(document: ThreadworkDocument, ids: Iterable<com.thre
         )
     }
 
-private fun linkContext(document: ThreadworkDocument, node: Node): Map<String, Any?> {
+private fun linkContext(
+    document: ThreadworkDocument,
+    node: Node,
+    compiledArtifacts: Map<com.threadwork.core.model.NodeId, CompiledNodeArtifact> = emptyMap(),
+): Map<String, Any?> {
     val link = node.link ?: return emptyMap()
     val sourceNode = document.getElementById(link.sourceNodeId)
     val targetNode = document.getElementById(link.targetNodeId)
+    val sourceCompilationProduct = compiledArtifacts[link.sourceNodeId]?.compiledProductText.orEmpty()
+        .ifBlank { sourceNode?.text?.declaration.orEmpty() }
     val sourceName = sourceNode?.name ?: link.sourceNodeId.value
     val targetName = targetNode?.name ?: link.targetNodeId.value
     val sourceReference = "${sanitizeReference(sourceName)}.${sanitizeReference(link.sourcePortName)}"
@@ -871,6 +911,11 @@ private fun linkContext(document: ThreadworkDocument, node: Node): Map<String, A
     val allocationIndex = dataLinkIndex(document, node, sourceNode)
     val allocationSymbol = "$symbol${allocationIndex.coerceAtLeast(1)}"
     val dependencySymbol = "${symbol}${dependencyIndex.coerceAtLeast(1)}"
+    val capabilityTypeSymbol = dependencySymbol.replaceFirstChar { it.uppercase() } + "Capability"
+    val stereotype = LinkClassifier.classify(document, node)
+    val sourceCapability = stereotype == LinkStereotype.SourceCapability
+    val runnableCapability = stereotype == LinkStereotype.RunnableCapability
+    val libraryCapability = stereotype in setOf(LinkStereotype.UsageImport, LinkStereotype.DependencyInjection)
     return mapOf(
         "link" to mapOf(
             "id" to node.id.value,
@@ -894,18 +939,37 @@ private fun linkContext(document: ThreadworkDocument, node: Node): Map<String, A
                 ?.let { typeFieldViews(document, it) }
                 .orEmpty(),
             "typeDefinition" to link.payloadDefinition,
+            "sourceNodeName" to sourceNode?.name.orEmpty(),
+            "sourceNodeSymbol" to sourceNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
             "sourceNodeType" to sourceNode?.name.orEmpty(),
             "sourceNodeTypeSymbol" to sourceNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
             "sourceNodeInstantiation" to sourceNode?.text?.instantiation.orEmpty(),
+            "sourceNodeDeclaration" to sourceCompilationProduct,
+            "sourceNodeDeclarationDoubleQuoted" to sourceCompilationProduct.escapeDoubleQuotedLiteral(),
+            "sourceNodeDeclarationDollarEscaped" to sourceCompilationProduct.escapeDollarDoubleQuotedLiteral(),
+            "sourceRunSymbol" to sourceNode?.let { "run_${indexedNodeSymbol(document, it)}" }.orEmpty(),
             "libraryInstantiation" to sourceNode?.text?.instantiation.orEmpty(),
             "dependencyIndex" to dependencyIndex,
             "dependencySymbol" to dependencySymbol,
+            "capabilityTypeSymbol" to capabilityTypeSymbol,
             "sourceNodeId" to link.sourceNodeId.value,
             "targetNodeId" to link.targetNodeId.value,
+            "targetNodeName" to targetNode?.name.orEmpty(),
+            "targetNodeSymbol" to targetNode?.let { safeIdentifier(it.name, preserveCase = true) }.orEmpty(),
             "sourcePortName" to link.sourcePortName,
             "targetPortName" to link.targetPortName,
             "transportKind" to link.transportKind,
-            "stereotype" to LinkClassifier.classify(document, node).name,
+            "interactionKind" to link.interactionKind,
+            "stereotype" to stereotype.name,
+            "isCapability" to (sourceCapability || runnableCapability || libraryCapability),
+            "isLibraryCapability" to libraryCapability,
+            "isSourceCapability" to sourceCapability,
+            "isRunnableCapability" to runnableCapability,
+            "capabilityMethod" to when {
+                sourceCapability -> "getSource"
+                runnableCapability -> "getRunnable"
+                else -> ""
+            },
             "sourceReference" to sourceReference,
             "targetReference" to targetReference,
             "escapedNameDoubleQuoted" to node.name.escapeDoubleQuoted(),
@@ -920,10 +984,12 @@ private fun linkContext(document: ThreadworkDocument, node: Node): Map<String, A
     )
 }
 
-private fun isDependencyDescriptor(descriptor: Map<String, Any?>): Boolean =
+private fun isCapabilityDescriptor(descriptor: Map<String, Any?>): Boolean =
     descriptor["stereotype"] in setOf(
         LinkStereotype.UsageImport.name,
         LinkStereotype.DependencyInjection.name,
+        LinkStereotype.SourceCapability.name,
+        LinkStereotype.RunnableCapability.name,
     )
 
 private fun dependencyLinkIndex(document: ThreadworkDocument, linkNode: Node, sourceNode: Node?): Int {
@@ -932,6 +998,8 @@ private fun dependencyLinkIndex(document: ThreadworkDocument, linkNode: Node, so
             candidate.link != null && LinkClassifier.classify(document, candidate) in setOf(
                 LinkStereotype.UsageImport,
                 LinkStereotype.DependencyInjection,
+                LinkStereotype.SourceCapability,
+                LinkStereotype.RunnableCapability,
             )
         }
     return dependencies.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 }?.plus(1) ?: 1
@@ -948,6 +1016,8 @@ private fun dataLinkIndex(document: ThreadworkDocument, linkNode: Node, sourceNo
             candidate.link != null && LinkClassifier.classify(document, candidate) !in setOf(
                 LinkStereotype.UsageImport,
                 LinkStereotype.DependencyInjection,
+                LinkStereotype.SourceCapability,
+                LinkStereotype.RunnableCapability,
             )
         }
     return dataLinks.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 }?.plus(1) ?: 1
@@ -1018,6 +1088,14 @@ private fun sanitizeReference(value: String): String = value.trim().replace("\""
 
 private fun String.escapeDoubleQuoted(): String = replace("\\", "\\\\").replace("\"", "\\\"")
 
+private fun String.escapeDoubleQuotedLiteral(): String =
+    escapeDoubleQuoted()
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+
+private fun String.escapeDollarDoubleQuotedLiteral(): String =
+    escapeDoubleQuotedLiteral().replace("$", "\\$")
+
 private fun String.escapeSingleQuoted(): String = replace("\\", "\\\\").replace("'", "\\'")
 
 private fun String.indentNonBlank(prefix: String): String =
@@ -1041,6 +1119,8 @@ internal fun stereotypeForTemplateContext(document: ThreadworkDocument, node: No
             LinkStereotype.ErrorPipe -> NodeStereotype.ErrorPipe
             LinkStereotype.UsageImport,
             LinkStereotype.DependencyInjection -> NodeStereotype.DependencyInjection
+            LinkStereotype.SourceCapability,
+            LinkStereotype.RunnableCapability -> NodeStereotype.DependencyInjection
         }
     }
 

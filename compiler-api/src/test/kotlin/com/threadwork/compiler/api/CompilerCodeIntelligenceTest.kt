@@ -1,6 +1,7 @@
 package com.threadwork.compiler.api
 
 import com.threadwork.core.model.LinkData
+import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
@@ -45,6 +46,40 @@ class CompilerCodeIntelligenceTest {
         assertEquals("recordPipe", compilerArgumentName("record_pipe"))
         assertEquals("orderItems", compilerArgumentName("ORDER_ITEMS"))
         assertEquals("_24HourRecord", compilerArgumentName("24-hour record"))
+    }
+
+    @Test
+    fun `exposes synchronous source capability methods only to the consumer`() {
+        val root = Node(NodeId("root"), "Project", NodeKind.Processor)
+        val provider = Node(NodeId("provider"), "page", NodeKind.Processor)
+        val consumer = Node(NodeId("consumer"), "server", NodeKind.Processor)
+        val link = Node(
+            id = NodeId("capability"),
+            name = "page_source",
+            kind = NodeKind.Link,
+            link = LinkData(
+                provider.id,
+                "src",
+                consumer.id,
+                "builder",
+                interactionKind = LinkInteractionKinds.Source,
+            ),
+        )
+        provider.outgoingLinks += link.id
+        consumer.incomingLinks += link.id
+        val document = ThreadworkDocument(
+            id = "project",
+            name = "Project",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root, provider.id to provider, consumer.id to consumer, link.id to link),
+        )
+
+        val capability = assertNotNull(
+            defaultCodeIntelligence(document, consumer).symbols.singleOrNull { it.name == "pageSource" },
+        )
+        assertEquals(CompilerCodeSymbolKind.SourceCapability, capability.kind)
+        assertTrue(capability.members.any { it.name == "pageSource.getSource(parameters)" })
+        assertTrue(defaultCodeIntelligence(document, provider).symbols.none { it.name == "pageSource" })
     }
 
     private fun connectedDocument(): ThreadworkDocument {

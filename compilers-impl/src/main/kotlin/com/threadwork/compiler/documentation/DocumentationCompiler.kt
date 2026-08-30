@@ -273,7 +273,7 @@ class DocumentationCompiler : CompilerPlugin {
 
     private fun StringBuilder.appendComponentDependencies(document: ThreadworkDocument, node: Node) {
         val dependencies = dependencyInputs(document, node)
-        appendLine("#### Used Libraries")
+        appendLine("#### Used Libraries and Capabilities")
         appendLine()
         if (dependencies.isEmpty()) {
             appendLine("_None._")
@@ -288,6 +288,7 @@ class DocumentationCompiler : CompilerPlugin {
             appendLine("- **Library:** `${library?.name ?: link.sourceNodeId.value}`")
             appendLine("- **Library path:** `${library?.let { nodePath(document, it) } ?: link.sourceNodeId.value}`")
             appendLine("- **Classification:** `${LinkClassifier.classify(document, linkNode).name}`")
+            appendLine("- **Interaction:** `${escapeInlineCode(link.interactionKind)}`")
             if (library != null) appendDirectTechnology(library)
             if (library?.text?.specification?.isNotBlank() == true) {
                 appendLine("**Library specification**")
@@ -323,6 +324,7 @@ class DocumentationCompiler : CompilerPlugin {
             appendLine("- **From:** `${endpoint(document, link.sourceNodeId, link.sourcePortName)}`")
             appendLine("- **To:** `${endpoint(document, link.targetNodeId, link.targetPortName)}`")
             appendLine("- **Transport:** `${escapeInlineCode(link.transportKind)}`")
+            appendLine("- **Interaction:** `${escapeInlineCode(link.interactionKind)}`")
             appendLine("- **Classification:** `${LinkClassifier.classify(document, linkNode).name}`")
             appendLine()
             if (type != null) {
@@ -562,7 +564,12 @@ class DocumentationCompiler : CompilerPlugin {
 
     private fun escapeInlineCode(value: String): String = value.replace("`", "\\`")
 
-    private val dependencyKinds = setOf(LinkStereotype.UsageImport, LinkStereotype.DependencyInjection)
+    private val dependencyKinds = setOf(
+        LinkStereotype.UsageImport,
+        LinkStereotype.DependencyInjection,
+        LinkStereotype.SourceCapability,
+        LinkStereotype.RunnableCapability,
+    )
 
     private companion object {
         const val PAGE_BREAK_MARKER = "<!-- threadwork:page-break -->"

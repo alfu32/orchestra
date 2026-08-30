@@ -1,2 +1,2 @@
 {# Data transport is a separate phase over the link-owned source and destination buffers. #}
-{% if link.stereotype != "UsageImport" and link.stereotype != "DependencyInjection" %}{{ link.transportSymbol }}({{ link.aPortSymbol }}, {{ link.bPortSymbol }});{% endif %}
+{% if not link.isCapability %}{{ link.transportSymbol }}({{ link.aPortSymbol }}, {{ link.bPortSymbol }});{% endif %}

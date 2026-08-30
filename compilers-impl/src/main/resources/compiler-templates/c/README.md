@@ -9,7 +9,12 @@ fields become pointers to custom struct tags.
 Every data link owns two `threadwork_buffer` values sized from the resolved Type and a
 named transport function. Generated processors receive incoming B buffers and outgoing A
 buffers. Composite run functions execute children, then move at most one packet per link
-from A to B. Dependency-injection links are excluded from this transport contract.
+from A to B. Library, source, and runnable capability links are excluded from this
+transport contract. Library links retain single-instance dependency injection. Source
+links generate a typed facade whose `getSource` function synchronously interpolates
+consumer-provided `threadwork_build_parameter` values into the provider declaration.
+The C17 compiler rejects `run` links because a type-safe runtime compiler or explicit
+toolchain adapter is required for a runnable product.
 
 `assembly-single.peb` owns includes, declaration ordering, and the sole `main` function.
 The runtime copies bytes written by processors, moves runtime-owned packets between named

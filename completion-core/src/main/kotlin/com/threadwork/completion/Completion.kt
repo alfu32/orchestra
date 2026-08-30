@@ -175,6 +175,8 @@ private fun CompilerCodeSymbolKind.toCompletionKind(): CompletionSuggestionKind 
     CompilerCodeSymbolKind.InputBuffer -> CompletionSuggestionKind.InputBuffer
     CompilerCodeSymbolKind.OutputBuffer -> CompletionSuggestionKind.OutputBuffer
     CompilerCodeSymbolKind.ServiceInstance -> CompletionSuggestionKind.ServiceInstance
+    CompilerCodeSymbolKind.SourceCapability,
+    CompilerCodeSymbolKind.RunnableCapability -> CompletionSuggestionKind.ServiceInstance
     CompilerCodeSymbolKind.Type -> CompletionSuggestionKind.Type
     CompilerCodeSymbolKind.TypeMember -> CompletionSuggestionKind.TypeMember
     CompilerCodeSymbolKind.BufferMember -> CompletionSuggestionKind.BufferMember

@@ -34,7 +34,7 @@ Project files are `TemplateGeneratedFile` entries with independent path and cont
 
 ## Template Context
 
-Every entity template receives `document`, `options`, `node`/`self`, `parent`, `metadata`, `text`, `technology`, `layout`, `children`, `ports`, `incomingDataLinks`, `outgoingDataLinks`, and `dependencyInjectionLinks`. Type templates also receive `typeFields`. Compiled composites additionally receive `childArtifacts`, `inlineChildArtifacts`, `externalChildArtifacts`, declarations, instantiations, imports, the effective layout strategy, and the primary path. Artifact entries expose their generated path, module path, declaration, instantiation, and node symbols. Link templates receive `link`, `sourceNode`, `targetNode`, and qualified endpoint references.
+Every entity template receives `document`, `options`, `node`/`self`, `parent`, `metadata`, `text`, `technology`, `layout`, `children`, `ports`, `incomingDataLinks`, `outgoingDataLinks`, and `dependencyInjectionLinks`. The latter remains a compatibility alias for all non-buffered capability arguments. New templates should use `capabilityLinks`, `libraryCapabilityLinks`, `sourceCapabilityLinks`, and `runnableCapabilityLinks`. Type templates also receive `typeFields`. Compiled composites additionally receive `childArtifacts`, `inlineChildArtifacts`, `externalChildArtifacts`, declarations, instantiations, imports, the effective layout strategy, and the primary path. Artifact entries expose their generated path, module path, declaration, instantiation, node symbols, and capability subsets. Link templates receive `link`, `sourceNode`, `targetNode`, and qualified endpoint references. Capability descriptors expose `interactionKind`, `isCapability`, the three kind-specific booleans, `capabilityMethod`, `capabilityTypeSymbol`, the indexed allocation/dependency symbol, provider declaration, and provider run symbol.
 
 ## Shared Types and Typed Links
 
@@ -79,8 +79,11 @@ transport_orders(orders_a_port, orders_b_port)
 
 The transport moves at most one packet from A to B per call. Separating endpoint
 buffers prevents a producer and consumer from sharing one mutable queue and
-preserves a path toward parallel processor execution. Dependency-injection links
-remain library bindings and are excluded from data buffers and transport calls.
+preserves a path toward parallel processor execution. Library, source, and
+runnable capability links remain injected bindings and are excluded from data
+buffers and transport calls. Source and runnable facades are synchronous; the
+consumer supplies build parameters to `getSource` or `getRunnable` and receives
+the product directly.
 
 Templates receive resolved links through `incomingDataLinks`,
 `outgoingDataLinks`, and `dependencyInjectionLinks`. Descriptors also provide

@@ -4,6 +4,7 @@ import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.LinkData
+import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.ThreadworkDocument
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -175,5 +176,63 @@ class NodeClassifierTest {
         )
 
         assertEquals(LinkStereotype.ErrorPipe, LinkClassifier.classify(document, link))
+    }
+
+    @Test
+    fun `explicit capability links override legacy endpoint naming and do not affect data topology`() {
+        val root = Node(NodeId("root"), "root", NodeKind.Group)
+        val provider = Node(NodeId("provider"), "ordinary_component", NodeKind.Processor)
+        val consumer = Node(NodeId("consumer"), "consumer", NodeKind.Processor)
+        val sourceLink = Node(
+            id = NodeId("source-capability"),
+            name = "compiled_page",
+            kind = NodeKind.Link,
+            link = LinkData(
+                provider.id,
+                "src",
+                consumer.id,
+                "pageBuilder",
+                interactionKind = LinkInteractionKinds.Source,
+            ),
+        )
+        provider.outgoingLinks += sourceLink.id
+        consumer.incomingLinks += sourceLink.id
+        val document = ThreadworkDocument(
+            id = "doc",
+            name = "doc",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root, provider.id to provider, consumer.id to consumer, sourceLink.id to sourceLink),
+        )
+
+        assertEquals(LinkStereotype.SourceCapability, LinkClassifier.classify(document, sourceLink))
+        assertEquals(NodeStereotype.ProcessingUnit, NodeClassifier.classify(document, provider))
+        assertEquals(NodeStereotype.ProcessingUnit, NodeClassifier.classify(document, consumer))
+    }
+
+    @Test
+    fun `explicit data interaction prevents library endpoint inference`() {
+        val root = Node(NodeId("root"), "root", NodeKind.Group)
+        val library = Node(NodeId("library"), "lib_records", NodeKind.Processor)
+        val consumer = Node(NodeId("consumer"), "consumer", NodeKind.Processor)
+        val link = Node(
+            id = NodeId("records"),
+            name = "records",
+            kind = NodeKind.Link,
+            link = LinkData(
+                library.id,
+                "out",
+                consumer.id,
+                "in",
+                interactionKind = LinkInteractionKinds.Data,
+            ),
+        )
+        val document = ThreadworkDocument(
+            id = "doc",
+            name = "doc",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root, library.id to library, consumer.id to consumer, link.id to link),
+        )
+
+        assertEquals(LinkStereotype.Transport, LinkClassifier.classify(document, link))
     }
 }

@@ -1,7 +1,28 @@
 {# Each data link owns two FIFO arrays and a transport function. #}
-{% if link.stereotype == "DependencyInjection" %}/** @var {{ link.sourceNodeTypeSymbol }} ${{ link.dependencySymbol }} */
+{% if link.isLibraryCapability %}/** @var {{ link.sourceNodeTypeSymbol }} ${{ link.dependencySymbol }} */
 ${{ link.dependencySymbol }} = {% if link.libraryInstantiation is not empty %}{{ link.libraryInstantiation }}{% else %}null{% endif %};
-{% elseif link.stereotype != "UsageImport" %}/** @var array<int, {% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}mixed{% endif %}> ${{ link.aPortSymbol }} */
+{% elseif link.isSourceCapability %}${{ link.dependencySymbol }} = new class("{{ link.sourceNodeDeclarationDollarEscaped }}") {
+    public function __construct(private string $template) {}
+
+    public function getSource(array $parameters = []): string
+    {
+        $product = $this->template;
+        foreach ($parameters as $name => $value) {
+            $product = str_replace('$' . '{' . $name . '}', (string) $value, $product);
+        }
+        return $product;
+    }
+};
+{% elseif link.isRunnableCapability %}${{ link.dependencySymbol }} = new class {
+    public function getRunnable(array $parameters = []): Closure
+    {
+        return static function (...$arguments) use ($parameters): mixed {
+            $GLOBALS['threadwork_build_parameters'] = $parameters;
+            return {{ link.sourceNodeSymbol }}(...$arguments);
+        };
+    }
+};
+{% elseif not link.isCapability %}/** @var array<int, {% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}mixed{% endif %}> ${{ link.aPortSymbol }} */
 ${{ link.aPortSymbol }} = [];
 /** @var array<int, {% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}mixed{% endif %}> ${{ link.bPortSymbol }} */
 ${{ link.bPortSymbol }} = [];

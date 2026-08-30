@@ -8,6 +8,7 @@ import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.BuiltInTypeIds
+import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.closestCommonAncestorId
 import com.threadwork.core.model.compositeBoundaryIdsBetween
 
@@ -90,6 +91,13 @@ object DocumentValidator {
         val typeId = link.typeDefinitionId.trim()
         if (typeId.isNotBlank() && !isKnownType(document, typeId)) {
             diagnostics += error("Link '${node.id}' references unknown type '$typeId'", node.id)
+        }
+
+        if (!LinkInteractionKinds.isKnown(link.interactionKind)) {
+            diagnostics += error(
+                "Link '${node.id}' has unknown interaction kind '${link.interactionKind}'",
+                node.id,
+            )
         }
 
         source?.ports?.find { it.name == link.sourcePortName && it.direction == PortDirection.Output }

@@ -37,6 +37,11 @@ typedef struct threadwork_context {
     threadwork_endpoint *outputs;
 } threadwork_context;
 
+typedef struct threadwork_build_parameter {
+    const char *name;
+    const char *value;
+} threadwork_build_parameter;
+
 static char *threadwork_string_copy(const char *value)
 {
     size_t size;
@@ -51,6 +56,81 @@ static char *threadwork_string_copy(const char *value)
         memcpy(copy, value, size);
     }
     return copy;
+}
+
+static char *threadwork_replace_all(const char *source, const char *needle, const char *replacement)
+{
+    const char *cursor;
+    const char *match;
+    char *result;
+    char *output;
+    size_t count = 0U;
+    size_t source_size;
+    size_t needle_size;
+    size_t replacement_size;
+    size_t result_size;
+
+    if (source == NULL || needle == NULL || replacement == NULL || needle[0] == '\0') {
+        return NULL;
+    }
+    source_size = strlen(source);
+    needle_size = strlen(needle);
+    replacement_size = strlen(replacement);
+    cursor = source;
+    while ((match = strstr(cursor, needle)) != NULL) {
+        count++;
+        cursor = match + needle_size;
+    }
+    result_size = replacement_size >= needle_size
+        ? source_size + count * (replacement_size - needle_size)
+        : source_size - count * (needle_size - replacement_size);
+    result = (char *)malloc(result_size + 1U);
+    if (result == NULL) {
+        return NULL;
+    }
+    cursor = source;
+    output = result;
+    while ((match = strstr(cursor, needle)) != NULL) {
+        size_t prefix_size = (size_t)(match - cursor);
+        memcpy(output, cursor, prefix_size);
+        output += prefix_size;
+        memcpy(output, replacement, replacement_size);
+        output += replacement_size;
+        cursor = match + needle_size;
+    }
+    strcpy(output, cursor);
+    return result;
+}
+
+char *threadwork_materialize_source(
+    const char *source,
+    const threadwork_build_parameter *parameters,
+    size_t parameter_count)
+{
+    char *product = threadwork_string_copy(source);
+    size_t index;
+
+    if (product == NULL) {
+        return NULL;
+    }
+    for (index = 0U; index < parameter_count; index++) {
+        char marker[256];
+        char *next;
+        if (parameters[index].name == NULL || parameters[index].value == NULL) {
+            continue;
+        }
+        if (snprintf(marker, sizeof(marker), "%c%c%s%c", '$', '{', parameters[index].name, '}') < 0) {
+            free(product);
+            return NULL;
+        }
+        next = threadwork_replace_all(product, marker, parameters[index].value);
+        free(product);
+        if (next == NULL) {
+            return NULL;
+        }
+        product = next;
+    }
+    return product;
 }
 
 static threadwork_endpoint *threadwork_endpoint_find(

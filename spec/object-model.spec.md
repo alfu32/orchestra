@@ -54,6 +54,7 @@ a Type declaration as a normal endpoint.
 LinkData
 - sourceNodeId, sourcePortName
 - targetNodeId, targetPortName
+- interactionKind
 - transportKind
 - typeDefinitionId
 - compositeBoundaryIds
@@ -63,6 +64,13 @@ The link node name is the wire/buffer variable name. `typeDefinitionId` is eithe
 a built-in type identifier or the stable ID of a Type node. Legacy `typeName` and
 `payloadDefinition` data may be read by existing compilers, but new designs use
 shared Type entities.
+
+`interactionKind` is independent from the physical `transportKind`. Its values
+are `auto`, `data`, `lib`, `src`, and `run`. `data` links carry unidirectional
+packets. The other three provide a library instance, synchronous source builder,
+or synchronous runnable builder from source endpoint to target endpoint and do
+not allocate transport buffers. `auto` exists for files predating this field and
+retains historical classifier behavior.
 
 ## 5. Link Ownership and Composite Boundaries
 

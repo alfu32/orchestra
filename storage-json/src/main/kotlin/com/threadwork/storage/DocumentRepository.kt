@@ -2,6 +2,7 @@ package com.threadwork.storage
 
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.LinkData
+import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.ModificationMetadata
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
@@ -16,6 +17,18 @@ import com.threadwork.core.model.closestCommonAncestorId
 import com.threadwork.core.model.compositeBoundaryIdsBetween
 import java.util.UUID
 import java.time.Instant
+
+private val legacyCapabilityTransportKinds = setOf(
+    "usage",
+    "use",
+    "import",
+    "library",
+    "lib",
+    "dependency",
+    "di",
+    "inject",
+    "injection",
+)
 
 interface DocumentRepository {
     fun getDocument(): ThreadworkDocument
@@ -192,7 +205,22 @@ class InMemoryDocumentRepository(
             document.nodes[it.sourceNodeId]?.outgoingLinks?.removeAll { linkId -> linkId == id }
             document.nodes[it.targetNodeId]?.incomingLinks?.removeAll { linkId -> linkId == id }
         }
-        node.link = linkData.copy(compositeBoundaryIds = linkData.compositeBoundaryIds.toMutableList())
+        val requestedInteractionKind = LinkInteractionKinds.canonicalId(linkData.interactionKind)
+        val normalizedInteractionKind = if (
+            requestedInteractionKind == LinkInteractionKinds.Data &&
+            linkData.transportKind.trim().lowercase() in legacyCapabilityTransportKinds
+        ) {
+            LinkInteractionKinds.Library
+        } else {
+            requestedInteractionKind
+        }
+        require(LinkInteractionKinds.isKnown(normalizedInteractionKind)) {
+            "Unknown link interaction kind '${linkData.interactionKind}'"
+        }
+        node.link = linkData.copy(
+            compositeBoundaryIds = linkData.compositeBoundaryIds.toMutableList(),
+            interactionKind = normalizedInteractionKind,
+        )
         synchronizeLink(node)
         touchNodes(
             listOfNotNull(
@@ -257,6 +285,7 @@ class InMemoryDocumentRepository(
                 targetNodeId,
                 targetPortName,
                 compositeBoundaryIds = document.compositeBoundaryIdsBetween(sourceNodeId, targetNodeId).toMutableList(),
+                interactionKind = LinkInteractionKinds.Data,
             ),
         )
         document.nodes[node.id] = node

@@ -109,6 +109,7 @@ data class LinkData(
     var payloadDefinition: String = "",
     var typeDefinitionId: String = "",
     var compositeBoundaryIds: MutableList<NodeId> = mutableListOf(),
+    var interactionKind: String = LinkInteractionKinds.Auto,
 )
 
 object BuiltInTypeIds {

@@ -4,6 +4,7 @@ import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.DirectFileSystemHomorphismLayoutStrategy
 import com.threadwork.compiler.api.SingleFileLayoutStrategy
 import com.threadwork.core.model.NodeKind
+import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.TechnologyMetadata
@@ -151,7 +152,9 @@ class CCompilerTest {
         val producer = repository.createNode(root, "producer", NodeKind.Processor)
         val consumer = repository.createNode(root, "consumer", NodeKind.Processor)
         repository.addPort(producer.id, NodePort("out", "records", PortDirection.Output))
+        repository.addPort(producer.id, NodePort("src", "source", PortDirection.Output))
         repository.addPort(consumer.id, NodePort("in", "records", PortDirection.Input))
+        repository.addPort(consumer.id, NodePort("builder", "builder", PortDirection.Input))
         repository.updateNodeText(
             producer.id,
             producer.text.copy(
@@ -165,6 +168,11 @@ class CCompilerTest {
         )
         val link = repository.createLink(root, "records", producer.id, "records", consumer.id, "records")
         repository.updateLinkData(link.id, requireNotNull(link.link).copy(typeDefinitionId = workOrder.id.value))
+        val sourceCapability = repository.createLink(root, "producer_source", producer.id, "source", consumer.id, "builder")
+        repository.updateLinkData(
+            sourceCapability.id,
+            requireNotNull(sourceCapability.link).copy(interactionKind = LinkInteractionKinds.Source),
+        )
         val result = CCompiler().compile(repository.getDocument())
         assertTrue(result.success, result.diagnostics.joinToString { it.message })
         val source = assertNotNull(result.generatedProject).files.single().content
@@ -187,6 +195,8 @@ class CCompilerTest {
             val output = process.inputStream.bufferedReader().use { it.readText() }
             assertEquals(0, process.waitFor(), "$output\n\n$source")
             assertEquals(0, ProcessBuilder(executable.toString()).start().waitFor())
+            assertTrue(source.contains("getSource"))
+            assertFalse(source.contains("producerSource1_a_port"))
         } finally {
             directory.toFile().deleteRecursively()
         }

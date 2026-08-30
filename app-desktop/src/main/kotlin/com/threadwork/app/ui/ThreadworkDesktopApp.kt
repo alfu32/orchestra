@@ -37,6 +37,7 @@ import com.threadwork.core.classification.NodeStereotype
 import com.threadwork.core.classification.stereotype
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.BuiltInTypeIds
+import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.LinkTransportKinds
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
@@ -2109,13 +2110,15 @@ class GraphCanvas(
         val tileX: Int,
         val tileY: Int,
     )
-    private data class PortAnchor(val point: Point, val xDirection: Int)
+    private data class PortAnchor(val point: Point, val xDirection: Int, val yDirection: Int = 0)
     private data class LinkAnchors(val source: PortAnchor, val target: PortAnchor, val sourceNodeId: NodeId, val targetNodeId: NodeId)
     private data class LinkRoute(
         val source: Point,
         val target: Point,
         val sourceDirection: Int,
         val targetDirection: Int,
+        val sourceVerticalDirection: Int,
+        val targetVerticalDirection: Int,
         val points: List<Point>,
     )
     private data class SheetFormat(val id: String, val widthMm: Double, val heightMm: Double, val roll: Boolean = false)
@@ -3552,18 +3555,60 @@ class GraphCanvas(
             LinkStereotype.ErrorPipe -> 2.0
             LinkStereotype.DependencyInjection -> 1.6
             LinkStereotype.UsageImport -> 1.8
+            LinkStereotype.SourceCapability,
+            LinkStereotype.RunnableCapability -> 2.0
             else -> 1.5
         }
         val dash = linkDashPattern(stereotype, isBackflow(route))
         svgPath(svg, route.points, color, strokeWidth, dash)
         svgArrowAlongRoute(svg, route.points, color)
-        svgPortMarker(svg, route.source, route.sourceDirection, outgoing = true, color = color)
-        svgPortMarker(svg, route.target, route.targetDirection, outgoing = false, color = color)
+        if (isExplicitCapabilityLink(node)) {
+            svgCapabilityPortMarker(svg, route.source, outgoing = true, color = color)
+            svgCapabilityPortMarker(svg, route.target, outgoing = false, color = color)
+            svgCapabilityPortArrows(svg, route, color)
+        } else {
+            svgPortMarker(svg, route.source, route.sourceDirection, outgoing = true, color = color)
+            svgPortMarker(svg, route.target, route.targetDirection, outgoing = false, color = color)
+        }
         compositeBoundaryIntersections(node, route.points).forEach { point ->
             val (dx, dy) = routeDirectionAt(route.points, point)
             svgBoundaryPierceMarker(svg, point, dx, dy, color)
         }
-        svgEndpointLinkLabels(svg, node, route, color)
+        if (isExplicitCapabilityLink(node)) {
+            svgCapabilityEndpointLabels(svg, node, route, color)
+        } else {
+            svgEndpointLinkLabels(svg, node, route, color)
+        }
+    }
+
+    private fun svgCapabilityPortMarker(svg: StringBuilder, point: Point, outgoing: Boolean, color: String) {
+        svg.appendLine(
+            "    <circle cx=\"${point.x}\" cy=\"${point.y}\" r=\"6\" " +
+                "fill=\"${if (outgoing) "#ffffff" else color}\" stroke=\"$color\" stroke-width=\"1.8\"/>",
+        )
+    }
+
+    private fun svgCapabilityPortArrows(svg: StringBuilder, route: LinkRoute, color: String) {
+        svgDirectionalArrow(
+            svg,
+            Point(
+                route.source.x + route.sourceDirection * 16,
+                route.source.y + route.sourceVerticalDirection * 16,
+            ),
+            route.sourceDirection,
+            route.sourceVerticalDirection,
+            color,
+        )
+        svgDirectionalArrow(
+            svg,
+            Point(
+                route.target.x + route.targetDirection * 16,
+                route.target.y + route.targetVerticalDirection * 16,
+            ),
+            -route.targetDirection,
+            -route.targetVerticalDirection,
+            color,
+        )
     }
 
     private fun svgPortMarker(svg: StringBuilder, point: Point, side: Int, outgoing: Boolean, color: String) {
@@ -3642,6 +3687,22 @@ class GraphCanvas(
         if (name.isBlank() && typeName == null) return
         svgEndpointLinkLabel(svg, name, typeName, route.source, route.sourceDirection, color)
         svgEndpointLinkLabel(svg, name, typeName, route.target, route.targetDirection, color)
+    }
+
+    private fun svgCapabilityEndpointLabels(svg: StringBuilder, node: Node, route: LinkRoute, color: String) {
+        val role = LinkInteractionKinds.canonicalId(node.link?.interactionKind.orEmpty())
+        val (name, typeName) = linkLabelParts(node)
+        val full = "$role $name${typeName?.let { ":$it" }.orEmpty()}"
+        val width = monospaceTextWidth(full, 8, 0)
+        listOf(route.source to true, route.target to false).forEach { (point, source) ->
+            val x = point.x - width / 2
+            val y = if (source) point.y + 24 else point.y - 14
+            svgText(svg, "$role $name", x, y, 10, color)
+            typeName?.let {
+                val offset = monospaceTextWidth("$role $name", 8, 0)
+                svgText(svg, ":$it", x + offset, y, 10, "#008c4a")
+            }
+        }
     }
 
     private fun svgEndpointLinkLabel(
@@ -4021,13 +4082,23 @@ class GraphCanvas(
         route.points.zipWithNext().forEach { (a, b) -> g2.drawLine(a.x, a.y, b.x, b.y) }
         drawArrowAlongRoute(g2, route.points)
         g2.color = color
-        drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
-        drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
+        if (isExplicitCapabilityLink(node)) {
+            drawCapabilityPortMarker(g2, route.source, outgoing = true)
+            drawCapabilityPortMarker(g2, route.target, outgoing = false)
+            drawCapabilityPortArrows(g2, route)
+        } else {
+            drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
+            drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
+        }
         compositeBoundaryIntersections(node, route.points).forEach { point ->
             val (dx, dy) = routeDirectionAt(route.points, point)
             drawBoundaryPierceMarker(g2, point, dx, dy)
         }
-        drawEndpointLinkLabels(g2, node, route, color)
+        if (isExplicitCapabilityLink(node)) {
+            drawCapabilityEndpointLabels(g2, node, route, color)
+        } else {
+            drawEndpointLinkLabels(g2, node, route, color)
+        }
         g2.font = previousFont
         g2.stroke = previousStroke
     }
@@ -4147,6 +4218,42 @@ class GraphCanvas(
         }
         g2.draw(shape)
         g2.stroke = previousStroke
+    }
+
+    private fun drawCapabilityPortMarker(g2: Graphics2D, point: Point, outgoing: Boolean) {
+        val color = g2.color
+        val previousStroke = g2.stroke
+        g2.stroke = BasicStroke(1.8f)
+        if (outgoing) {
+            g2.color = activePalette[DesignerColorKey.PortFill]
+            g2.fillOval(point.x - 6, point.y - 6, 12, 12)
+            g2.color = color
+        } else {
+            g2.fillOval(point.x - 6, point.y - 6, 12, 12)
+        }
+        g2.drawOval(point.x - 6, point.y - 6, 12, 12)
+        g2.stroke = previousStroke
+    }
+
+    private fun drawCapabilityPortArrows(g2: Graphics2D, route: LinkRoute) {
+        drawDirectionalArrow(
+            g2,
+            Point(
+                route.source.x + route.sourceDirection * 16,
+                route.source.y + route.sourceVerticalDirection * 16,
+            ),
+            route.sourceDirection,
+            route.sourceVerticalDirection,
+        )
+        drawDirectionalArrow(
+            g2,
+            Point(
+                route.target.x + route.targetDirection * 16,
+                route.target.y + route.targetVerticalDirection * 16,
+            ),
+            -route.targetDirection,
+            -route.targetVerticalDirection,
+        )
     }
 
     private fun drawBoundaryPierceMarker(g2: Graphics2D, point: Point, dx: Int, dy: Int) {
@@ -4372,11 +4479,16 @@ class GraphCanvas(
     }
 
     private fun isDependencyAnnotation(linkNode: Node): Boolean =
-        when (LinkClassifier.classify(repository.getDocument(), linkNode)) {
+        if (isExplicitCapabilityLink(linkNode)) {
+            false
+        } else when (LinkClassifier.classify(repository.getDocument(), linkNode)) {
             LinkStereotype.UsageImport,
             LinkStereotype.DependencyInjection -> true
             else -> false
         }
+
+    private fun isExplicitCapabilityLink(linkNode: Node): Boolean =
+        linkNode.link?.let { LinkInteractionKinds.isCapability(it.interactionKind) } == true
 
     private fun routeLink(linkNode: Node): LinkRoute? {
         if (!activeRouteLinks.add(linkNode.id)) return null
@@ -4426,8 +4538,14 @@ class GraphCanvas(
     private fun routedRoute(linkNode: Node, anchors: LinkAnchors, routedSegments: List<RouteSegment>): LinkRoute {
         val source = anchors.source
         val target = anchors.target
-        val sourceStub = Point(source.point.x + PORT_STUB_LENGTH * source.xDirection, source.point.y)
-        val targetStub = Point(target.point.x + PORT_STUB_LENGTH * target.xDirection, target.point.y)
+        val sourceStub = Point(
+            source.point.x + PORT_STUB_LENGTH * source.xDirection,
+            source.point.y + PORT_STUB_LENGTH * source.yDirection,
+        )
+        val targetStub = Point(
+            target.point.x + PORT_STUB_LENGTH * target.xDirection,
+            target.point.y + PORT_STUB_LENGTH * target.yDirection,
+        )
         val obstacles = routeObstacles(linkNode, anchors.sourceNodeId, anchors.targetNodeId)
         val container = routingContainer(linkNode)
         val candidates = routeCandidates(sourceStub, targetStub)
@@ -4445,6 +4563,8 @@ class GraphCanvas(
             target.point,
             source.xDirection,
             target.xDirection,
+            source.yDirection,
+            target.yDirection,
             compact(listOf(source.point, sourceStub) + best + listOf(targetStub, target.point)),
         )
     }
@@ -4694,6 +4814,7 @@ class GraphCanvas(
     private fun portAnchor(node: Node, linkNode: Node, outgoing: Boolean): PortAnchor? {
         linkNode.link ?: return null
         if (node.isLink) return null
+        if (isExplicitCapabilityLink(linkNode)) return capabilityPortAnchor(node, linkNode, outgoing)
         val r = node.layout.rect()
         val side = linkSide(node, linkNode, outgoing)
         val sorted = normalLinksOnSide(node, side)
@@ -4707,6 +4828,25 @@ class GraphCanvas(
         }
         val y = r.y + portTopSpacing(node) + index * PORT_SPACING
         return PortAnchor(Point(x, y), side)
+    }
+
+    private fun capabilityPortAnchor(node: Node, linkNode: Node, outgoing: Boolean): PortAnchor {
+        val r = node.layout.rect()
+        val links = (if (outgoing) node.outgoingLinks else node.incomingLinks)
+            .distinct()
+            .mapNotNull(repository.getDocument().nodes::get)
+            .filter(::isExplicitCapabilityLink)
+            .filter(::isVisibleLink)
+            .sortedBy { it.id.value }
+        val index = links.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 } ?: 0
+        val slotCount = links.size.coerceAtLeast(1)
+        val x = r.x + ((index + 1).toDouble() * r.width / (slotCount + 1)).roundToInt()
+        val y = if (outgoing) r.y + r.height else r.y
+        return PortAnchor(
+            point = Point(x, y),
+            xDirection = 0,
+            yDirection = if (outgoing) 1 else -1,
+        )
     }
 
     private fun routeDirectionNear(points: List<Point>, point: Point): Int {
@@ -4725,6 +4865,7 @@ class GraphCanvas(
         val ids = node.outgoingLinks + node.incomingLinks
         return ids.distinct().mapNotNull(document.nodes::get)
             .filterNot(::isDependencyAnnotation)
+            .filterNot(::isExplicitCapabilityLink)
             .filter { linkNode ->
                 isVisibleLink(linkNode) && run {
                     val link = linkNode.link ?: return@run false
@@ -4768,6 +4909,29 @@ class GraphCanvas(
         g2.font = g2.font.deriveFont(10f)
         drawEndpointLinkLabel(g2, name, typeName, route.source, route.sourceDirection, color)
         drawEndpointLinkLabel(g2, name, typeName, route.target, route.targetDirection, color)
+    }
+
+    private fun drawCapabilityEndpointLabels(g2: Graphics2D, node: Node, route: LinkRoute, color: Color) {
+        val role = LinkInteractionKinds.canonicalId(node.link?.interactionKind.orEmpty())
+        val (name, typeName) = linkLabelParts(node)
+        g2.font = g2.font.deriveFont(10f)
+        val metrics = g2.fontMetrics
+        val prefix = "$role $name"
+        val full = prefix + typeName?.let { ":$it" }.orEmpty()
+        listOf(route.source to true, route.target to false).forEach { (point, source) ->
+            val x = point.x - metrics.stringWidth(full) / 2
+            val baseline = if (source) point.y + metrics.height + 8 else point.y - 10
+            var cursor = x
+            g2.color = color
+            g2.drawString(prefix, cursor, baseline)
+            cursor += metrics.stringWidth(prefix)
+            typeName?.let {
+                g2.drawString(":", cursor, baseline)
+                cursor += metrics.stringWidth(":")
+                g2.color = activePalette[DesignerColorKey.TypeText]
+                g2.drawString(it, cursor, baseline)
+            }
+        }
     }
 
     private fun drawEndpointLinkLabel(
@@ -5261,6 +5425,8 @@ class GraphCanvas(
         stereotype == LinkStereotype.UsageImport -> activePalette[DesignerColorKey.LinkLibrary]
         stereotype == LinkStereotype.ErrorPipe -> activePalette[DesignerColorKey.LinkError]
         stereotype == LinkStereotype.DependencyInjection -> activePalette[DesignerColorKey.LinkDependency]
+        stereotype == LinkStereotype.SourceCapability -> activePalette[DesignerColorKey.LinkSourceCapability]
+        stereotype == LinkStereotype.RunnableCapability -> activePalette[DesignerColorKey.LinkRunnableCapability]
         else -> activePalette[DesignerColorKey.LinkDefault]
     }
 
@@ -5269,12 +5435,16 @@ class GraphCanvas(
     private fun linkDashPattern(stereotype: LinkStereotype, backflow: Boolean): String? = when {
         backflow -> "10 6"
         stereotype == LinkStereotype.DependencyInjection -> "8 6"
+        stereotype == LinkStereotype.SourceCapability -> "14 4 3 4"
+        stereotype == LinkStereotype.RunnableCapability -> "4 4"
         else -> null
     }
 
     private fun linkDashArray(stereotype: LinkStereotype, backflow: Boolean): FloatArray? = when {
         backflow -> floatArrayOf(10f, 6f)
         stereotype == LinkStereotype.DependencyInjection -> floatArrayOf(8f, 6f)
+        stereotype == LinkStereotype.SourceCapability -> floatArrayOf(14f, 4f, 3f, 4f)
+        stereotype == LinkStereotype.RunnableCapability -> floatArrayOf(4f, 4f)
         else -> null
     }
 
@@ -5284,6 +5454,7 @@ class GraphCanvas(
             stereotype == LinkStereotype.UsageImport -> 1.8f
             stereotype == LinkStereotype.ErrorPipe -> 2f
             stereotype == LinkStereotype.DependencyInjection -> 1.6f
+            stereotype in setOf(LinkStereotype.SourceCapability, LinkStereotype.RunnableCapability) -> 2.0f
             else -> 1.5f
         }
         val dash = linkDashArray(stereotype, backflow)
@@ -5326,6 +5497,9 @@ private class InspectorPanel(
     private val transportDisplayById = LinkTransportKinds.catalog.associate { it.id to "${it.label} (${it.id})" }
     private val transportIdByDisplay = transportDisplayById.entries.associate { (id, display) -> display to id }
     private val transportKindOptions = LinkTransportKinds.catalog.map { transportDisplayById.getValue(it.id) } + OtherTransportChoice
+    private val interactionDisplayById = LinkInteractionKinds.catalog.associate { it.id to it.label }
+    private val interactionIdByDisplay = interactionDisplayById.entries.associate { (id, display) -> display to id }
+    private val interactionKindOptions = LinkInteractionKinds.catalog.map { interactionDisplayById.getValue(it.id) }
     private val knownLayoutStrategies = layoutStrategies
     private val layoutDisplayById = knownLayoutStrategies.associate { it.id to "${it.displayName} (${it.id})" }
     private val layoutIdByDisplay = layoutDisplayById.entries.associate { (id, display) -> display to id }
@@ -5378,6 +5552,7 @@ private class InspectorPanel(
     private val masterRevisionName = JTextField()
     private val masterRevisionDate = JTextField()
     private val linkTransportKind = JComboBox(transportKindOptions.toTypedArray()).apply { isEditable = false }
+    private val linkInteractionKind = JComboBox(interactionKindOptions.toTypedArray()).apply { isEditable = false }
     private val layoutStrategy = JComboBox(arrayOf(NoneLayoutChoice)).apply { isEditable = false }
     private val computedLayoutStrategy = JLabel()
     private val layoutCompilerCapability = JLabel()
@@ -5433,6 +5608,7 @@ private class InspectorPanel(
     private val masterRevisionNameRow = fieldRow("Master revision", masterRevisionName)
     private val masterRevisionDateRow = fieldRow("Master revision date", masterRevisionDate)
     private val linkTransportKindRow = fieldRow("Link transport kind", linkTransportKind)
+    private val linkInteractionKindRow = fieldRow("Link interaction", linkInteractionKind)
     private val linkTypeDefinitionRow = fieldRow("Link Type Definition", linkTypeDefinition)
     private val typeFieldsRow = fieldRow(
         "Type fields",
@@ -5475,6 +5651,7 @@ private class InspectorPanel(
         applyOnCommit(technology)
         applyOnCommit(layoutStrategy)
         applyOnCommit(linkTransportKind)
+        applyOnCommit(linkInteractionKind)
         applyOnCommit(linkTypeDefinition)
         applyOnFocusLost(metadata)
         val form = JPanel().apply {
@@ -5495,6 +5672,7 @@ private class InspectorPanel(
             add(masterRevisionNameRow)
             add(masterRevisionDateRow)
             add(linkTransportKindRow)
+            add(linkInteractionKindRow)
             add(linkTypeDefinitionRow)
             add(customTransportKindPanel)
             add(typeFieldsRow)
@@ -5531,6 +5709,7 @@ private class InspectorPanel(
         masterRevisionDate.text = if (boundNodeIsRoot) repository.getDocument().masterRevision.date else ""
         refreshResponsibleComputedLabel()
         bindTransportKind(node?.link?.transportKind.orEmpty())
+        bindInteractionKind(node?.link?.interactionKind.orEmpty())
         refreshTypeChoices(node?.link?.typeDefinitionId.orEmpty())
         bindTypeFields(node)
         metadata.text = metadataText(node)
@@ -5649,6 +5828,7 @@ private class InspectorPanel(
             masterRevisionName.hasFocus() ||
             masterRevisionDate.hasFocus() ||
             linkTransportKind.hasFocus() ||
+            linkInteractionKind.hasFocus() ||
             linkTypeDefinition.hasFocus() ||
             typeFields.hasFocus() ||
             typeFields.isEditing ||
@@ -5685,6 +5865,7 @@ private class InspectorPanel(
         if (node.isType) repository.updateNodeTypeDefinition(id, typeDefinitionFromTable())
         if (isLink) node.link?.copy()?.let {
             it.transportKind = selectedTransportKind().ifBlank { LinkTransportKinds.Default }
+            it.interactionKind = selectedInteractionKind()
             it.typeDefinitionId = selectedTypeDefinitionId()
             repository.updateLinkData(id, it)
         }
@@ -5718,6 +5899,10 @@ private class InspectorPanel(
             OtherTransportChoice -> customTransportKind.text.trim()
             else -> transportIdByDisplay[selected].orEmpty()
         }
+
+    private fun selectedInteractionKind(): String =
+        interactionIdByDisplay[linkInteractionKind.selectedItem?.toString().orEmpty()]
+            ?: LinkInteractionKinds.Data
 
     private fun selectedTypeDefinitionId(): String =
         typeIdByDisplay[linkTypeDefinition.selectedItem?.toString().orEmpty()].orEmpty()
@@ -5818,6 +6003,12 @@ private class InspectorPanel(
         updateConditionalChoiceVisibility()
     }
 
+    private fun bindInteractionKind(interactionKind: String) {
+        val canonical = LinkInteractionKinds.canonicalId(interactionKind)
+        linkInteractionKind.selectedItem = interactionDisplayById[canonical]
+            ?: interactionDisplayById.getValue(LinkInteractionKinds.Auto)
+    }
+
     private fun bindLayoutStrategy(layoutStrategyId: String) {
         val value = layoutStrategyId.trim()
         refreshLayoutStrategyOptions(value)
@@ -5886,6 +6077,7 @@ private class InspectorPanel(
         masterRevisionNameRow.isVisible = boundNodeIsRoot
         masterRevisionDateRow.isVisible = boundNodeIsRoot
         linkTransportKindRow.isVisible = showLinkFields
+        linkInteractionKindRow.isVisible = showLinkFields
         linkTypeDefinitionRow.isVisible = showLinkFields
         typeFieldsRow.isVisible = boundNodeIsType
         updateConditionalChoiceVisibility()

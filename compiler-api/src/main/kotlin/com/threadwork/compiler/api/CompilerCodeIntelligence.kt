@@ -23,6 +23,8 @@ enum class CompilerCodeSymbolKind {
     Type,
     TypeMember,
     BufferMember,
+    SourceCapability,
+    RunnableCapability,
 }
 
 data class CompilerCodeMember(
@@ -157,11 +159,39 @@ fun defaultCodeIntelligence(
                 )
             }
 
+            LinkStereotype.SourceCapability,
+            LinkStereotype.RunnableCapability -> {
+                val stereotype = LinkClassifier.classify(document, linkNode)
+                val source = linkNode.link?.sourceNodeId?.let(document::getElementById)
+                val localName = compilerArgumentName(linkNode.name)
+                val sourceCapability = stereotype == LinkStereotype.SourceCapability
+                val method = if (sourceCapability) "getSource" else "getRunnable"
+                val product = if (sourceCapability) "source product" else "runnable product"
+                symbols += CompilerCodeSymbol(
+                    name = localName,
+                    kind = if (sourceCapability) {
+                        CompilerCodeSymbolKind.SourceCapability
+                    } else {
+                        CompilerCodeSymbolKind.RunnableCapability
+                    },
+                    typeName = "${source?.name.orEmpty()}${if (sourceCapability) "Source" else "Runnable"}Capability",
+                    detail = "$product provider${source?.name?.let { " for $it" }.orEmpty()}",
+                    documentation = "Synchronous compiler capability supplied by link '${linkNode.name}'.",
+                    members = listOf(
+                        CompilerCodeMember(
+                            name = "$localName.$method(parameters)",
+                            detail = "returns $product",
+                            documentation = "Build a customized $product from consumer-controlled parameters.",
+                        ),
+                    ),
+                )
+            }
+
             else -> addDataLink(linkNode, input = true)
         }
     }
     node.outgoingLinks.mapNotNull(document::getElementById).forEach { linkNode ->
-        if (LinkClassifier.classify(document, linkNode) !in setOf(LinkStereotype.UsageImport, LinkStereotype.DependencyInjection)) {
+        if (!LinkClassifier.isCapability(document, linkNode)) {
             addDataLink(linkNode, input = false)
         }
     }

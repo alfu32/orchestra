@@ -156,6 +156,8 @@ data class CompiledNodeArtifact(
     val hoistedDeclarationText: String = "",
     /** Order-preserving declarations required before code for this entity and its compiled subtree. */
     val hoistedDeclarations: List<String> = emptyList(),
+    /** Compiler-produced source represented by this artifact, including delegated compiler output. */
+    val compiledProductText: String = declarationText,
 ) {
     val isComposite: Boolean get() = node.children.isNotEmpty() && !node.isLink
 }
@@ -170,6 +172,7 @@ data class NodeCompilerContext(
     val extension: String,
     val childArtifacts: List<CompiledNodeArtifact>,
     val linkArtifacts: List<CompiledNodeArtifact>,
+    val compiledArtifacts: Map<NodeId, CompiledNodeArtifact> = emptyMap(),
 ) {
     val effectiveLayoutStrategy: LayoutStrategy
         get() {
@@ -332,10 +335,11 @@ abstract class StructuredCompiler : CompilerPlugin {
         val scopeIds = compileScopeIds(document, options.scopeNodeIds, options.includeScopeAncestors)
         val roots = compilationRoots(document, scopeIds)
         val files = mutableListOf<GeneratedFile>()
+        val compiledArtifacts = linkedMapOf<NodeId, CompiledNodeArtifact>()
         files += projectFiles(document, options, projectName)
 
         roots.forEach { root ->
-            compileNode(document, root, options, projectName, scopeIds, diagnostics, linkedSetOf())
+            compileNode(document, root, options, projectName, scopeIds, diagnostics, linkedSetOf(), compiledArtifacts)
                 ?.let { files += it.files }
         }
         afterCompile(document, options)
@@ -493,6 +497,7 @@ abstract class StructuredCompiler : CompilerPlugin {
         scopeIds: Set<NodeId>,
         diagnostics: MutableList<Diagnostic>,
         stack: LinkedHashSet<NodeId>,
+        compiledArtifacts: MutableMap<NodeId, CompiledNodeArtifact>,
     ): CompiledNodeArtifact? {
         if (node.id !in scopeIds) return null
         if (!stack.add(node.id)) {
@@ -512,6 +517,7 @@ abstract class StructuredCompiler : CompilerPlugin {
             stack.remove(node.id)
             val files = result.generatedProject?.files.orEmpty()
             return if (result.success && result.generatedProject != null) {
+                val providerFiles = files.filter { it.originNodeId == node.id }.ifEmpty { files }
                 CompiledNodeArtifact(
                     node = node,
                     layoutStrategy = layoutStrategy(document, node.id, options),
@@ -519,7 +525,8 @@ abstract class StructuredCompiler : CompilerPlugin {
                     instantiationText = "",
                     primaryFile = null,
                     files = files,
-                )
+                    compiledProductText = providerFiles.joinToString("\n\n") { it.content.trimEnd() }.trimEnd(),
+                ).also { compiledArtifacts[node.id] = it }
             } else {
                 diagnostics += Diagnostic(
                     DiagnosticSeverity.Error,
@@ -534,10 +541,10 @@ abstract class StructuredCompiler : CompilerPlugin {
         val childNodes = node.children.mapNotNull(document::getElementById).filter { it.id in scopeIds }
         val childArtifacts = childNodes
             .filterNot { it.isLink }
-            .mapNotNull { compileNode(document, it, options, projectName, scopeIds, diagnostics, stack) }
+            .mapNotNull { compileNode(document, it, options, projectName, scopeIds, diagnostics, stack, compiledArtifacts) }
         val linkArtifacts = childNodes
             .filter { it.isLink }
-            .mapNotNull { compileNode(document, it, options, projectName, scopeIds, diagnostics, stack) }
+            .mapNotNull { compileNode(document, it, options, projectName, scopeIds, diagnostics, stack, compiledArtifacts) }
         val strategy = layoutStrategy(document, node.id, options)
         val baseContext = NodeCompilerContext(
             compiler = this,
@@ -549,6 +556,7 @@ abstract class StructuredCompiler : CompilerPlugin {
             extension = "txt",
             childArtifacts = childArtifacts,
             linkArtifacts = linkArtifacts,
+            compiledArtifacts = compiledArtifacts,
         )
         val context = baseContext.copy(extension = fileExtension(baseContext))
         val artifact = staticFileFor(context)?.let { file ->
@@ -558,6 +566,7 @@ abstract class StructuredCompiler : CompilerPlugin {
             else -> regularArtifact(context)
         }
         stack.remove(node.id)
+        compiledArtifacts[node.id] = artifact
         return artifact
     }
 
@@ -613,11 +622,25 @@ abstract class StructuredCompiler : CompilerPlugin {
         }
         if (includeAncestors) requested.forEach(::includeAncestors)
         requested.forEach(::include)
-        val selectedNodes = result.mapNotNull(document::getElementById).filterNot { it.isLink }.map { it.id }.toSet()
-        document.nodes.values.filter { it.isLink }.forEach { linkNode ->
-            val link = linkNode.link ?: return@forEach
-            if (link.sourceNodeId in selectedNodes && link.targetNodeId in selectedNodes) result += linkNode.id
-        }
+        var changed: Boolean
+        do {
+            val selectedNodes = result.mapNotNull(document::getElementById)
+                .filterNot { it.isLink }
+                .mapTo(linkedSetOf()) { it.id }
+            val sizeBefore = result.size
+            document.nodes.values.filter { it.isLink }.forEach { linkNode ->
+                val link = linkNode.link ?: return@forEach
+                when {
+                    link.sourceNodeId in selectedNodes && link.targetNodeId in selectedNodes -> result += linkNode.id
+                    link.targetNodeId in selectedNodes && LinkClassifier.isCapability(document, linkNode) -> {
+                        include(link.sourceNodeId)
+                        if (includeAncestors) includeAncestors(link.sourceNodeId)
+                        result += linkNode.id
+                    }
+                }
+            }
+            changed = result.size != sizeBefore
+        } while (changed)
         val pendingTypeIds = ArrayDeque(
             result.mapNotNull(document::getElementById)
                 .mapNotNull { it.link?.typeDefinitionId?.takeIf(String::isNotBlank) }

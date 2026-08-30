@@ -8,6 +8,8 @@ import com.threadwork.compiler.generic.CompilerTemplateSet
 import com.threadwork.compiler.generic.CompilerTemplateSetLoader
 import com.threadwork.compiler.generic.TemplateSetCompiler
 import com.threadwork.core.classification.NodeStereotype
+import com.threadwork.core.classification.LinkClassifier
+import com.threadwork.core.classification.LinkStereotype
 import com.threadwork.core.classification.stereotype
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.diagnostics.DiagnosticSeverity
@@ -90,6 +92,15 @@ class CCompiler : TemplateSetCompiler() {
                     "C compilation supports only the single-file layout; '${node.name}' resolves to '$layoutId'.",
                 )
             }
+        }
+
+        cNodes.filter(Node::isLink).filter {
+            LinkClassifier.classify(document, it) == LinkStereotype.RunnableCapability
+        }.forEach { link ->
+            diagnostics += error(
+                link.id,
+                "C17 cannot expose a type-safe runtime-compiled runnable capability; use src or an explicit toolchain adapter.",
+            )
         }
 
         cNodes.filterNot(Node::isLink).forEach { parent ->

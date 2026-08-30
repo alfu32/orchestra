@@ -45,6 +45,8 @@ enum class DesignerColorKey(
     LinkLibrary("Library link", Color(0x3333cc), Color(0x7887ff)),
     LinkError("Error link", Color(0xcc3333), Color(0xff7777)),
     LinkDependency("Dependency link", Color(0xb36b00), Color(0xf0ad36)),
+    LinkSourceCapability("Source capability", Color(0x00796b), Color(0x4dd0c0)),
+    LinkRunnableCapability("Runnable capability", Color(0x7b1fa2), Color(0xce93d8)),
     AnnotationFill("Annotation fill", Color(0xf8f9ff), Color(0x2b2d30)),
     PortFill("Port fill", Color.WHITE, Color(0x1e1f22)),
     Selection("Selection", Color(0x3366cc), Color(0x76a9ff)),

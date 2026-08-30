@@ -2,6 +2,7 @@ package com.threadwork.storage
 
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.LinkData
+import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
@@ -21,6 +22,31 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class JsonDocumentStoreTest {
+    @Test
+    fun `link interaction kinds round trip while legacy model defaults to auto`() {
+        val repository = InMemoryDocumentRepository(newDocument("capability json"))
+        val root = repository.getDocument().rootNodeId
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, com.threadwork.core.model.NodePort("src", "src", PortDirection.Output))
+        repository.addPort(target.id, com.threadwork.core.model.NodePort("builder", "builder", PortDirection.Input))
+        val link = repository.createLink(root, "source_builder", source.id, "src", target.id, "builder")
+        repository.updateLinkData(
+            link.id,
+            requireNotNull(link.link).copy(interactionKind = LinkInteractionKinds.Source),
+        )
+        val file = createTempFile(suffix = ".threadwork.orch")
+
+        KotlinxJsonDocumentStore().save(repository.getDocument(), file)
+        val loaded = KotlinxJsonDocumentStore().load(file)
+
+        assertEquals(LinkInteractionKinds.Source, loaded.nodes.getValue(link.id).link?.interactionKind)
+        assertEquals(
+            LinkInteractionKinds.Auto,
+            LinkData(source.id, "out", target.id, "in").interactionKind,
+        )
+    }
+
     @Test
     fun `type declarations and link type references round trip`() {
         val repository = InMemoryDocumentRepository(newDocument("typed json"))

@@ -3,6 +3,7 @@ package com.threadwork.core.classification
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.ThreadworkDocument
+import com.threadwork.core.model.LinkInteractionKinds
 
 enum class NodeStereotype {
     Node,
@@ -33,6 +34,8 @@ enum class LinkStereotype {
     ErrorPipe,
     UsageImport,
     DependencyInjection,
+    SourceCapability,
+    RunnableCapability,
 }
 
 object NodeClassifier {
@@ -41,13 +44,19 @@ object NodeClassifier {
     }
 
     fun classify(document: ThreadworkDocument, node: Node): NodeStereotype {
-        return classify(node, dataIncomingLinks(document, node).size, node.outgoingLinks.size)
+        return classify(node, dataIncomingLinks(document, node).size, dataOutgoingLinks(document, node).size)
     }
 
     fun dataIncomingLinks(document: ThreadworkDocument, node: Node): List<Node> {
         return node.incomingLinks
             .mapNotNull(document.nodes::get)
             .filter { linkNode -> countsAsDataInput(document, node, linkNode) }
+    }
+
+    fun dataOutgoingLinks(document: ThreadworkDocument, node: Node): List<Node> {
+        return node.outgoingLinks
+            .mapNotNull(document.nodes::get)
+            .filter { linkNode -> countsAsDataOutput(document, node, linkNode) }
     }
 
     private fun classify(node: Node, incomingCount: Int, outgoingCount: Int): NodeStereotype {
@@ -75,15 +84,20 @@ object NodeClassifier {
     private fun countsAsDataInput(document: ThreadworkDocument, node: Node, linkNode: Node): Boolean {
         val link = linkNode.link ?: return false
         if (link.targetNodeId != node.id) return false
-        val source = document.nodes[link.sourceNodeId] ?: return true
-        val sourceIsLibrary = classify(source) == NodeStereotype.ServiceLibrary
-        if (!sourceIsLibrary) return true
-        return LinkClassifier.classify(document, linkNode) !in dependencyLikeLinks
+        return LinkClassifier.classify(document, linkNode) !in capabilityLinks
     }
 
-    private val dependencyLikeLinks = setOf(
+    private fun countsAsDataOutput(document: ThreadworkDocument, node: Node, linkNode: Node): Boolean {
+        val link = linkNode.link ?: return false
+        if (link.sourceNodeId != node.id) return false
+        return LinkClassifier.classify(document, linkNode) !in capabilityLinks
+    }
+
+    private val capabilityLinks = setOf(
         LinkStereotype.UsageImport,
         LinkStereotype.DependencyInjection,
+        LinkStereotype.SourceCapability,
+        LinkStereotype.RunnableCapability,
     )
 }
 
@@ -96,8 +110,18 @@ object LinkClassifier {
         val sourceStereotype = source?.stereotype()
         val targetStereotype = target?.stereotype()
         val linkName = linkNode.name.trim()
+        val interactionKind = LinkInteractionKinds.canonicalId(link.interactionKind)
 
         return when {
+            interactionKind == LinkInteractionKinds.Library -> LinkStereotype.DependencyInjection
+            interactionKind == LinkInteractionKinds.Source -> LinkStereotype.SourceCapability
+            interactionKind == LinkInteractionKinds.Runnable -> LinkStereotype.RunnableCapability
+            interactionKind == LinkInteractionKinds.Data -> classifyDataLink(
+                linkNode,
+                targetStereotype,
+                transportKind,
+                linkName,
+            )
             transportKind in dependencyKinds ||
                 linkName.containsToken("dependency") ||
                 linkName.containsToken("inject") -> LinkStereotype.DependencyInjection
@@ -116,9 +140,39 @@ object LinkClassifier {
         }
     }
 
+    fun isCapability(document: ThreadworkDocument, linkNode: Node): Boolean =
+        classify(document, linkNode) in capabilityStereotypes
+
+    private fun classifyDataLink(
+        linkNode: Node,
+        targetStereotype: NodeStereotype?,
+        transportKind: String,
+        linkName: String,
+    ): LinkStereotype {
+        val link = linkNode.link ?: return LinkStereotype.Transport
+        return if (
+            transportKind in errorKinds ||
+            targetStereotype == NodeStereotype.ErrorHandler ||
+            targetStereotype == NodeStereotype.CompositeErrorHandler ||
+            link.sourcePortName.contains("error", ignoreCase = true) ||
+            link.targetPortName.contains("error", ignoreCase = true) ||
+            linkName.containsToken("error")
+        ) {
+            LinkStereotype.ErrorPipe
+        } else {
+            LinkStereotype.Transport
+        }
+    }
+
     private val usageKinds = setOf("usage", "use", "import", "library", "lib")
     private val errorKinds = setOf("error", "error-pipe", "exception", "failure")
     private val dependencyKinds = setOf("dependency", "di", "inject", "injection")
+    private val capabilityStereotypes = setOf(
+        LinkStereotype.UsageImport,
+        LinkStereotype.DependencyInjection,
+        LinkStereotype.SourceCapability,
+        LinkStereotype.RunnableCapability,
+    )
 }
 
 fun Node.stereotype(): NodeStereotype = NodeClassifier.classify(this)

@@ -5,6 +5,7 @@ import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.NodePort
+import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.Revision
 import com.threadwork.core.model.closestCommonAncestorId
@@ -199,6 +200,9 @@ class KotlinxJsonDocumentStore(
         }
         document.nodes.values.filter { it.isLink }.forEach { linkNode ->
             val link = linkNode.link ?: return@forEach
+            if (LinkInteractionKinds.isKnown(link.interactionKind)) {
+                link.interactionKind = LinkInteractionKinds.canonicalId(link.interactionKind)
+            }
             val source = document.nodes[link.sourceNodeId]
             val target = document.nodes[link.targetNodeId]
             if (source != null && target != null && !source.isLink && !target.isLink) {

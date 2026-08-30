@@ -535,6 +535,7 @@ data class LinkData(
     var sourcePortName: String,
     var targetNodeId: NodeId,
     var targetPortName: String,
+    var interactionKind: String = "auto",
     var transportKind: String = "packet",
     var typeName: String = "",
     var payloadDefinition: String = "",
@@ -555,6 +556,135 @@ The repository owns link topology invariants. It stores each link under its
 endpoints' closest common ancestor and records each crossed composite in
 `compositeBoundaryIds`. Links cannot use links or Type declarations as normal
 data endpoints.
+
+### 6.9 Link Interaction Kinds and Compiled Capabilities
+
+`transportKind` describes how ordinary data is transported. It must not also be
+used to describe whether a link carries data or grants access to a compiled
+capability. `interactionKind` provides that independent semantic dimension:
+
+```text
+auto  - compatibility mode; apply the historical classifier
+data  - ordinary unidirectional, double-buffered FBP transport
+lib   - lifecycle-scoped library/service instance capability
+src   - synchronous customized source-product capability
+run   - synchronous customized runnable-product capability
+```
+
+New links default to `data`. The serialized default remains `auto` so documents
+written before this field existed retain their name-, endpoint-, and
+`transportKind`-based classification. Changing a link name must not change an
+explicit non-`auto` interaction kind.
+
+A capability link is directed from provider to consumer. For:
+
+```text
+A --src--> B
+```
+
+`B` receives a compiler-named local capability argument representing `A`; `A`
+does not push a source string into a FIFO. The same direction rule applies to
+`lib` and `run`. The direction therefore describes capability provision, while
+the method call carries request parameters from the consumer to the provider and
+returns the result to the consumer.
+
+The generated execution contract is synchronous in the first implementation:
+
+```text
+sourceCapability.getSource(parameters) -> source product
+runnableCapability.getRunnable(parameters) -> runnable product
+```
+
+The consumer may call either operation on every execution frame. `parameters`
+are build/configuration values controlled by the consumer and the result is
+returned directly in the same call. Compilers determine the concrete parameter
+and product types for their technology. A compiler that cannot produce the
+requested capability shall report an actionable compilation diagnostic rather
+than silently compiling it as data transport.
+
+`lib` retains the existing dependency-injection lifecycle: the generated
+library instance is allocated once in its owning generated scope, assigned an
+indexed allocation symbol, and passed to consumers through an unindexed,
+camel-cased processor argument. `src` and `run` follow the same allocation and
+argument naming rules but allocate a compiler-generated capability facade.
+
+Capability links never generate A/B FIFO buffers or a transport-phase function.
+They are excluded from the data input count used to classify generators,
+transformers, and sinks. Compiler template contexts expose all capability links,
+plus separate library, source, and runnable subsets. Descriptors expose the
+interaction kind, allocation symbol, local argument symbol, provider identity,
+callable method, parameter contract, and generated product contract.
+
+A scoped compilation that contains a capability consumer shall transitively
+include the capability link and its provider subtree. This rule applies
+recursively to capabilities consumed by that provider. Ordinary data neighbors
+remain excluded unless both endpoints are already in scope. Output delegated to
+another compiler is retained as that provider's compiled product for `src`.
+
+Asynchronous compilation may later be exposed as a compiler-owned
+`Future`/`Promise`-like result. It must preserve the same single capability link
+and hide scheduling queues behind that API. Explicit request and response FIFO
+links remain available as an advanced ordinary-FBP design, but are not the
+default representation of a compiled capability.
+
+### 6.10 Capability Link Presentation
+
+Explicit `lib`, `src`, and `run` links are materialized on the canvas instead of
+using the historical dependency flyout annotation. Their endpoint ports are
+placed on horizontal node boundaries:
+
+```text
+- provider/output: hollow circle on the bottom boundary
+- consumer/input: filled circle on the top boundary
+- link arrow: provider to consumer
+- endpoint token: lib, src, or run
+```
+
+The route and endpoint token use a capability-specific color and line style so
+the link remains distinguishable at low zoom. Link name and modeled type remain
+visible under the normal `<link-name>:<type-name>` labeling rule. Multiple
+capability ports are distributed across the available boundary width in stable
+link order. SVG and print rendering use the same geometry and semantics as the
+interactive canvas.
+
+Hover and editor completion for a consumer expose the compiler-generated local
+argument and the callable contract. At minimum `src` advertises `getSource` and
+`run` advertises `getRunnable`; `lib` advertises the service instance type and
+members already provided by compiler code intelligence.
+
+### 6.11 Capability Implementation Stages
+
+The capability feature shall be implemented through the existing module
+boundaries:
+
+```text
+1. core: interaction-kind catalog, model field, classification, validation
+2. storage-json: default/legacy compatibility and repository normalization
+3. compiler-api: capability descriptors and editor code-intelligence symbols
+4. compilers-impl: capability template context, no-FIFO generation, facades
+5. app-desktop: interaction editor and top/bottom capability rendering
+6. tests: model compatibility, classification, compiler output, UI geometry helpers
+```
+
+The implementation must preserve the existing dependency-injection syntax and
+generated allocation behavior for historical `usage`, `dependency`, and
+library-name conventions while making all new behavior explicit in the model.
+
+The initial built-in compiler support matrix is:
+
+| Compiler | `lib` | `src` | `run` |
+| --- | --- | --- | --- |
+| Node.js | supported | supported | supported |
+| Kotlin/JVM | supported | supported | rejected with a diagnostic |
+| PHP | supported | supported | rejected with a diagnostic |
+| C | supported | supported | rejected with a diagnostic |
+
+For `src`, the returned product is the provider node's compiler-generated
+declaration after parameter interpolation, not the raw declaration field from
+the document. Node.js `run` evaluates that same generated product and returns
+the provider's exported callable. Native backends shall remain explicit about
+unsupported executable-product loading until a concrete artifact ABI and
+loading lifecycle are defined.
 
 ---
 
