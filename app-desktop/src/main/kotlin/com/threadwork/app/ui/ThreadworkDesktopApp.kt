@@ -14,6 +14,7 @@ import com.threadwork.app.ai.AiSupportTask
 import com.threadwork.Version
 import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.CompilerPlugin
+import com.threadwork.compiler.api.CompilerCodeSymbolKind
 import com.threadwork.compiler.api.GeneratedFile
 import com.threadwork.compiler.c.CCompiler
 import com.threadwork.compiler.documentation.DocumentationCompiler
@@ -899,10 +900,12 @@ class ThreadworkDesktopApp(
             paletteHost.add(createPaletteEditor(selectedPalette) { palette ->
                 selectedPalette = palette
                 canvas.setPalette(palette)
+                editorTabs.applyPalette(palette)
             }, BorderLayout.CENTER)
             paletteHost.revalidate()
             paletteHost.repaint()
             canvas.setPalette(selectedPalette)
+            editorTabs.applyPalette(selectedPalette)
         }
         themeSelector.addActionListener {
             rebuildPaletteEditor(ApplicationTheme.fromLabel(themeSelector.selectedItem?.toString().orEmpty()))
@@ -937,6 +940,7 @@ class ThreadworkDesktopApp(
         val result = JOptionPane.showConfirmDialog(frame, content, "Options", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
         if (result != JOptionPane.OK_OPTION) {
             canvas.setPalette(originalPalette)
+            editorTabs.applyPalette(originalPalette)
             return
         }
 
@@ -954,6 +958,7 @@ class ThreadworkDesktopApp(
         aiOptions.commit()
         applyFontOptions()
         canvas.setPalette(ThreadworkAppearance.palette())
+        editorTabs.applyPalette(ThreadworkAppearance.palette())
         canvas.refreshBoundsFromChildren()
         canvas.repaint()
         status.text = "Options updated"
@@ -5422,12 +5427,7 @@ class GraphCanvas(
 
     private fun linkColor(stereotype: LinkStereotype, selected: Boolean): Color = when {
         selected -> activePalette[DesignerColorKey.Selection]
-        stereotype == LinkStereotype.UsageImport -> activePalette[DesignerColorKey.LinkLibrary]
-        stereotype == LinkStereotype.ErrorPipe -> activePalette[DesignerColorKey.LinkError]
-        stereotype == LinkStereotype.DependencyInjection -> activePalette[DesignerColorKey.LinkDependency]
-        stereotype == LinkStereotype.SourceCapability -> activePalette[DesignerColorKey.LinkSourceCapability]
-        stereotype == LinkStereotype.RunnableCapability -> activePalette[DesignerColorKey.LinkRunnableCapability]
-        else -> activePalette[DesignerColorKey.LinkDefault]
+        else -> activePalette.colorForLink(stereotype)
     }
 
     private fun isBackflow(route: LinkRoute): Boolean = route.source.x > route.target.x
@@ -6156,6 +6156,7 @@ private class NodeEditorTabs(
     private val compilerCapabilityResolver: CompilerCapabilityResolver,
 ) : JTabbedPane() {
     private var boundIds: List<NodeId> = emptyList()
+    private var activePalette: DesignerPalette = ThreadworkAppearance.palette()
 
     fun bind(ids: List<NodeId>, activeSection: NodeTextSection? = null) {
         if (ids != boundIds) {
@@ -6172,6 +6173,7 @@ private class NodeEditorTabs(
                         redoDocument,
                         languageIds,
                         compilerCapabilityResolver,
+                        activePalette,
                     ),
                 )
             }
@@ -6208,6 +6210,13 @@ private class NodeEditorTabs(
             (getComponentAt(index) as? NodeTextEditor)?.applyCodeEditorFont(font)
         }
     }
+
+    fun applyPalette(palette: DesignerPalette) {
+        activePalette = palette
+        for (index in 0 until tabCount) {
+            (getComponentAt(index) as? NodeTextEditor)?.applyPalette(palette)
+        }
+    }
 }
 
 private class NodeTextEditor(
@@ -6219,6 +6228,7 @@ private class NodeTextEditor(
     private val redoDocument: () -> Unit,
     languageIds: List<String>,
     private val compilerCapabilityResolver: CompilerCapabilityResolver,
+    initialPalette: DesignerPalette,
 ) : JTabbedPane() {
     private val completionService = ModelAwareCompletionService(
         documentProvider = repository::getDocument,
@@ -6230,6 +6240,7 @@ private class NodeTextEditor(
     private val componentsBySection = mutableMapOf<NodeTextSection, JComponent>()
     private var testsPanel: TestTextEditorPanel? = null
     private var binding = false
+    private var activePalette = initialPalette
     private val inheritedLanguageChoice = "Inherited"
     private val selectableLanguages = (listOf(VOID_LANGUAGE_ID) + languageIds).distinct()
     private val textTabs = listOf(
@@ -6310,9 +6321,11 @@ private class NodeTextEditor(
                     editor.setText(spec.textGetter(node.text))
                     editor.setTechnology(technology.copy(languageId = effectiveLanguage))
                     editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
+                    editor.setSemanticIdentifierColors(semanticIdentifierColors())
                 }
             }
             editorsBySection[NodeTextSection.Tests]?.setText(node.text.tests)
+            editorsBySection[NodeTextSection.Tests]?.setSemanticIdentifierColors(semanticIdentifierColors())
             testsPanel?.bindLanguage(effectiveTextLanguage(NodeTextSection.Tests))
             testsPanel?.refreshTopology()
         } finally {
@@ -6322,6 +6335,32 @@ private class NodeTextEditor(
 
     fun applyCodeEditorFont(font: Font) {
         editorsBySection.values.forEach { it.setEditorFont(font) }
+    }
+
+    fun applyPalette(palette: DesignerPalette) {
+        activePalette = palette
+        val colors = semanticIdentifierColors()
+        editorsBySection.values.forEach { it.setSemanticIdentifierColors(colors) }
+    }
+
+    private fun semanticIdentifierColors(): Map<String, Color> {
+        val document = repository.getDocument()
+        val node = document.getElementById(nodeId) ?: return emptyMap()
+        val compiler = compilerCapabilityResolver.compilerFor(document, node.id) ?: return emptyMap()
+        val colors = linkedMapOf<String, Color>()
+        compiler.codeIntelligence(document, node).symbols.forEach { symbol ->
+            val originLink = symbol.originNodeId?.let(document::getElementById)
+            val color = when {
+                symbol.kind == CompilerCodeSymbolKind.Type -> activePalette[DesignerColorKey.TypeText]
+                originLink?.link != null -> activePalette.colorForLink(LinkClassifier.classify(document, originLink))
+                else -> null
+            }
+            if (color != null) {
+                colors[symbol.name] = color
+                colors["${'$'}${symbol.name}"] = color
+            }
+        }
+        return colors
     }
 
     private fun addTextTab(spec: TextTabSpec) {
@@ -6347,6 +6386,7 @@ private class NodeTextEditor(
         }
         editor.setTechnology(effectiveTechnology().copy(languageId = effectiveTextLanguage(spec.section)))
         editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
+        editor.setSemanticIdentifierColors(semanticIdentifierColors())
         editor.onCompletionRequested = completionService::getSuggestions
         editor.onDeclarationSymbolsRequested = completionService::getDeclarationSymbols
         editor.onHoverInfoRequested = ::typeHoverInfo
@@ -6413,6 +6453,7 @@ private class NodeTextEditor(
         }
         editor.setTechnology(effectiveTechnology().copy(languageId = effectiveTextLanguage(NodeTextSection.Tests)))
         editor.setCompletionContext(EditorCompletionContext(node.id.value, NodeTextSection.Tests))
+        editor.setSemanticIdentifierColors(semanticIdentifierColors())
         editor.onCompletionRequested = completionService::getSuggestions
         editor.onDeclarationSymbolsRequested = completionService::getDeclarationSymbols
         editor.onHoverInfoRequested = ::typeHoverInfo

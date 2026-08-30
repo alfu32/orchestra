@@ -55,6 +55,7 @@ object RegexSyntaxHighlighter {
         languageId: String,
         line: String,
         declarationSymbols: List<DeclarationSymbol> = emptyList(),
+        semanticIdentifierColors: Map<String, Color> = emptyMap(),
     ): List<SyntaxToken> {
         if (line.isEmpty()) return emptyList()
         val tokens = mutableListOf<SyntaxToken>()
@@ -84,16 +85,21 @@ object RegexSyntaxHighlighter {
                 add(range.first, range.last + 1, syntax.color)
             }
         }
-        declarationSymbols.forEach { symbol ->
-            var start = line.indexOf(symbol.name)
+        fun addIdentifier(name: String, color: Color) {
+            if (name.isBlank()) return
+            var start = line.indexOf(name)
             while (start >= 0) {
-                val end = start + symbol.name.length
+                val end = start + name.length
                 if (line.isIdentifierBoundary(start - 1) && line.isIdentifierBoundary(end)) {
-                    add(start, end, semanticColor(symbol.kind))
+                    add(start, end, color)
                 }
-                start = line.indexOf(symbol.name, start + symbol.name.length.coerceAtLeast(1))
+                start = line.indexOf(name, start + name.length.coerceAtLeast(1))
             }
         }
+        semanticIdentifierColors.entries
+            .sortedByDescending { it.key.length }
+            .forEach { (name, color) -> addIdentifier(name, color) }
+        declarationSymbols.forEach { symbol -> addIdentifier(symbol.name, semanticColor(symbol.kind)) }
         return tokens.sortedBy { it.start }
     }
 

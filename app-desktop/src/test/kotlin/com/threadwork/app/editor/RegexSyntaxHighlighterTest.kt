@@ -3,6 +3,7 @@ package com.threadwork.app.editor
 import com.threadwork.completion.DeclarationSymbol
 import com.threadwork.completion.DeclarationSymbolKind
 import com.threadwork.core.model.NodeId
+import java.awt.Color
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -37,5 +38,20 @@ class RegexSyntaxHighlighterTest {
         assertEquals(1, tokens.size)
         assertEquals(0, tokens.single().start)
         assertEquals(line.length, tokens.single().endExclusive)
+    }
+
+    @Test
+    fun `uses linked identifier color without overriding string literals`() {
+        val linkedColor = Color(0x00aa88)
+        val line = "incomingPacket.push(\"incomingPacket\");"
+        val tokens = RegexSyntaxHighlighter.highlightLine(
+            "javascript",
+            line,
+            semanticIdentifierColors = mapOf("incomingPacket" to linkedColor),
+        )
+
+        assertEquals(linkedColor, tokens.first { it.start == 0 }.color)
+        assertEquals("incomingPacket".length + 2, tokens.last().endExclusive - tokens.last().start)
+        assertNotEquals(linkedColor, tokens.last().color)
     }
 }

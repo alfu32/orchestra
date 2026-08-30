@@ -36,6 +36,11 @@ Project files are `TemplateGeneratedFile` entries with independent path and cont
 
 Every entity template receives `document`, `options`, `node`/`self`, `parent`, `metadata`, `text`, `technology`, `layout`, `children`, `ports`, `incomingDataLinks`, `outgoingDataLinks`, and `dependencyInjectionLinks`. The latter remains a compatibility alias for all non-buffered capability arguments. New templates should use `capabilityLinks`, `libraryCapabilityLinks`, `sourceCapabilityLinks`, and `runnableCapabilityLinks`. Type templates also receive `typeFields`. Compiled composites additionally receive `childArtifacts`, `inlineChildArtifacts`, `externalChildArtifacts`, declarations, instantiations, imports, the effective layout strategy, and the primary path. Artifact entries expose their generated path, module path, declaration, instantiation, node symbols, and capability subsets. Link templates receive `link`, `sourceNode`, `targetNode`, and qualified endpoint references. Capability descriptors expose `interactionKind`, `isCapability`, the three kind-specific booleans, `capabilityMethod`, `capabilityTypeSymbol`, the indexed allocation/dependency symbol, provider declaration, and provider run symbol.
 
+Compiler code-intelligence symbols also expose their originating model entity
+when they come from a connected link. Desktop editors use that identity to apply
+the same live palette color as the corresponding link representation; the
+compiler remains responsible for naming the symbol.
+
 ## Shared Types and Typed Links
 
 New designs define payload structures as first-class `NodeKind.Type` entities.

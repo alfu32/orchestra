@@ -4,6 +4,7 @@ import com.threadwork.core.classification.LinkClassifier
 import com.threadwork.core.classification.LinkStereotype
 import com.threadwork.core.model.BuiltInTypeIds
 import com.threadwork.core.model.Node
+import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.effectiveLanguageId
@@ -40,6 +41,8 @@ data class CompilerCodeSymbol(
     val detail: String = "",
     val documentation: String = "",
     val members: List<CompilerCodeMember> = emptyList(),
+    /** Model entity that introduced this symbol, normally a connected link. */
+    val originNodeId: NodeId? = null,
 )
 
 data class CompilerTypeFieldInfo(
@@ -127,6 +130,7 @@ fun defaultCodeIntelligence(
             detail = "${if (input) "input" else "output"} buffer of ${type.name}",
             documentation = "Processor-local ${if (input) "input" else "output"} buffer for link '${linkNode.name}'.",
             members = bufferMethods + itemMembers,
+            originNodeId = linkNode.id,
         )
         symbols += CompilerCodeSymbol(
             name = type.name,
@@ -156,6 +160,7 @@ fun defaultCodeIntelligence(
                     typeName = source?.name.orEmpty(),
                     detail = "service instance${source?.name?.let { " of $it" }.orEmpty()}",
                     documentation = "Execution-context service supplied by dependency link '${linkNode.name}'.",
+                    originNodeId = linkNode.id,
                 )
             }
 
@@ -184,6 +189,7 @@ fun defaultCodeIntelligence(
                             documentation = "Build a customized $product from consumer-controlled parameters.",
                         ),
                     ),
+                    originNodeId = linkNode.id,
                 )
             }
 

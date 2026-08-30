@@ -24,6 +24,7 @@ class CompilerCodeIntelligenceTest {
 
         val input = assertNotNull(intelligence.symbols.singleOrNull { it.name == "incomingPacket" })
         assertEquals(CompilerCodeSymbolKind.InputBuffer, input.kind)
+        assertEquals(NodeId("input-link"), input.originNodeId)
         assertEquals("Packet", input.typeName)
         assertTrue(input.members.any { it.name == "incomingPacket.push(item)" })
         assertTrue(input.members.any { it.name == "incomingPacket.id" && it.detail == "number" })
@@ -35,6 +36,7 @@ class CompilerCodeIntelligenceTest {
         val service = assertNotNull(intelligence.symbols.singleOrNull { it.name == "configService" })
         assertEquals(CompilerCodeSymbolKind.ServiceInstance, service.kind)
         assertEquals("lib_config", service.typeName)
+        assertEquals(NodeId("dependency-link"), service.originNodeId)
 
         val type = assertNotNull(intelligence.types.singleOrNull { it.name == "Packet" })
         assertEquals("javascript", type.languageId)
@@ -78,6 +80,7 @@ class CompilerCodeIntelligenceTest {
             defaultCodeIntelligence(document, consumer).symbols.singleOrNull { it.name == "pageSource" },
         )
         assertEquals(CompilerCodeSymbolKind.SourceCapability, capability.kind)
+        assertEquals(NodeId("capability"), capability.originNodeId)
         assertTrue(capability.members.any { it.name == "pageSource.getSource(parameters)" })
         assertTrue(defaultCodeIntelligence(document, provider).symbols.none { it.name == "pageSource" })
     }

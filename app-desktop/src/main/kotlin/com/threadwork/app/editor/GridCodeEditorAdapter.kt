@@ -83,6 +83,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private var completionContext = EditorCompletionContext(null, NodeTextSection.Declaration)
     private var diagnostics: List<Diagnostic> = emptyList()
     private var declarationSymbols: List<DeclarationSymbol> = emptyList()
+    private var semanticIdentifierColors: Map<String, Color> = emptyMap()
     private var completionItems: List<CompletionSuggestion> = emptyList()
     private var completionIndex = 0
     private var completionScrollOffset = 0
@@ -252,6 +253,11 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         completionContext = context
         refreshDeclarationSymbols()
         clearHover()
+    }
+
+    override fun setSemanticIdentifierColors(colors: Map<String, Color>) {
+        semanticIdentifierColors = colors.filterKeys(String::isNotBlank)
+        repaint()
     }
 
     override fun focus() {
@@ -732,7 +738,12 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val start = visualRow.startColumn.coerceAtMost(line.length)
         val end = visualRow.endColumn.coerceAtMost(line.length)
         if (start >= end) return
-        val tokens = RegexSyntaxHighlighter.highlightLine(languageId, line, declarationSymbols)
+        val tokens = RegexSyntaxHighlighter.highlightLine(
+            languageId,
+            line,
+            declarationSymbols,
+            semanticIdentifierColors,
+        )
         var cursor = start
 
         fun drawSegment(segmentStart: Int, segmentEnd: Int, color: Color) {
@@ -946,7 +957,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
                 g2.color = Color(0x094771)
                 g2.fillRect(x + 1, rowY, popupWidth - 2, lineHeight)
             }
-            g2.color = Color(0xd4d4d4)
+            g2.color = semanticColorFor(item.label) ?: Color(0xd4d4d4)
             g2.drawString(item.label.take(72), x + 8, rowY + metrics.ascent)
             if (item.detail.isNotBlank()) {
                 g2.color = Color(0x9cdcfe)
@@ -955,6 +966,11 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         }
         drawCompletionScrollbar(g2, geometry)
     }
+
+    private fun semanticColorFor(label: String): Color? =
+        semanticIdentifierColors.entries.firstOrNull { (name, _) ->
+            label == name || label.startsWith("$name.") || label.startsWith("$name(")
+        }?.value
 
     private fun drawCompletionScrollbar(g2: Graphics2D, geometry: CompletionPopupGeometry) {
         if (completionItems.size <= geometry.visibleItemCount) return

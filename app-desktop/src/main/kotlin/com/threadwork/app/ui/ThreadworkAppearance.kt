@@ -2,6 +2,7 @@ package com.threadwork.app.ui
 
 import com.formdev.flatlaf.FlatDarkLaf
 import com.formdev.flatlaf.FlatLightLaf
+import com.threadwork.core.classification.LinkStereotype
 import java.awt.Color
 import java.util.prefs.Preferences
 import javax.swing.UIManager
@@ -60,6 +61,15 @@ class DesignerPalette internal constructor(
 
     fun withColor(key: DesignerColorKey, color: Color): DesignerPalette =
         DesignerPalette(colors + (key to color))
+}
+
+fun DesignerPalette.colorForLink(stereotype: LinkStereotype): Color = when (stereotype) {
+    LinkStereotype.UsageImport -> this[DesignerColorKey.LinkLibrary]
+    LinkStereotype.ErrorPipe -> this[DesignerColorKey.LinkError]
+    LinkStereotype.DependencyInjection -> this[DesignerColorKey.LinkDependency]
+    LinkStereotype.SourceCapability -> this[DesignerColorKey.LinkSourceCapability]
+    LinkStereotype.RunnableCapability -> this[DesignerColorKey.LinkRunnableCapability]
+    else -> this[DesignerColorKey.LinkDefault]
 }
 
 object ThreadworkAppearance {

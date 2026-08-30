@@ -6,6 +6,7 @@ import com.threadwork.completion.DeclarationSymbol
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.TechnologyMetadata
+import java.awt.Color
 
 data class EditorCursor(
     val offset: Int,
@@ -39,6 +40,7 @@ interface CodeEditorAdapter {
     fun setReadOnly(readOnly: Boolean)
     fun setDiagnostics(diagnostics: List<Diagnostic>)
     fun setCompletionContext(context: EditorCompletionContext)
+    fun setSemanticIdentifierColors(colors: Map<String, Color>)
     fun focus()
 
     var onTextChanged: ((String) -> Unit)?
@@ -62,6 +64,7 @@ class CodeMirrorWebViewAdapterUnsupported : CodeEditorAdapter {
     override fun setReadOnly(readOnly: Boolean) = unsupported()
     override fun setDiagnostics(diagnostics: List<Diagnostic>) = unsupported()
     override fun setCompletionContext(context: EditorCompletionContext) = unsupported()
+    override fun setSemanticIdentifierColors(colors: Map<String, Color>) = unsupported()
     override fun focus() = unsupported()
 
     private fun unsupported(): Nothing = error(
