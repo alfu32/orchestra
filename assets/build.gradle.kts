@@ -164,9 +164,9 @@ val generateAppIcon by tasks.registering {
     outputs.dir(generatedIconsDir)
     doLast {
         val variants = listOf(
-            fullSource.asFile to listOf(512, 256, 128),
-            smallSource.asFile to listOf(64, 48, 32),
-            symbolicSource.asFile to listOf(24, 16),
+            fullSource.asFile to listOf(512, 256, 128,110,96,80,72),
+            smallSource.asFile to listOf(64,60, 48,40, 32),
+            symbolicSource.asFile to listOf(24,20, 16),
         )
         variants.forEach { (sourceSvg, sizes) ->
             require(sourceSvg.exists() && sourceSvg.length() > 0L) {

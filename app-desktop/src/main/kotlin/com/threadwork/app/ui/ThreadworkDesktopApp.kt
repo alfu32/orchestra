@@ -1011,8 +1011,8 @@ class ThreadworkDesktopApp(
     }
 
     private fun updateWindowTitle() {
-        val file = currentFile?.toAbsolutePath()?.toString() ?: "Untitled"
-        frame.title = "Threadwork - $file"
+        val fileName = currentFile?.fileName?.toString() ?: "Untitled"
+        frame.title = "Threadwork-${Version.CURRENT.semver} : $fileName"
     }
 
     private fun showAbout() {
@@ -6985,6 +6985,7 @@ private fun NodeLayout.center(): Point = Point((x + width / 2).toInt(), (y + hei
 fun launchDesktopApp(pluginsFolder: Path? = null) {
     SwingUtilities.invokeLater {
         ThreadworkAppearance.applyLookAndFeel()
+        JFrame.setDefaultLookAndFeelDecorated(true)
         ThreadworkDesktopApp(pluginsFolder = pluginsFolder ?: defaultPluginsFolder()).show()
     }
 }
