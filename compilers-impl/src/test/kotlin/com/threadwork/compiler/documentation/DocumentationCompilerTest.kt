@@ -76,6 +76,7 @@ class DocumentationCompilerTest {
         val writerSection = documentation.substringAfter("### write packets").substringBefore("## Annexes")
         assertTrue(writerSection.contains("**Direct technology:** _Not specified directly._"))
         val components = project.files.single { it.path.endsWith(".COMPONENTS.md") }.content
+        assertTrue(components.startsWith("# Packet Platform Annexes ; Components Breakdown"))
         assertTrue(components.contains("## Contents"))
         assertTrue(components.contains("### Test Data"))
         assertTrue(components.contains("#### Incoming Link Contracts"))

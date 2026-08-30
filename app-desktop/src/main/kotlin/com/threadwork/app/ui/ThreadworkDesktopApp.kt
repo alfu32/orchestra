@@ -2115,15 +2115,13 @@ class GraphCanvas(
         val tileX: Int,
         val tileY: Int,
     )
-    private data class PortAnchor(val point: Point, val xDirection: Int, val yDirection: Int = 0)
+    private data class PortAnchor(val point: Point, val xDirection: Int)
     private data class LinkAnchors(val source: PortAnchor, val target: PortAnchor, val sourceNodeId: NodeId, val targetNodeId: NodeId)
     private data class LinkRoute(
         val source: Point,
         val target: Point,
         val sourceDirection: Int,
         val targetDirection: Int,
-        val sourceVerticalDirection: Int,
-        val targetVerticalDirection: Int,
         val points: List<Point>,
     )
     private data class SheetFormat(val id: String, val widthMm: Double, val heightMm: Double, val roll: Boolean = false)
@@ -3567,53 +3565,13 @@ class GraphCanvas(
         val dash = linkDashPattern(stereotype, isBackflow(route))
         svgPath(svg, route.points, color, strokeWidth, dash)
         svgArrowAlongRoute(svg, route.points, color)
-        if (isExplicitCapabilityLink(node)) {
-            svgCapabilityPortMarker(svg, route.source, outgoing = true, color = color)
-            svgCapabilityPortMarker(svg, route.target, outgoing = false, color = color)
-            svgCapabilityPortArrows(svg, route, color)
-        } else {
-            svgPortMarker(svg, route.source, route.sourceDirection, outgoing = true, color = color)
-            svgPortMarker(svg, route.target, route.targetDirection, outgoing = false, color = color)
-        }
+        svgPortMarker(svg, route.source, route.sourceDirection, outgoing = true, color = color)
+        svgPortMarker(svg, route.target, route.targetDirection, outgoing = false, color = color)
         compositeBoundaryIntersections(node, route.points).forEach { point ->
             val (dx, dy) = routeDirectionAt(route.points, point)
             svgBoundaryPierceMarker(svg, point, dx, dy, color)
         }
-        if (isExplicitCapabilityLink(node)) {
-            svgCapabilityEndpointLabels(svg, node, route, color)
-        } else {
-            svgEndpointLinkLabels(svg, node, route, color)
-        }
-    }
-
-    private fun svgCapabilityPortMarker(svg: StringBuilder, point: Point, outgoing: Boolean, color: String) {
-        svg.appendLine(
-            "    <circle cx=\"${point.x}\" cy=\"${point.y}\" r=\"6\" " +
-                "fill=\"${if (outgoing) "#ffffff" else color}\" stroke=\"$color\" stroke-width=\"1.8\"/>",
-        )
-    }
-
-    private fun svgCapabilityPortArrows(svg: StringBuilder, route: LinkRoute, color: String) {
-        svgDirectionalArrow(
-            svg,
-            Point(
-                route.source.x + route.sourceDirection * 16,
-                route.source.y + route.sourceVerticalDirection * 16,
-            ),
-            route.sourceDirection,
-            route.sourceVerticalDirection,
-            color,
-        )
-        svgDirectionalArrow(
-            svg,
-            Point(
-                route.target.x + route.targetDirection * 16,
-                route.target.y + route.targetVerticalDirection * 16,
-            ),
-            -route.targetDirection,
-            -route.targetVerticalDirection,
-            color,
-        )
+        svgEndpointLinkLabels(svg, node, route, color)
     }
 
     private fun svgPortMarker(svg: StringBuilder, point: Point, side: Int, outgoing: Boolean, color: String) {
@@ -3694,22 +3652,6 @@ class GraphCanvas(
         svgEndpointLinkLabel(svg, name, typeName, route.target, route.targetDirection, color)
     }
 
-    private fun svgCapabilityEndpointLabels(svg: StringBuilder, node: Node, route: LinkRoute, color: String) {
-        val role = LinkInteractionKinds.canonicalId(node.link?.interactionKind.orEmpty())
-        val (name, typeName) = linkLabelParts(node)
-        val full = "$role $name${typeName?.let { ":$it" }.orEmpty()}"
-        val width = monospaceTextWidth(full, 8, 0)
-        listOf(route.source to true, route.target to false).forEach { (point, source) ->
-            val x = point.x - width / 2
-            val y = if (source) point.y + 24 else point.y - 14
-            svgText(svg, "$role $name", x, y, 10, color)
-            typeName?.let {
-                val offset = monospaceTextWidth("$role $name", 8, 0)
-                svgText(svg, ":$it", x + offset, y, 10, "#008c4a")
-            }
-        }
-    }
-
     private fun svgEndpointLinkLabel(
         svg: StringBuilder,
         name: String,
@@ -3752,7 +3694,7 @@ class GraphCanvas(
             val y = r.y + 10 + index * (labelHeight + 8)
             val x = r.x + r.width + 34
             val anchor = Point(r.x + r.width, y + labelHeight / 2)
-            val color = "#3333cc"
+            val color = hex(annotationColor(linkNode, selected = false))
             svgLine(svg, anchor.x, anchor.y, x, anchor.y, color, strokeWidth = 1.5)
             svgCircle(svg, anchor.x, anchor.y, 4, color)
             svgRect(svg, Rectangle(x, y, labelWidth, labelHeight), fill = "#f8f9ff", stroke = color, strokeWidth = 1.5)
@@ -3773,11 +3715,12 @@ class GraphCanvas(
         val rowHeight = 24
         val startY = r.y - rows.size * rowHeight - 16
         val stemBottom = r.y + 16
-        val color = "#1037ff"
-        svgLine(svg, x, startY, x, stemBottom, color, strokeWidth = 1.5)
-        rows.forEachIndexed { index, (_, label) ->
+        val stemColor = hex(annotationColor(rows.first().first, selected = false))
+        svgLine(svg, x, startY, x, stemBottom, stemColor, strokeWidth = 1.5)
+        rows.forEachIndexed { index, (linkNode, label) ->
             val y = startY + index * rowHeight + 8
             val width = max(110, label.length * 8 + 36)
+            val color = hex(annotationColor(linkNode, selected = false))
             svgCircle(svg, x, y, 5, color)
             svgLine(svg, x, y, x + width, y, color, strokeWidth = 1.5)
             svgText(svg, label, x + 14, y - 4, 12, color)
@@ -4087,23 +4030,13 @@ class GraphCanvas(
         route.points.zipWithNext().forEach { (a, b) -> g2.drawLine(a.x, a.y, b.x, b.y) }
         drawArrowAlongRoute(g2, route.points)
         g2.color = color
-        if (isExplicitCapabilityLink(node)) {
-            drawCapabilityPortMarker(g2, route.source, outgoing = true)
-            drawCapabilityPortMarker(g2, route.target, outgoing = false)
-            drawCapabilityPortArrows(g2, route)
-        } else {
-            drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
-            drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
-        }
+        drawPortMarker(g2, route.source, route.sourceDirection, outgoing = true)
+        drawPortMarker(g2, route.target, route.targetDirection, outgoing = false)
         compositeBoundaryIntersections(node, route.points).forEach { point ->
             val (dx, dy) = routeDirectionAt(route.points, point)
             drawBoundaryPierceMarker(g2, point, dx, dy)
         }
-        if (isExplicitCapabilityLink(node)) {
-            drawCapabilityEndpointLabels(g2, node, route, color)
-        } else {
-            drawEndpointLinkLabels(g2, node, route, color)
-        }
+        drawEndpointLinkLabels(g2, node, route, color)
         g2.font = previousFont
         g2.stroke = previousStroke
     }
@@ -4223,42 +4156,6 @@ class GraphCanvas(
         }
         g2.draw(shape)
         g2.stroke = previousStroke
-    }
-
-    private fun drawCapabilityPortMarker(g2: Graphics2D, point: Point, outgoing: Boolean) {
-        val color = g2.color
-        val previousStroke = g2.stroke
-        g2.stroke = BasicStroke(1.8f)
-        if (outgoing) {
-            g2.color = activePalette[DesignerColorKey.PortFill]
-            g2.fillOval(point.x - 6, point.y - 6, 12, 12)
-            g2.color = color
-        } else {
-            g2.fillOval(point.x - 6, point.y - 6, 12, 12)
-        }
-        g2.drawOval(point.x - 6, point.y - 6, 12, 12)
-        g2.stroke = previousStroke
-    }
-
-    private fun drawCapabilityPortArrows(g2: Graphics2D, route: LinkRoute) {
-        drawDirectionalArrow(
-            g2,
-            Point(
-                route.source.x + route.sourceDirection * 16,
-                route.source.y + route.sourceVerticalDirection * 16,
-            ),
-            route.sourceDirection,
-            route.sourceVerticalDirection,
-        )
-        drawDirectionalArrow(
-            g2,
-            Point(
-                route.target.x + route.targetDirection * 16,
-                route.target.y + route.targetVerticalDirection * 16,
-            ),
-            -route.targetDirection,
-            -route.targetVerticalDirection,
-        )
     }
 
     private fun drawBoundaryPierceMarker(g2: Graphics2D, point: Point, dx: Int, dy: Int) {
@@ -4404,7 +4301,7 @@ class GraphCanvas(
             val y = r.y + 10 + index * (labelHeight + 8)
             val x = r.x + r.width + 34
             val anchor = Point(r.x + r.width, y + labelHeight / 2)
-            val color = if (selected) activePalette[DesignerColorKey.Selection] else activePalette[DesignerColorKey.LinkLibrary]
+            val color = annotationColor(linkNode, selected)
             g2.color = color
             g2.stroke = BasicStroke(if (selected) 2.4f else 1.5f)
             g2.drawLine(anchor.x, anchor.y, x, anchor.y)
@@ -4433,13 +4330,15 @@ class GraphCanvas(
         val startY = r.y - rows.size * rowHeight - 16
         val stemBottom = r.y + 16
         val selected = rows.any { it.first.id in selection }
-        val color = if (selected) activePalette[DesignerColorKey.Selection] else activePalette[DesignerColorKey.LinkLibrary]
-        g2.color = color
+        val stemColor = if (selected) activePalette[DesignerColorKey.Selection] else annotationColor(rows.first().first, false)
+        g2.color = stemColor
         g2.stroke = BasicStroke(if (selected) 2.2f else 1.5f)
         g2.drawLine(x, startY, x, stemBottom)
         rows.forEachIndexed { index, (linkNode, label) ->
             val y = startY + index * rowHeight + 8
             val width = max(110, monospaceTextWidth(label, 8, 36))
+            val color = annotationColor(linkNode, linkNode.id in selection)
+            g2.color = color
             g2.fillOval(x - 5, y - 5, 10, 10)
             g2.drawLine(x, y, x + width, y)
             if (linkNode.id in selection) {
@@ -4483,17 +4382,17 @@ class GraphCanvas(
         }
     }
 
-    private fun isDependencyAnnotation(linkNode: Node): Boolean =
-        if (isExplicitCapabilityLink(linkNode)) {
-            false
-        } else when (LinkClassifier.classify(repository.getDocument(), linkNode)) {
+    private fun isDependencyAnnotation(linkNode: Node): Boolean = when (LinkClassifier.classify(repository.getDocument(), linkNode)) {
             LinkStereotype.UsageImport,
-            LinkStereotype.DependencyInjection -> true
+            LinkStereotype.DependencyInjection,
+            LinkStereotype.SourceCapability,
+            LinkStereotype.RunnableCapability -> true
             else -> false
         }
 
-    private fun isExplicitCapabilityLink(linkNode: Node): Boolean =
-        linkNode.link?.let { LinkInteractionKinds.isCapability(it.interactionKind) } == true
+    private fun annotationColor(linkNode: Node, selected: Boolean): Color =
+        if (selected) activePalette[DesignerColorKey.Selection]
+        else activePalette.colorForLink(LinkClassifier.classify(repository.getDocument(), linkNode))
 
     private fun routeLink(linkNode: Node): LinkRoute? {
         if (!activeRouteLinks.add(linkNode.id)) return null
@@ -4543,14 +4442,8 @@ class GraphCanvas(
     private fun routedRoute(linkNode: Node, anchors: LinkAnchors, routedSegments: List<RouteSegment>): LinkRoute {
         val source = anchors.source
         val target = anchors.target
-        val sourceStub = Point(
-            source.point.x + PORT_STUB_LENGTH * source.xDirection,
-            source.point.y + PORT_STUB_LENGTH * source.yDirection,
-        )
-        val targetStub = Point(
-            target.point.x + PORT_STUB_LENGTH * target.xDirection,
-            target.point.y + PORT_STUB_LENGTH * target.yDirection,
-        )
+        val sourceStub = Point(source.point.x + PORT_STUB_LENGTH * source.xDirection, source.point.y)
+        val targetStub = Point(target.point.x + PORT_STUB_LENGTH * target.xDirection, target.point.y)
         val obstacles = routeObstacles(linkNode, anchors.sourceNodeId, anchors.targetNodeId)
         val container = routingContainer(linkNode)
         val candidates = routeCandidates(sourceStub, targetStub)
@@ -4568,8 +4461,6 @@ class GraphCanvas(
             target.point,
             source.xDirection,
             target.xDirection,
-            source.yDirection,
-            target.yDirection,
             compact(listOf(source.point, sourceStub) + best + listOf(targetStub, target.point)),
         )
     }
@@ -4819,7 +4710,6 @@ class GraphCanvas(
     private fun portAnchor(node: Node, linkNode: Node, outgoing: Boolean): PortAnchor? {
         linkNode.link ?: return null
         if (node.isLink) return null
-        if (isExplicitCapabilityLink(linkNode)) return capabilityPortAnchor(node, linkNode, outgoing)
         val r = node.layout.rect()
         val side = linkSide(node, linkNode, outgoing)
         val sorted = normalLinksOnSide(node, side)
@@ -4833,25 +4723,6 @@ class GraphCanvas(
         }
         val y = r.y + portTopSpacing(node) + index * PORT_SPACING
         return PortAnchor(Point(x, y), side)
-    }
-
-    private fun capabilityPortAnchor(node: Node, linkNode: Node, outgoing: Boolean): PortAnchor {
-        val r = node.layout.rect()
-        val links = (if (outgoing) node.outgoingLinks else node.incomingLinks)
-            .distinct()
-            .mapNotNull(repository.getDocument().nodes::get)
-            .filter(::isExplicitCapabilityLink)
-            .filter(::isVisibleLink)
-            .sortedBy { it.id.value }
-        val index = links.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 } ?: 0
-        val slotCount = links.size.coerceAtLeast(1)
-        val x = r.x + ((index + 1).toDouble() * r.width / (slotCount + 1)).roundToInt()
-        val y = if (outgoing) r.y + r.height else r.y
-        return PortAnchor(
-            point = Point(x, y),
-            xDirection = 0,
-            yDirection = if (outgoing) 1 else -1,
-        )
     }
 
     private fun routeDirectionNear(points: List<Point>, point: Point): Int {
@@ -4870,7 +4741,6 @@ class GraphCanvas(
         val ids = node.outgoingLinks + node.incomingLinks
         return ids.distinct().mapNotNull(document.nodes::get)
             .filterNot(::isDependencyAnnotation)
-            .filterNot(::isExplicitCapabilityLink)
             .filter { linkNode ->
                 isVisibleLink(linkNode) && run {
                     val link = linkNode.link ?: return@run false
@@ -4914,29 +4784,6 @@ class GraphCanvas(
         g2.font = g2.font.deriveFont(10f)
         drawEndpointLinkLabel(g2, name, typeName, route.source, route.sourceDirection, color)
         drawEndpointLinkLabel(g2, name, typeName, route.target, route.targetDirection, color)
-    }
-
-    private fun drawCapabilityEndpointLabels(g2: Graphics2D, node: Node, route: LinkRoute, color: Color) {
-        val role = LinkInteractionKinds.canonicalId(node.link?.interactionKind.orEmpty())
-        val (name, typeName) = linkLabelParts(node)
-        g2.font = g2.font.deriveFont(10f)
-        val metrics = g2.fontMetrics
-        val prefix = "$role $name"
-        val full = prefix + typeName?.let { ":$it" }.orEmpty()
-        listOf(route.source to true, route.target to false).forEach { (point, source) ->
-            val x = point.x - metrics.stringWidth(full) / 2
-            val baseline = if (source) point.y + metrics.height + 8 else point.y - 10
-            var cursor = x
-            g2.color = color
-            g2.drawString(prefix, cursor, baseline)
-            cursor += metrics.stringWidth(prefix)
-            typeName?.let {
-                g2.drawString(":", cursor, baseline)
-                cursor += metrics.stringWidth(":")
-                g2.color = activePalette[DesignerColorKey.TypeText]
-                g2.drawString(it, cursor, baseline)
-            }
-        }
     }
 
     private fun drawEndpointLinkLabel(

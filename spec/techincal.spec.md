@@ -629,23 +629,14 @@ default representation of a compiled capability.
 
 ### 6.10 Capability Link Presentation
 
-Explicit `lib`, `src`, and `run` links are materialized on the canvas instead of
-using the historical dependency flyout annotation. Their endpoint ports are
-placed on horizontal node boundaries:
-
-```text
-- provider/output: hollow circle on the bottom boundary
-- consumer/input: filled circle on the top boundary
-- link arrow: provider to consumer
-- endpoint token: lib, src, or run
-```
-
-The route and endpoint token use a capability-specific color and line style so
-the link remains distinguishable at low zoom. Link name and modeled type remain
-visible under the normal `<link-name>:<type-name>` labeling rule. Multiple
-capability ports are distributed across the available boundary width in stable
-link order. SVG and print rendering use the same geometry and semantics as the
-interactive canvas.
+Explicit `lib`, `src`, and `run` links use the same dependency annotation
+geometry as library links. The provider is represented by a right-edge
+annotation and the consumer by a top-edge dependency list, so capability links
+do not consume ordinary node port space or compete with data routes. `src` and
+`run` use their own palette colors to remain distinct from `lib`; selection,
+hit-testing, SVG, and print rendering use the same geometry and semantics as
+the interactive canvas. The annotation label retains the link and provider
+identity needed to distinguish multiple capabilities.
 
 Hover and editor completion for a consumer expose the compiler-generated local
 argument and the callable contract. At minimum `src` advertises `getSource` and

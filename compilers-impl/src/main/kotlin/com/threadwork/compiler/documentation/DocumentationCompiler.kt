@@ -45,7 +45,7 @@ class DocumentationCompiler : CompilerPlugin {
                 path = "${scope.fileBaseName}.COMPONENTS.md",
                 content = components,
                 originNodeId = scope.anchorNodeId,
-                reason = "Composed component dossier",
+                reason = "Composed components breakdown",
                 elementKind = GeneratedElementKind.Documentation,
             ),
         )
@@ -112,7 +112,7 @@ class DocumentationCompiler : CompilerPlugin {
 
     private fun componentDocumentation(document: ThreadworkDocument, scope: DocumentationScope): String =
         buildString {
-            appendLine("# ${scope.title} Component Dossier")
+            appendLine("# ${scope.title} Annexes ; Components Breakdown")
             appendLine()
             appendLine("Generated from Threadwork component specifications for `${scope.displayPath}`.")
             appendLine()

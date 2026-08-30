@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" role="img" aria-labelledby="title desc">
+    <title id="title">Threadwork</title>
+    <desc id="desc">Connected workflow nodes surrounding a source code window.</desc>
+    <path d="M627 29 C684 29 746 43 796 72 L1094 244 C1144 273 1184 321 1184 379 V875 C1184 933 1144 981 1094 1010 L796 1182 C746 1211 684 1225 627 1225 C570 1225 508 1211 458 1182 L160 1010 C110 981 70 933 70 875 V379 C70 321 110 273 160 244 L458 72 C508 43 570 29 627 29 Z" fill="#285395"/>
+    <path d="M627 84 C674 84 724 96 766 120 L1058 289 C1096 311 1128 350 1128 394 V860 C1128 904 1096 943 1058 965 L766 1134 C724 1158 674 1170 627 1170 C580 1170 530 1158 488 1134 L196 965 C158 943 126 904 126 860 V394 C126 350 158 311 196 289 L488 120 C530 96 580 84 627 84 Z" fill="#081a36"/>
+
+    <path d="M422 480 C424 573 456 624 518 658" fill="none" stroke="#06cdec" stroke-width="35" stroke-linecap="round"/>
+    <path d="M786 576 C836 596 862 622 866 664" fill="none" stroke="#ffb525" stroke-width="35" stroke-linecap="round"/>
+    <path d="M760 768 C824 782 856 822 865 864" fill="none" stroke="#12dfb8" stroke-width="35" stroke-linecap="round"/>
+
+    <rect x="185" y="325" width="322" height="190" rx="66" fill="#173794" stroke="#08d1e9" stroke-width="22"/>
+    <circle cx="257" cy="420" r="33" fill="#0bd5ed"/>
+    <rect x="315" y="399" width="133" height="42" rx="21" fill="#73a9fb"/>
+
+    <rect x="646" y="244" width="400" height="340" rx="52" fill="#0a2148" stroke="#08d1e9" stroke-width="24"/>
+    <circle cx="701" cy="306" r="20" fill="#ffbc2a"/>
+    <circle cx="761" cy="306" r="20" fill="#0fd5ec"/>
+    <circle cx="821" cy="306" r="20" fill="#16e2bf"/>
+    <path d="M658 351 H1034" fill="none" stroke="#205b9e" stroke-width="18"/>
+    <path d="M791 407 L744 458 L791 509 M900 407 L947 458 L900 509 M862 389 L821 528" fill="none" stroke="#0bd2ee" stroke-width="23" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="482" y="623" width="304" height="176" rx="62" fill="#0a2547" stroke="#08d1e9" stroke-width="22"/>
+    <circle cx="555" cy="711" r="31" fill="#16e1df"/>
+    <rect x="614" y="689" width="128" height="42" rx="21" fill="#10cce7"/>
+
+    <rect x="754" y="808" width="348" height="185" rx="57" fill="#074a4b" stroke="#18dfbe" stroke-width="22"/>
+    <circle cx="830" cy="902" r="32" fill="#ffb525"/>
+    <rect x="890" y="880" width="153" height="43" rx="21" fill="#15dcb8"/>
+</svg>

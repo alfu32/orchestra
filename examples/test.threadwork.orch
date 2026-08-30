@@ -42,7 +42,9 @@
                 "link_738b0fd6-d53d-4c2d-a8b3-ba8730b2725b",
                 "node_14e1b820-efa3-49ed-816e-f4d5e9517e40",
                 "node_cc24e891-e783-4253-a3ae-c2c78ba69dba",
-                "link_a6fb7b17-92bc-447d-b89e-185f68fddf2e"
+                "link_a6fb7b17-92bc-447d-b89e-185f68fddf2e",
+                "link_b4115347-a920-484a-b54d-6b473a0ca85e",
+                "link_5bc8a287-c074-4ab0-9088-7d94de80bd6e"
             ],
             "incomingLinks": [],
             "outgoingLinks": [],
@@ -83,7 +85,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-30T00:10:28.849846995Z",
+                "date": "2026-08-30T09:59:38.087279813Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -174,7 +176,8 @@
             "children": [],
             "incomingLinks": [
                 "link_14",
-                "link_2890d0f2-b500-4390-a8b1-350ae9f1396e"
+                "link_2890d0f2-b500-4390-a8b1-350ae9f1396e",
+                "link_5bc8a287-c074-4ab0-9088-7d94de80bd6e"
             ],
             "outgoingLinks": [
                 "link_19",
@@ -195,7 +198,7 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "const connection = msExchangeClient.connect(config.exchange_url,config.exchange_user,config.exchange_password,config.exchange_account)\nfor(email of connection.read()){\n    for( attachment of msEschangeClient.getAttachments(email)){\n        raw_ip.push( new InfoPackage(id,attachment.content) )\n    }\n}\n",
+                "source": "const connection = msExchangeClient.connect(config.exchange_url,config.exchange_user,config.exchange_password,config.exchange_account)\nfor(email of connection.read()){\n    for( attachment of msEschangeClient.getAttachments(email)){\n        raw_ip.push( new InfoPackage(id,attachment.content) )\n    }\n}\n\ninfoPackageError.length\n\nwfCompile.getSource(parameters)\n\nmsExchangeClient.read()\n\nvar iip=new InfoPackage()\n\n\n",
                 "sourceLanguageId": "",
                 "specification": "using the credentials provided in the configuration it connects to the api endpoint specified under\nexchange.* it connects to ms exchange and downloads all the csv attachments in the emails from the folder Inbox/PRC/TODO\nputs them in the local folder  todo\nthen it opens each file transforms it into a list of `InfoPackage` where the package payload is the row\nand pushes each of the packages to raw_ip\nmalformed rows will be pushed to info_package_error\n\n\n## Purpose\n\nRetrieve CSV attachments from a configured Microsoft Exchange mailbox, convert each CSV row into an `InfoPackage`, and route successfully parsed packages and malformed rows to their respective outputs.\n\n## Behavior\n\n1. Receive a `ModuleConfiguration` through the `config` input.\n\n2. Use the Exchange connection settings from the configuration:\n\n   * `exchange_url`\n   * `exchange_user`\n   * `exchange_account`\n   * `exchange_password`\n\n3. Connect to Microsoft Exchange using `ms_exchange_client`.\n\n4. Access the mailbox folder:\n\n   ```text\n   Inbox/PRC/TODO\n   ```\n\n5. Retrieve the emails in that folder and download every CSV attachment.\n\n6. Store the downloaded CSV files in the local folder:\n\n   ```text\n   todo\n   ```\n\n7. Process every downloaded CSV file.\n\n8. For each CSV data row:\n\n   * parse the row;\n   * create one `InfoPackage`;\n   * use the row contents as the package payload in `InfoPackage.package_info`;\n   * emit the resulting package through `raw_ip`.\n\n9. If a CSV row is malformed or cannot be transformed into a valid `InfoPackage`:\n\n   * do not emit it through `raw_ip`;\n   * create a `ProcessDataError` describing the failure;\n   * emit the error through `info_package_error`.\n\n10. Processing of a malformed row must not prevent subsequent rows or files from being processed.\n\nThe specification does not define how the remaining `InfoPackage` fields (`ID`, `date`, `valid`, `failed`, and `error`) are populated. Their values must therefore follow the project's existing `InfoPackage` conventions and must not be inferred from this component specification.\n\n## Constraints\n\n* Exchange credentials and endpoint information must come from the received `ModuleConfiguration`.\n* Only CSV attachments are downloaded for processing.\n* Attachments are retrieved from `Inbox/PRC/TODO`.\n* Downloaded CSV files are stored in the local `todo` folder before processing.\n* Each CSV data row is processed independently.\n* One successfully processed row produces one `InfoPackage`.\n* Malformed rows are routed to `info_package_error` and must not be routed to `raw_ip`.\n* A malformed row must not terminate processing of the remaining rows or files.\n\n## Acceptance Criteria\n\n* Given valid Exchange configuration, the component can connect to the configured Microsoft Exchange account.\n* The component reads messages from `Inbox/PRC/TODO`.\n* Every CSV attachment found in the selected messages is downloaded to the local `todo` folder.\n* Every successfully parsed CSV data row results in exactly one `InfoPackage` emitted through `raw_ip`.\n* The CSV row is represented in the emitted package's `package_info`.\n* A malformed or unprocessable row produces a `ProcessDataError` through `info_package_error`.\n* A malformed row does not produce an `InfoPackage` through `raw_ip`.\n* Processing continues after an individual malformed row.\n* The output types and link contracts remain compatible with `remove_duplicates` and `error_handler`.\n",
                 "specificationLanguageId": "markdown",
@@ -217,7 +220,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-27T10:59:31.822982781Z",
+                "date": "2026-08-30T10:06:55.791666940Z",
                 "user": "devlin"
             },
             "ports": [
@@ -383,7 +386,9 @@
             "kind": "Processor",
             "parentId": "root",
             "children": [],
-            "incomingLinks": [],
+            "incomingLinks": [
+                "link_b4115347-a920-484a-b54d-6b473a0ca85e"
+            ],
             "outgoingLinks": [
                 "link_13"
             ],
@@ -424,7 +429,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-27T01:29:48.165795310Z",
+                "date": "2026-08-30T09:59:03.359517730Z",
                 "user": "devlin"
             },
             "ports": [
@@ -432,6 +437,13 @@
                     "id": "output_out",
                     "name": "out",
                     "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
                     "dataType": "",
                     "metadata": {}
                 }
@@ -563,7 +575,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -627,7 +640,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -691,7 +705,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -755,7 +770,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "node_464b7184-8fd2-4e9c-a5a8-2bc1e2030f45",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -896,7 +912,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "string",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -960,7 +977,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "node_9fc8c2eb-538e-4697-9103-91985df0ba1f",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -1024,7 +1042,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "node_9fc8c2eb-538e-4697-9103-91985df0ba1f",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -1161,7 +1180,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "node_47df1883-4e55-4c08-9957-118e1e13ddde",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -1327,7 +1347,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "node_47df1883-4e55-4c08-9957-118e1e13ddde",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -1580,7 +1601,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "node_47df1883-4e55-4c08-9957-118e1e13ddde",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -1644,7 +1666,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -1708,7 +1731,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "node_9fc8c2eb-538e-4697-9103-91985df0ba1f",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -1914,7 +1938,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "node_47df1883-4e55-4c08-9957-118e1e13ddde",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -2116,7 +2141,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -2180,7 +2206,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "node_47df1883-4e55-4c08-9957-118e1e13ddde",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -2188,7 +2215,7 @@
         },
         {
             "id": "node_14e1b820-efa3-49ed-816e-f4d5e9517e40",
-            "name": "New Node",
+            "name": "SomeOtherWf",
             "kind": "Processor",
             "parentId": "root",
             "children": [
@@ -2199,14 +2226,17 @@
                 "link_317853f8-bdd7-4dc8-b921-786fc99719cb"
             ],
             "incomingLinks": [],
-            "outgoingLinks": [],
+            "outgoingLinks": [
+                "link_b4115347-a920-484a-b54d-6b473a0ca85e",
+                "link_5bc8a287-c074-4ab0-9088-7d94de80bd6e"
+            ],
             "layout": {
-                "x": 1122.0,
-                "y": 880.0,
+                "x": 577.0,
+                "y": 696.0,
                 "width": 1517.0,
                 "height": 331.0,
                 "closedWidth": 276.0,
-                "closedHeight": 90.0,
+                "closedHeight": 108.0,
                 "openWidth": 1517.0,
                 "openHeight": 331.0,
                 "isExpanded": true
@@ -2237,10 +2267,25 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-30T00:10:21.998374293Z",
+                "date": "2026-08-30T10:04:52.127986015Z",
                 "user": "devlin"
             },
-            "ports": [],
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
             "link": null,
             "typeDefinition": null,
             "metadata": {},
@@ -2259,14 +2304,14 @@
                 "link_5dac30e2-09fd-4a51-922a-82884ee28fb9"
             ],
             "layout": {
-                "x": 1302.0,
-                "y": 1028.0,
+                "x": 757.0,
+                "y": 844.0,
                 "width": 276.0,
-                "height": 90.0,
+                "height": 108.0,
                 "closedWidth": 276.0,
-                "closedHeight": 90.0,
+                "closedHeight": 108.0,
                 "openWidth": 276.0,
-                "openHeight": 90.0,
+                "openHeight": 108.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -2332,8 +2377,8 @@
                 "link_317853f8-bdd7-4dc8-b921-786fc99719cb"
             ],
             "layout": {
-                "x": 1740.0,
-                "y": 1073.0,
+                "x": 1195.0,
+                "y": 889.0,
                 "width": 276.0,
                 "height": 90.0,
                 "closedWidth": 276.0,
@@ -2403,8 +2448,8 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 2183.0,
-                "y": 1034.0,
+                "x": 1638.0,
+                "y": 850.0,
                 "width": 276.0,
                 "height": 90.0,
                 "closedWidth": 276.0,
@@ -2514,7 +2559,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -2578,7 +2624,8 @@
                 "typeName": "",
                 "payloadDefinition": "",
                 "typeDefinitionId": "",
-                "compositeBoundaryIds": []
+                "compositeBoundaryIds": [],
+                "interactionKind": "auto"
             },
             "typeDefinition": null,
             "metadata": {},
@@ -2595,8 +2642,8 @@
                 "link_a6fb7b17-92bc-447d-b89e-185f68fddf2e"
             ],
             "layout": {
-                "x": 1199.0,
-                "y": 618.0,
+                "x": 1186.0,
+                "y": 497.0,
                 "width": 276.0,
                 "height": 90.0,
                 "closedWidth": 276.0,
@@ -2708,7 +2755,138 @@
                 "typeDefinitionId": "",
                 "compositeBoundaryIds": [
                     "node_14e1b820-efa3-49ed-816e-f4d5e9517e40"
-                ]
+                ],
+                "interactionKind": "auto"
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_b4115347-a920-484a-b54d-6b473a0ca85e",
+            "name": "wf_compile",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T10:05:15.866099607Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_14e1b820-efa3-49ed-816e-f4d5e9517e40",
+                "sourcePortName": "out",
+                "targetNodeId": "node_6",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "",
+                "compositeBoundaryIds": [],
+                "interactionKind": "src"
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_5bc8a287-c074-4ab0-9088-7d94de80bd6e",
+            "name": "wf_compile",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T10:05:27.792793296Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_14e1b820-efa3-49ed-816e-f4d5e9517e40",
+                "sourcePortName": "out",
+                "targetNodeId": "node_3",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "",
+                "compositeBoundaryIds": [],
+                "interactionKind": "src"
             },
             "typeDefinition": null,
             "metadata": {},
