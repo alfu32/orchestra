@@ -68,7 +68,7 @@ class CCompiler : TemplateSetCompiler() {
             // a distinct pair of buffers and a distinct transport function.
             return super.hoistedDeclarationFor(context)
         }
-        return (node.incomingLinks + node.outgoingLinks)
+        val wireTypes = (node.incomingLinks + node.outgoingLinks)
             .mapNotNull(context.document.nodes::get)
             .filter { context.document.effectiveTechnologyId(it.id) == C_TECHNOLOGY_ID }
             .filter { linkNode ->
@@ -76,6 +76,12 @@ class CCompiler : TemplateSetCompiler() {
                 typeName.isNotBlank() && linkNode.id == firstDeclarationNodeId(context.document, typeName)
             }
             .mapNotNull { it.link?.payloadDefinition?.trim()?.takeIf(String::isNotBlank) }
+            .distinct()
+        val librarySource = super.hoistedDeclarationFor(context)
+            .takeIf { node.stereotype(context.document) == NodeStereotype.ServiceLibrary }
+            .orEmpty()
+        return (wireTypes + librarySource)
+            .filter(String::isNotBlank)
             .distinct()
             .joinToString("\n\n")
     }
@@ -115,6 +121,18 @@ class CCompiler : TemplateSetCompiler() {
                 }
             }
         }
+
+        cNodes
+            .filter { it.kind in setOf(NodeKind.Node, NodeKind.Processor, NodeKind.Group) }
+            .filter { it.stereotype(document) != NodeStereotype.ServiceLibrary }
+            .filter { node -> node.text.declaration.lineSequence().any(::isIncludeDirective) }
+            .forEach { node ->
+                diagnostics += error(
+                    node.id,
+                    "C include directives are only valid in service-library declarations; " +
+                        "'${node.name}' is executable processing code.",
+                )
+            }
 
         val typedLinks = cNodes.filter(Node::isLink).filter { linkNode ->
             val link = linkNode.link
@@ -214,6 +232,9 @@ class CCompiler : TemplateSetCompiler() {
 
     private fun normalizeDefinition(value: String): String =
         value.trim().replace(Regex("\\s+"), " ")
+
+    private fun isIncludeDirective(line: String): Boolean =
+        line.trimStart().matches(Regex("#\\s*include(?:\\s|<|\").*"))
 
     private companion object {
         const val C_TECHNOLOGY_ID = "c-native"

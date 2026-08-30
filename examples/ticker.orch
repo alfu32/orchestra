@@ -1,0 +1,1106 @@
+{
+    "id": "document_1788118535040",
+    "name": "ticker",
+    "rootNodeId": "root",
+    "nodes": [
+        {
+            "id": "root",
+            "name": "ticker",
+            "kind": "Processor",
+            "parentId": null,
+            "children": [
+                "node_c43e7a55-0e44-428b-972a-6dab999df396",
+                "node_627a3a3e-718f-4867-a71e-584b2d9b138b",
+                "node_059814d5-2184-47b6-93b0-f754589cf34f",
+                "node_3b600a6f-96a5-42b4-beae-b74338ccf170",
+                "node_c4fb01af-8d9d-4a30-838f-8ab8f6328db8",
+                "link_d1b9d286-d43a-439a-bee0-e66bf2943400",
+                "link_8e881876-8d2a-41a8-92a4-2ee3f2c839ce",
+                "link_dd5fcd39-8d54-4310-b6fe-242d927f0ec5",
+                "node_82203592-4fed-4fd4-b0bf-9b02a90b0ad0",
+                "node_b5041d57-c1e9-4f67-9e88-760c35c8efde",
+                "link_ecc22fe5-032c-4b24-812b-cc93b4ca76b0",
+                "link_c2592684-15f7-4fb2-9781-29b8f6c1c28a",
+                "node_b153ded5-bb9d-438c-9854-84fa0e737261",
+                "node_b886239f-e4d3-490b-be5d-4e0d0792565b",
+                "link_a17dca3c-a162-4f7f-a264-abcd20c1f421"
+            ],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": -4.0,
+                "y": 22.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "this workflow; \n - reads the system time\n - then packs it up with an uuid\n - then adds a random word\n - then finishes by adding the structure the structure to a file",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "c",
+                "technologyId": "c-native",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T21:36:06.864305717Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_c43e7a55-0e44-428b-972a-6dab999df396",
+            "name": "read_time",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_ecc22fe5-032c-4b24-812b-cc93b4ca76b0"
+            ],
+            "outgoingLinks": [
+                "link_d1b9d286-d43a-439a-bee0-e66bf2943400"
+            ],
+            "layout": {
+                "x": 1054.0,
+                "y": 1177.0,
+                "width": 220.0,
+                "height": 108.0,
+                "closedWidth": 220.0,
+                "closedHeight": 108.0,
+                "openWidth": 220.0,
+                "openHeight": 108.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "time_t now = time(NULL);\nstruct tm time_info;\nchar timestamp[32];\n\nPacket packet = {\n    .timestamp = timestamp,\n    .uuid = NULL,\n    .random_word = NULL,\n    .random_word_length = 0,\n    .isok = false\n};\n\nif (now != (time_t)-1 &&\n    localtime_r(&now, &time_info) != NULL &&\n    strftime(\n        timestamp,\n        sizeof(timestamp),\n        \"%Y-%m-%dT%H:%M:%S%z\",\n        &time_info\n    ) > 0) {\n    packet.isok = true;\n} else {\n    timestamp[0] = '\\0';\n}\n\nipTime(packet);",
+                "sourceLanguageId": "",
+                "specification": "reads system time and puts it in a Packet and then pushes it into the ipTime output",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T20:08:29.341371331Z",
+                "user": "devlin"
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_627a3a3e-718f-4867-a71e-584b2d9b138b",
+            "name": "gen_uuid",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_d1b9d286-d43a-439a-bee0-e66bf2943400",
+                "link_a17dca3c-a162-4f7f-a264-abcd20c1f421"
+            ],
+            "outgoingLinks": [
+                "link_8e881876-8d2a-41a8-92a4-2ee3f2c839ce"
+            ],
+            "layout": {
+                "x": 1638.3333333333335,
+                "y": 1332.0,
+                "width": 220.0,
+                "height": 108.0,
+                "closedWidth": 220.0,
+                "closedHeight": 108.0,
+                "openWidth": 220.0,
+                "openHeight": 108.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "if (ipUuid == NULL) {\nreturn;\n}\n\nuuid_t uuid_value;\nchar *uuid_string = malloc(37);\n\nif (uuid_string == NULL) {\n    ip_time.isok = false;\n    ipUuid(ip_time);\n    return;\n}\n\nuuid_generate_random(uuid_value);\nuuid_unparse_lower(uuid_value, uuid_string);\n\nipTime.uuid = uuid_string;\nipTime.random_word_length = 5 + (uuid_value[0] % 21);\n\nip_uuid(ipTime);",
+                "sourceLanguageId": "",
+                "specification": "takes the ipTime and fills in the random_uuid field and also fills in the ip_time.random_word_length with a random number between 5 and 25\n\nfinally it pushes the ip_time packet to the output ipUuid",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T21:40:04.584573885Z",
+                "user": "devlin"
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_059814d5-2184-47b6-93b0-f754589cf34f",
+            "name": "gen_text",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_8e881876-8d2a-41a8-92a4-2ee3f2c839ce",
+                "link_c2592684-15f7-4fb2-9781-29b8f6c1c28a"
+            ],
+            "outgoingLinks": [
+                "link_dd5fcd39-8d54-4310-b6fe-242d927f0ec5"
+            ],
+            "layout": {
+                "x": 2222.666666666667,
+                "y": 1177.0,
+                "width": 220.0,
+                "height": 108.0,
+                "closedWidth": 220.0,
+                "closedHeight": 108.0,
+                "openWidth": 220.0,
+                "openHeight": 108.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "static const char consonants[] = \"bcdfgklmnprstuvxz\";\nstatic const char vowels[] = \"aeiou\";\n\nif (ipWord == NULL) {\n    return;\n}\n\nint length = (int)ipUuid.random_word_length;\n\nif (length < 0) {\n    ipUuid.isok = false;\n    ipWord(ip_uuid);\n    return;\n}\n\nchar *word = malloc((size_t)length + 1);\n\nif (word == NULL) {\n    ipUuid.isok = false;\n    ipWord(ip_uuid);\n    return;\n}\n\nfor (int i = 0; i < length; ++i) {\n    if ((i % 2) == 0) {\n        word[i] = consonants[\n            rand() % (sizeof(consonants) - 1)\n        ];\n    } else {\n        word[i] = vowels[\n            rand() % (sizeof(vowels) - 1)\n        ];\n    }\n}\n\nword[length] = '\\0';\n\nipUuid.random_word = word;\n\nipWord(ipUuid);",
+                "sourceLanguageId": "",
+                "specification": "takes ipUuid and generates a random word string of length ipUuid.random_word_length that uses consonants and vowels from the dictionaries\n\nconsonants=\"bcdfgklmnprstuvxz\"\nvowels=\"aeiou\"\n\nalternating consonants with vowels and starting with a consonant\n\nfinally it pushes ipUuid to ipWord output",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T21:41:42.953077459Z",
+                "user": "devlin"
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_3b600a6f-96a5-42b4-beae-b74338ccf170",
+            "name": "write_file",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [
+                "link_dd5fcd39-8d54-4310-b6fe-242d927f0ec5"
+            ],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 2807.0,
+                "y": 1332.0,
+                "width": 220.0,
+                "height": 90.0,
+                "closedWidth": 220.0,
+                "closedHeight": 90.0,
+                "openWidth": 220.0,
+                "openHeight": 90.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "takes ipWord, serializes it as csv string and concatenates the result to the file \"ticker_out.csv\"",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T19:55:20.020487885Z",
+                "user": "devlin"
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_c4fb01af-8d9d-4a30-838f-8ab8f6328db8",
+            "name": "Packet",
+            "kind": "Type",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 1526.0,
+                "y": 940.0,
+                "width": 236.0,
+                "height": 168.0,
+                "closedWidth": 236.0,
+                "closedHeight": 168.0,
+                "openWidth": 236.0,
+                "openHeight": 168.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T19:41:34.650898308Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": null,
+            "typeDefinition": {
+                "fields": [
+                    {
+                        "name": "timestamp",
+                        "typeId": "string",
+                        "isReference": false
+                    },
+                    {
+                        "name": "uuid",
+                        "typeId": "string",
+                        "isReference": false
+                    },
+                    {
+                        "name": "random_word",
+                        "typeId": "string",
+                        "isReference": false
+                    },
+                    {
+                        "name": "random_word_length",
+                        "typeId": "number",
+                        "isReference": false
+                    },
+                    {
+                        "name": "isok",
+                        "typeId": "boolean",
+                        "isReference": false
+                    }
+                ]
+            },
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_d1b9d286-d43a-439a-bee0-e66bf2943400",
+            "name": "ip_time",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T19:43:30.247199812Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_c43e7a55-0e44-428b-972a-6dab999df396",
+                "sourcePortName": "out",
+                "targetNodeId": "node_627a3a3e-718f-4867-a71e-584b2d9b138b",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "node_c4fb01af-8d9d-4a30-838f-8ab8f6328db8",
+                "compositeBoundaryIds": [],
+                "interactionKind": "data"
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_8e881876-8d2a-41a8-92a4-2ee3f2c839ce",
+            "name": "ip_uuid",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T19:43:19.948420484Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_627a3a3e-718f-4867-a71e-584b2d9b138b",
+                "sourcePortName": "out",
+                "targetNodeId": "node_059814d5-2184-47b6-93b0-f754589cf34f",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "",
+                "compositeBoundaryIds": [],
+                "interactionKind": "data"
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_dd5fcd39-8d54-4310-b6fe-242d927f0ec5",
+            "name": "ip_word",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T19:43:37.213194263Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_059814d5-2184-47b6-93b0-f754589cf34f",
+                "sourcePortName": "out",
+                "targetNodeId": "node_3b600a6f-96a5-42b4-beae-b74338ccf170",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "",
+                "compositeBoundaryIds": [],
+                "interactionKind": "data"
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_82203592-4fed-4fd4-b0bf-9b02a90b0ad0",
+            "name": "include_time_lib",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_ecc22fe5-032c-4b24-812b-cc93b4ca76b0"
+            ],
+            "layout": {
+                "x": 1047.0,
+                "y": 860.0,
+                "width": 220.0,
+                "height": 90.0,
+                "closedWidth": 220.0,
+                "closedHeight": 90.0,
+                "openWidth": 220.0,
+                "openHeight": 90.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "#ifndef TIME_LIB_H\n#define TIME_LIB_H\n\n#include <stdbool.h>\n#include <stdio.h>\n#include <time.h>\n\n#endif /* TIME_LIB_H */",
+                "sourceLanguageId": "",
+                "specification": "creates a function that gets the system time and returns it as an int",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T20:17:04.392879215Z",
+                "user": "devlin"
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_b5041d57-c1e9-4f67-9e88-760c35c8efde",
+            "name": "file_lib",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_c2592684-15f7-4fb2-9781-29b8f6c1c28a"
+            ],
+            "layout": {
+                "x": 2146.0,
+                "y": 960.0,
+                "width": 220.0,
+                "height": 90.0,
+                "closedWidth": 220.0,
+                "closedHeight": 90.0,
+                "openWidth": 220.0,
+                "openHeight": 90.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "#ifndef FILE_LIB_H\n#define FILE_LIB_H\n\n#include <stdio.h>\n\n#endif /* FILE_LIB_H */",
+                "sourceLanguageId": "",
+                "specification": "includes stdio.h or whatever is necessary for the source using the lib to have access to fopen write, fclose et al",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T20:13:37.094701827Z",
+                "user": "devlin"
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_ecc22fe5-032c-4b24-812b-cc93b4ca76b0",
+            "name": "time_lib -> read_time",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T20:08:29.341371331Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_82203592-4fed-4fd4-b0bf-9b02a90b0ad0",
+                "sourcePortName": "out",
+                "targetNodeId": "node_c43e7a55-0e44-428b-972a-6dab999df396",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "",
+                "compositeBoundaryIds": [],
+                "interactionKind": "lib"
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_c2592684-15f7-4fb2-9781-29b8f6c1c28a",
+            "name": "file_lib -> gen_text",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T20:08:36.175324532Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_b5041d57-c1e9-4f67-9e88-760c35c8efde",
+                "sourcePortName": "out",
+                "targetNodeId": "node_059814d5-2184-47b6-93b0-f754589cf34f",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "",
+                "compositeBoundaryIds": [],
+                "interactionKind": "lib"
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_b153ded5-bb9d-438c-9854-84fa0e737261",
+            "name": "uuid_lib",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_a17dca3c-a162-4f7f-a264-abcd20c1f421"
+            ],
+            "layout": {
+                "x": 1627.0,
+                "y": 738.0,
+                "width": 220.0,
+                "height": 90.0,
+                "closedWidth": 220.0,
+                "closedHeight": 90.0,
+                "openWidth": 220.0,
+                "openHeight": 90.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "#ifndef UUID_LIB_H\n#define UUID_LIB_H\n\n#include <uuid/uuid.h>\n#include <stdbool.h>\nvoid gen_uuid(Packet ip_time, ip_uuid_output ip_uuid);\n#endif /* UUID_LIB_H */\n#endif /* UUID_LIB_H */",
+                "sourceLanguageId": "",
+                "specification": "includes the necessary headers to generate uuids is gona be used by various functions",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T21:39:08.432883080Z",
+                "user": "devlin"
+            },
+            "ports": [
+                {
+                    "id": "input_in",
+                    "name": "in",
+                    "direction": "Input",
+                    "dataType": "",
+                    "metadata": {}
+                },
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_b886239f-e4d3-490b-be5d-4e0d0792565b",
+            "name": "includes_lib",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 1154.0,
+                "y": 619.0,
+                "width": 220.0,
+                "height": 90.0,
+                "closedWidth": 220.0,
+                "closedHeight": 90.0,
+                "openWidth": 220.0,
+                "openHeight": 90.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "#ifndef TIME_LIB_H\n#define TIME_LIB_H\n\n#include <stdbool.h>\n#include <stdio.h>\n#include <time.h>\n\n#endif /* TIME_LIB_H */\n#ifndef UUID_LIB_H\n#define UUID_LIB_H\n\n#include <uuid/uuid.h>\n\n#endif /* UUID_LIB_H */\n#ifndef FILE_LIB_H\n#define FILE_LIB_H\n\n#include <stdio.h>\n\n#endif /* FILE_LIB_H */",
+                "sourceLanguageId": "",
+                "specification": "#include declarations",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T21:35:43.032038056Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_a17dca3c-a162-4f7f-a264-abcd20c1f421",
+            "name": "uuid_lib -> gen_uuid",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 100.0,
+                "closedWidth": 200.0,
+                "closedHeight": 100.0,
+                "openWidth": 200.0,
+                "openHeight": 100.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "",
+                "date": ""
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-08-30T21:36:06.864305717Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_b153ded5-bb9d-438c-9854-84fa0e737261",
+                "sourcePortName": "out",
+                "targetNodeId": "node_627a3a3e-718f-4867-a71e-584b2d9b138b",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "",
+                "compositeBoundaryIds": [],
+                "interactionKind": "lib"
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        }
+    ],
+    "metadata": {},
+    "masterRevision": {
+        "name": "",
+        "date": ""
+    }
+}

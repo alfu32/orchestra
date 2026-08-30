@@ -16,6 +16,8 @@ import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.VOID_TECHNOLOGY_ID
+import com.threadwork.core.model.effectiveLanguageId
+import com.threadwork.core.model.effectiveTechnologyId
 import com.threadwork.core.model.linkTypeDisplayName
 import com.threadwork.core.model.projectName
 import com.threadwork.core.model.typeDisplayName
@@ -97,7 +99,7 @@ class DocumentationCompiler : CompilerPlugin {
                 appendLine("- **Path:** `${nodePath(document, node)}`")
                 appendLine("- **Role:** `${node.stereotype(document).name}`")
                 appendLine()
-                appendDirectTechnology(node)
+                appendTechnology(document, node)
                 appendCompositeOverview(document, node)
                 appendSpecification(node.text.specification, node.text.specificationLanguageId)
                 appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
@@ -130,7 +132,7 @@ class DocumentationCompiler : CompilerPlugin {
         appendLine("- **Path:** `${nodePath(document, node)}`")
         appendLine("- **Role:** `${node.stereotype(document).name}`")
         appendLine()
-        appendDirectTechnology(node)
+        appendTechnology(document, node)
         appendCompositeOverview(document, node)
         appendSpecification(node.text.specification, node.text.specificationLanguageId)
         appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
@@ -210,14 +212,16 @@ class DocumentationCompiler : CompilerPlugin {
         }
     }
 
-    private fun StringBuilder.appendDirectTechnology(node: Node) {
-        val languageId = node.technology.languageId.trim()
-        val technologyId = node.technology.technologyId.trim()
+    private fun StringBuilder.appendTechnology(document: ThreadworkDocument, node: Node) {
+        val directLanguageId = node.technology.languageId.trim()
+        val directTechnologyId = node.technology.technologyId.trim()
+            .takeUnless { it == VOID_TECHNOLOGY_ID }
+            .orEmpty()
+        val languageId = directLanguageId.ifBlank { document.effectiveLanguageId(node.id) }
+        val technologyId = directTechnologyId.ifBlank { document.effectiveTechnologyId(node.id) }
         val compilerId = node.technology.compilerId.trim()
-        appendLine("- **Direct language:** ${markdownCodeOrUnspecified(languageId)}")
-        appendLine(
-            "- **Direct technology:** ${markdownCodeOrUnspecified(technologyId.takeUnless { it == VOID_TECHNOLOGY_ID }.orEmpty())}",
-        )
+        appendLine("- **Language:** ${markdownTechnologyValue(languageId, directLanguageId.isBlank())}")
+        appendLine("- **Technology:** ${markdownTechnologyValue(technologyId, directTechnologyId.isBlank())}")
         if (compilerId.isNotBlank()) appendLine("- **Direct compiler:** `${escapeInlineCode(compilerId)}`")
         appendLine()
     }
@@ -289,7 +293,7 @@ class DocumentationCompiler : CompilerPlugin {
             appendLine("- **Library path:** `${library?.let { nodePath(document, it) } ?: link.sourceNodeId.value}`")
             appendLine("- **Classification:** `${LinkClassifier.classify(document, linkNode).name}`")
             appendLine("- **Interaction:** `${escapeInlineCode(link.interactionKind)}`")
-            if (library != null) appendDirectTechnology(library)
+            if (library != null) appendTechnology(document, library)
             if (library?.text?.specification?.isNotBlank() == true) {
                 appendLine("**Library specification**")
                 appendLine()
@@ -559,8 +563,12 @@ class DocumentationCompiler : CompilerPlugin {
     private fun tableCell(value: String): String =
         value.replace("\\", "\\\\").replace("|", "\\|").replace(Regex("\\s*\\R\\s*"), " ").trim()
 
-    private fun markdownCodeOrUnspecified(value: String): String =
-        if (value.isBlank()) "_Not specified directly._" else "`${escapeInlineCode(value)}`"
+    private fun markdownTechnologyValue(value: String, inferred: Boolean): String =
+        when {
+            value.isBlank() -> "_Not specified._"
+            inferred -> "Inferred (`${escapeInlineCode(value)}`)"
+            else -> "`${escapeInlineCode(value)}`"
+        }
 
     private fun escapeInlineCode(value: String): String = value.replace("`", "\\`")
 

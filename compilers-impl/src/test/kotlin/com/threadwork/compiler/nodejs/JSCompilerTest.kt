@@ -171,14 +171,14 @@ class JSCompilerTest {
 
         assertTrue(result.success)
         val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
-        assertTrue(generated.contains("const recordPipe1_a_port = [];"))
-        assertTrue(generated.contains("const recordPipe1_b_port = [];"))
-        assertTrue(generated.contains("function transport_recordPipe1(a, b)"))
-        assertTrue(generated.contains("function reader(context = {}, recordPipe)"))
-        assertTrue(generated.contains("function writer(context = {}, recordPipe)"))
-        assertTrue(generated.contains("reader(context, recordPipe1_a_port);"))
-        assertTrue(generated.contains("writer(context, recordPipe1_b_port);"))
-        assertTrue(generated.contains("transport_recordPipe1(recordPipe1_a_port, recordPipe1_b_port);"))
+        assertTrue(generated.contains("const record_pipe1_a_port = [];"))
+        assertTrue(generated.contains("const record_pipe1_b_port = [];"))
+        assertTrue(generated.contains("function transport_record_pipe1(a, b)"))
+        assertTrue(generated.contains("function reader(context = {}, record_pipe)"))
+        assertTrue(generated.contains("function writer(context = {}, record_pipe)"))
+        assertTrue(generated.contains("reader(context, record_pipe1_a_port);"))
+        assertTrue(generated.contains("writer(context, record_pipe1_b_port);"))
+        assertTrue(generated.contains("transport_record_pipe1(record_pipe1_a_port, record_pipe1_b_port);"))
     }
 
     @Test
@@ -201,10 +201,10 @@ class JSCompilerTest {
 
         assertTrue(result.success, result.diagnostics.joinToString { it.message })
         val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
-        assertTrue(generated.contains("const configService1 = createConfigLibrary();"))
-        assertTrue(generated.contains("function worker(context = {}, configService)"))
-        assertTrue(generated.contains("worker(context, configService1);"))
-        assertFalse(generated.contains("transport_configService"))
+        assertTrue(generated.contains("const config_service1 = createConfigLibrary();"))
+        assertTrue(generated.contains("function worker(context = {}, config_service)"))
+        assertTrue(generated.contains("worker(context, config_service1);"))
+        assertFalse(generated.contains("transport_config_service"))
     }
 
     @Test
@@ -226,11 +226,11 @@ class JSCompilerTest {
             server.id,
             repository.requireNode(server.id).text.copy(
                 declaration = """
-                    const generatedSource = pageSource.getSource({ name: "World" });
+                    const generatedSource = page_source.getSource({ name: "World" });
                     if (!generatedSource.includes("Hello World")) {
                       throw new Error("Source capability did not interpolate the compiled product.");
                     }
-                    const generatedPage = pageRunnable.getRunnable({ name: "World" });
+                    const generatedPage = page_runnable.getRunnable({ name: "World" });
                     if (generatedPage() !== "Hello World") {
                       throw new Error("Runnable capability did not return the compiled provider.");
                     }
@@ -257,10 +257,10 @@ class JSCompilerTest {
         assertTrue(generated.contains("getRunnable(parameters = {})"))
         assertTrue(generated.contains("function page(context = {})"))
         assertTrue(generated.contains("new Function("))
-        assertTrue(generated.contains("function server(context = {}, pageSource, pageRunnable)"))
-        assertTrue(generated.contains("server(context, pageSource1, pageRunnable2);"))
-        assertFalse(generated.contains("pageSource1_a_port"))
-        assertFalse(generated.contains("transport_pageSource"))
+        assertTrue(generated.contains("function server(context = {}, page_source, page_runnable)"))
+        assertTrue(generated.contains("server(context, page_source1, page_runnable2);"))
+        assertFalse(generated.contains("page_source1_a_port"))
+        assertFalse(generated.contains("transport_page_source"))
 
         val scopedResult = JSCompiler().compile(
             repository.getDocument(),
@@ -270,7 +270,7 @@ class JSCompilerTest {
         val scopedSource = assertNotNull(scopedResult.generatedProject).files.joinToString("\n") { it.content }
         assertTrue(scopedSource.contains("function page(context = {})"))
         assertTrue(scopedSource.contains("getSource(parameters = {})"))
-        assertTrue(scopedSource.contains("function server(context = {}, pageSource, pageRunnable)"))
+        assertTrue(scopedSource.contains("function server(context = {}, page_source, page_runnable)"))
 
         val nodeExecutable = System.getenv("PATH")
             ?.split(System.getProperty("path.separator"))

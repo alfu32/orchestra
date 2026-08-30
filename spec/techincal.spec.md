@@ -604,9 +604,12 @@ than silently compiling it as data transport.
 
 `lib` retains the existing dependency-injection lifecycle: the generated
 library instance is allocated once in its owning generated scope, assigned an
-indexed allocation symbol, and passed to consumers through an unindexed,
-camel-cased processor argument. `src` and `run` follow the same allocation and
-argument naming rules but allocate a compiler-generated capability facade.
+indexed allocation symbol, and passed to consumers through an unindexed
+processor argument. Compiler-provided link and service argument symbols preserve
+valid model spelling, including underscores; only characters illegal in the
+target identifier are sanitized.
+`src` and `run` follow the same allocation and argument naming rules but
+allocate a compiler-generated capability facade.
 
 Capability links never generate A/B FIFO buffers or a transport-phase function.
 They are excluded from the data input count used to classify generators,

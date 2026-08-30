@@ -22,18 +22,18 @@ class CompilerCodeIntelligenceTest {
 
         val intelligence = defaultCodeIntelligence(document, worker)
 
-        val input = assertNotNull(intelligence.symbols.singleOrNull { it.name == "incomingPacket" })
+        val input = assertNotNull(intelligence.symbols.singleOrNull { it.name == "incoming_packet" })
         assertEquals(CompilerCodeSymbolKind.InputBuffer, input.kind)
         assertEquals(NodeId("input-link"), input.originNodeId)
         assertEquals("Packet", input.typeName)
-        assertTrue(input.members.any { it.name == "incomingPacket.push(item)" })
-        assertTrue(input.members.any { it.name == "incomingPacket.id" && it.detail == "number" })
+        assertTrue(input.members.any { it.name == "incoming_packet.push(item)" })
+        assertTrue(input.members.any { it.name == "incoming_packet.id" && it.detail == "number" })
 
-        val output = assertNotNull(intelligence.symbols.singleOrNull { it.name == "outgoingPacket" })
+        val output = assertNotNull(intelligence.symbols.singleOrNull { it.name == "outgoing_packet" })
         assertEquals(CompilerCodeSymbolKind.OutputBuffer, output.kind)
         assertEquals("Packet", output.typeName)
 
-        val service = assertNotNull(intelligence.symbols.singleOrNull { it.name == "configService" })
+        val service = assertNotNull(intelligence.symbols.singleOrNull { it.name == "config_service" })
         assertEquals(CompilerCodeSymbolKind.ServiceInstance, service.kind)
         assertEquals("lib_config", service.typeName)
         assertEquals(NodeId("dependency-link"), service.originNodeId)
@@ -44,10 +44,27 @@ class CompilerCodeIntelligenceTest {
     }
 
     @Test
-    fun `camel cases local arguments without allocation indices`() {
-        assertEquals("recordPipe", compilerArgumentName("record_pipe"))
-        assertEquals("orderItems", compilerArgumentName("ORDER_ITEMS"))
-        assertEquals("_24HourRecord", compilerArgumentName("24-hour record"))
+    fun `preserves local argument spelling without allocation indices`() {
+        assertEquals("record_pipe", compilerArgumentName("record_pipe"))
+        assertEquals("ORDER_ITEMS", compilerArgumentName("ORDER_ITEMS"))
+        assertEquals("_private_pipe", compilerArgumentName("_private_pipe"))
+        assertEquals("_24_hour_record", compilerArgumentName("24-hour record"))
+    }
+
+    @Test
+    fun `C buffers expose compiler provided push and pop operations`() {
+        val document = connectedDocument()
+        document.nodes.getValue(NodeId("root")).technology =
+            TechnologyMetadata(languageId = "c", technologyId = "c-native")
+        val worker = document.nodes.getValue(NodeId("worker"))
+
+        val intelligence = defaultCodeIntelligence(document, worker)
+
+        val input = assertNotNull(intelligence.symbols.singleOrNull { it.name == "incoming_packet" })
+        assertTrue(input.members.any { it.name == "pop(incoming_packet, &item)" })
+        val output = assertNotNull(intelligence.symbols.singleOrNull { it.name == "outgoing_packet" })
+        assertTrue(output.members.any { it.name == "push(outgoing_packet, &item)" })
+        assertTrue(output.members.any { it.name == "threadwork_buffer_count(outgoing_packet)" })
     }
 
     @Test
@@ -77,12 +94,12 @@ class CompilerCodeIntelligenceTest {
         )
 
         val capability = assertNotNull(
-            defaultCodeIntelligence(document, consumer).symbols.singleOrNull { it.name == "pageSource" },
+            defaultCodeIntelligence(document, consumer).symbols.singleOrNull { it.name == "page_source" },
         )
         assertEquals(CompilerCodeSymbolKind.SourceCapability, capability.kind)
         assertEquals(NodeId("capability"), capability.originNodeId)
-        assertTrue(capability.members.any { it.name == "pageSource.getSource(parameters)" })
-        assertTrue(defaultCodeIntelligence(document, provider).symbols.none { it.name == "pageSource" })
+        assertTrue(capability.members.any { it.name == "page_source.getSource(parameters)" })
+        assertTrue(defaultCodeIntelligence(document, provider).symbols.none { it.name == "page_source" })
     }
 
     private fun connectedDocument(): ThreadworkDocument {

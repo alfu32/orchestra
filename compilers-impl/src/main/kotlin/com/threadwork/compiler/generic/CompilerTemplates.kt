@@ -827,7 +827,7 @@ private fun linkDescriptors(
         val link = node.link ?: return@mapNotNull null
         val typeName = document.linkTypeDisplayName(node)
         val declaredType = document.getElementById(link.typeDefinitionId)
-        val symbol = camelCaseIdentifier(node.name)
+        val symbol = safeIdentifier(node.name, preserveCase = true)
         val sourceNode = document.getElementById(link.sourceNodeId)
         val targetNode = document.getElementById(link.targetNodeId)
         val sourceCompilationProduct = compiledArtifacts[link.sourceNodeId]?.compiledProductText.orEmpty()
@@ -906,7 +906,7 @@ private fun linkContext(
     val targetName = targetNode?.name ?: link.targetNodeId.value
     val sourceReference = "${sanitizeReference(sourceName)}.${sanitizeReference(link.sourcePortName)}"
     val targetReference = "${sanitizeReference(targetName)}.${sanitizeReference(link.targetPortName)}"
-    val symbol = camelCaseIdentifier(node.name)
+    val symbol = safeIdentifier(node.name, preserveCase = true)
     val dependencyIndex = dependencyLinkIndex(document, node, sourceNode)
     val allocationIndex = dataLinkIndex(document, node, sourceNode)
     val allocationSymbol = "$symbol${allocationIndex.coerceAtLeast(1)}"
@@ -1062,20 +1062,14 @@ private fun relativeModulePath(from: String, to: String, extension: String): Str
 }
 
 private fun safeIdentifier(value: String, preserveCase: Boolean = false): String {
-    val sanitized = value.trim().replace(Regex("[^A-Za-z0-9_]+"), "_").trim('_')
+    val modelName = value.trim()
+    val sanitized = if (Regex("[A-Za-z_][A-Za-z0-9_]*").matches(modelName)) {
+        modelName
+    } else {
+        modelName.replace(Regex("[^A-Za-z0-9_]+"), "_").trim('_')
+    }
     val fallback = sanitized.ifBlank { "node" }.let { if (preserveCase) it else it.lowercase() }
     return if (fallback.first().isDigit()) "_$fallback" else fallback
-}
-
-private fun camelCaseIdentifier(value: String): String {
-    val words = value.trim()
-        .split(Regex("[^A-Za-z0-9]+"))
-        .filter(String::isNotBlank)
-    val identifier = words.mapIndexed { index, word ->
-        val normalized = word.lowercase()
-        if (index == 0) normalized else normalized.replaceFirstChar { it.uppercase() }
-    }.joinToString("").ifBlank { "value" }
-    return if (identifier.first().isDigit()) "_$identifier" else identifier
 }
 
 private fun safePathSegment(value: String): String =

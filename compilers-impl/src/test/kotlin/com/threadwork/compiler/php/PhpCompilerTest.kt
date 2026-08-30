@@ -78,11 +78,11 @@ class PhpCompilerTest {
         assertTrue(result.success)
         val project = requireNotNull(result.generatedProject)
         val generated = project.files.joinToString("\n") { it.content }
-        assertTrue(generated.contains("\$inputRecord1_a_port = [];"))
-        assertTrue(generated.contains("\$inputRecord1_b_port = [];"))
-        assertTrue(generated.contains("function transport_inputRecord1(array &\$a, array &\$b)"))
-        assertTrue(generated.contains("read_file(\$context, \$inputRecord1_a_port);"))
-        assertTrue(generated.contains("write_file(\$context, \$inputRecord1_b_port);"))
-        assertTrue(generated.contains("transport_inputRecord1(\$inputRecord1_a_port, \$inputRecord1_b_port);"))
+        assertTrue(generated.contains("\$input_record1_a_port = [];"))
+        assertTrue(generated.contains("\$input_record1_b_port = [];"))
+        assertTrue(generated.contains("function transport_input_record1(array &\$a, array &\$b)"))
+        assertTrue(generated.contains("read_file(\$context, \$input_record1_a_port);"))
+        assertTrue(generated.contains("write_file(\$context, \$input_record1_b_port);"))
+        assertTrue(generated.contains("transport_input_record1(\$input_record1_a_port, \$input_record1_b_port);"))
     }
 }

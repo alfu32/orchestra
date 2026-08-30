@@ -60,7 +60,7 @@ class CCompilerTest {
             producer.text.copy(
                 declaration = """
                     WorkOrder order = { 42 };
-                    if (threadwork_buffer_push(orders_to_validator, &order, sizeof(order)) != THREADWORK_OK) {
+                    if (push(orders_to_validator, &order) != THREADWORK_OK) {
                         return THREADWORK_ERROR;
                     }
                 """.trimIndent(),
@@ -87,13 +87,13 @@ class CCompilerTest {
         val producerPrototype = Regex("static int (tw_init_[A-Za-z0-9_]+)\\(threadwork_context \\*context[^;]*\\);").find(source)
         assertNotNull(producerPrototype)
         val producerDefinition = source.indexOf(
-            "static int ${producerPrototype.groupValues[1]}(threadwork_context *context, threadwork_buffer *ordersToValidator)\n{",
+            "static int ${producerPrototype.groupValues[1]}(threadwork_context *context, threadwork_buffer *orders_to_validator)\n{",
         )
         assertTrue(producerDefinition > producerPrototype.range.first)
-        assertTrue(source.contains("static threadwork_buffer ordersToValidator1_a_port"))
-        assertTrue(source.contains("static threadwork_buffer ordersToValidator1_b_port"))
-        assertTrue(source.contains("static int transport_ordersToValidator1("))
-        assertTrue(source.contains("transport_ordersToValidator1(&ordersToValidator1_a_port, &ordersToValidator1_b_port)"))
+        assertTrue(source.contains("static threadwork_buffer orders_to_validator1_a_port"))
+        assertTrue(source.contains("static threadwork_buffer orders_to_validator1_b_port"))
+        assertTrue(source.contains("static int transport_orders_to_validator1("))
+        assertTrue(source.contains("transport_orders_to_validator1(&orders_to_validator1_a_port, &orders_to_validator1_b_port)"))
         assertFalse(source.contains("static int tw_run_switch("))
     }
 
@@ -160,7 +160,7 @@ class CCompilerTest {
             producer.text.copy(
                 declaration = """
                     WorkOrder order = { 42 };
-                    if (threadwork_buffer_push(records, &order, sizeof(order)) != THREADWORK_OK) {
+                    if (push(records, &order) != THREADWORK_OK) {
                         return THREADWORK_ERROR;
                     }
                 """.trimIndent(),
@@ -176,6 +176,9 @@ class CCompilerTest {
         val result = CCompiler().compile(repository.getDocument())
         assertTrue(result.success, result.diagnostics.joinToString { it.message })
         val source = assertNotNull(result.generatedProject).files.single().content
+        assertTrue(source.contains("int push(void *target, void *package)"))
+        assertTrue(source.contains("int pop(void *target, void *package)"))
+        assertTrue(source.contains("size_t threadwork_buffer_count(const threadwork_buffer *buffer)"))
         val directory = createTempDirectory("threadwork-c-compiler-")
         try {
             val sourceFile = directory.resolve("generated.c")
@@ -196,10 +199,54 @@ class CCompilerTest {
             assertEquals(0, process.waitFor(), "$output\n\n$source")
             assertEquals(0, ProcessBuilder(executable.toString()).start().waitFor())
             assertTrue(source.contains("getSource"))
-            assertFalse(source.contains("producerSource1_a_port"))
+            assertFalse(source.contains("producer_source1_a_port"))
         } finally {
             directory.toFile().deleteRecursively()
         }
+    }
+
+    @Test
+    fun `service library declarations allow system includes at translation unit scope`() {
+        val repository = cProject()
+        val root = repository.getDocument().rootNodeId
+        val library = repository.createNode(root, "lib_math", NodeKind.Processor)
+        repository.updateNodeText(
+            library.id,
+            library.text.copy(
+                declaration = """
+                    #include <limits.h>
+
+                    typedef struct lib_math {
+                        int sentinel;
+                    } lib_math;
+
+                    int lib_math_maximum(void) {
+                        return INT_MAX;
+                    }
+                """.trimIndent(),
+            ),
+        )
+
+        val result = CCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val source = assertNotNull(result.generatedProject).files.single().content
+        assertEquals(1, source.lines().count { it.trim() == "#include <limits.h>" })
+        assertTrue(source.indexOf("#include <limits.h>") < source.indexOf("int main(void)"))
+        assertTrue(source.contains("int lib_math_maximum(void)"))
+    }
+
+    @Test
+    fun `processing node declarations reject include directives`() {
+        val repository = cProject()
+        val root = repository.getDocument().rootNodeId
+        val processor = repository.createNode(root, "worker", NodeKind.Processor)
+        repository.updateNodeText(processor.id, processor.text.copy(declaration = "#include <limits.h>"))
+
+        val result = CCompiler().compile(repository.getDocument())
+
+        assertFalse(result.success)
+        assertTrue(result.diagnostics.any { it.message.contains("only valid in service-library declarations") })
     }
 
     private fun cProject(): InMemoryDocumentRepository {

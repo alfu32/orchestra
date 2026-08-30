@@ -65,17 +65,16 @@ data class CompilerCodeIntelligence(
 )
 
 /**
- * Camel-cased processor argument name.  Link and service allocations may be
- * indexed by a compiler, but this local function argument deliberately is not.
+ * Processor-local argument name. Valid identifier spelling from the model is
+ * preserved; only characters that cannot occur in an identifier are replaced.
+ * Link and service allocations may be indexed, but this argument is not.
  */
 fun compilerArgumentName(value: String): String {
-    val words = value.trim()
-        .split(Regex("[^A-Za-z0-9]+"))
-        .filter(String::isNotBlank)
-    val candidate = words.mapIndexed { index, word ->
-        val normalized = word.lowercase()
-        if (index == 0) normalized else normalized.replaceFirstChar { it.uppercase() }
-    }.joinToString("").ifBlank { "value" }
+    val modelName = value.trim()
+    if (Regex("[A-Za-z_][A-Za-z0-9_]*").matches(modelName)) return modelName
+    val candidate = modelName.replace(Regex("[^A-Za-z0-9_]+"), "_")
+        .trim('_')
+        .ifBlank { "value" }
     return if (candidate.first().isDigit()) "_$candidate" else candidate
 }
 
@@ -115,7 +114,7 @@ fun defaultCodeIntelligence(
     fun addDataLink(linkNode: Node, input: Boolean) {
         val type = registerType(linkNode) ?: return
         val argumentName = compilerArgumentName(linkNode.name)
-        val bufferMethods = bufferMethodsFor(languageId, argumentName)
+        val bufferMethods = bufferMethodsFor(languageId, argumentName, input)
         val itemMembers = type.fields.map { field ->
             CompilerCodeMember(
                 name = "$argumentName.${field.name}",
@@ -243,7 +242,11 @@ fun defaultTypeInformation(
         }
 }
 
-private fun bufferMethodsFor(languageId: String, bufferName: String): List<CompilerCodeMember> = when (languageId.lowercase()) {
+private fun bufferMethodsFor(
+    languageId: String,
+    bufferName: String,
+    input: Boolean,
+): List<CompilerCodeMember> = when (languageId.lowercase()) {
     "javascript", "typescript" -> listOf(
         CompilerCodeMember("$bufferName.push(item)", "append item", "Append an item to this FIFO buffer."),
         CompilerCodeMember("$bufferName.shift()", "take next item", "Remove and return the next item from this FIFO buffer."),
@@ -263,11 +266,14 @@ private fun bufferMethodsFor(languageId: String, bufferName: String): List<Compi
         CompilerCodeMember("count($bufferName)", "buffer size"),
     )
 
-    "c" -> listOf(
-        CompilerCodeMember("threadwork_buffer_push($bufferName, item)", "append item"),
-        CompilerCodeMember("threadwork_buffer_pop($bufferName, &item)", "take next item"),
-        CompilerCodeMember("threadwork_buffer_count($bufferName)", "buffer size"),
-    )
+    "c" -> buildList {
+        if (input) {
+            add(CompilerCodeMember("pop($bufferName, &item)", "take next item", "Copy and remove the next item."))
+        } else {
+            add(CompilerCodeMember("push($bufferName, &item)", "append item", "Copy an item into this output buffer."))
+        }
+        add(CompilerCodeMember("threadwork_buffer_count($bufferName)", "buffer size"))
+    }
 
     else -> listOf(
         CompilerCodeMember("$bufferName.push(item)", "append item"),

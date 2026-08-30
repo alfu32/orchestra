@@ -255,6 +255,42 @@ int threadwork_buffer_pop(threadwork_buffer *buffer, void *destination, size_t s
     return THREADWORK_OK;
 }
 
+int push(void *target, void *package)
+{
+    threadwork_buffer *buffer = (threadwork_buffer *)target;
+
+    if (buffer == NULL) {
+        return THREADWORK_ERROR;
+    }
+    return threadwork_buffer_push(buffer, package, buffer->element_size);
+}
+
+int pop(void *target, void *package)
+{
+    threadwork_buffer *buffer = (threadwork_buffer *)target;
+
+    if (buffer == NULL) {
+        return THREADWORK_ERROR;
+    }
+    return threadwork_buffer_pop(buffer, package, buffer->element_size);
+}
+
+size_t threadwork_buffer_count(const threadwork_buffer *buffer)
+{
+    const threadwork_packet *packet;
+    size_t result = 0U;
+
+    if (buffer == NULL) {
+        return 0U;
+    }
+    packet = buffer->queue.head;
+    while (packet != NULL) {
+        result++;
+        packet = packet->next;
+    }
+    return result;
+}
+
 static void threadwork_endpoint_list_destroy(threadwork_endpoint *head)
 {
     while (head != NULL) {

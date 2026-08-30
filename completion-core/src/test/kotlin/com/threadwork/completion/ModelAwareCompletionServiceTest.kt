@@ -45,15 +45,15 @@ class ModelAwareCompletionServiceTest {
         ).getSuggestions(requestFor(worker.id))
 
         assertEquals(
-            listOf("configService", "incomingPacket", "outgoingPacket"),
+            listOf("config_service", "incoming_packet", "outgoing_packet"),
             suggestions.take(3).map { it.label },
         )
-        assertTrue(suggestions.any { it.label == "incomingPacket.push(item)" })
-        assertTrue(suggestions.any { it.label == "incomingPacket.id" })
+        assertTrue(suggestions.any { it.label == "incoming_packet.push(item)" })
+        assertTrue(suggestions.any { it.label == "incoming_packet.id" })
         assertTrue(suggestions.any { it.label == "Packet.id" })
         assertEquals(
             CompletionSuggestionKind.ServiceInstance,
-            suggestions.single { it.label == "configService" }.kind,
+            suggestions.single { it.label == "config_service" }.kind,
         )
     }
 
@@ -85,7 +85,7 @@ class ModelAwareCompletionServiceTest {
     }
 
     @Test
-    fun `does not suggest raw link names to processing code`() {
+    fun `suggests only compiler arguments for links connected to processing code`() {
         val repository = InMemoryDocumentRepository(newDocument("completion"))
         val root = repository.getDocument().rootNodeId
         val library = repository.createNode(root, "lib_logging", NodeKind.Processor)
@@ -117,9 +117,9 @@ class ModelAwareCompletionServiceTest {
         )
 
         val labels = suggestions.map { it.label }.toSet()
-        assertTrue("lib_logging" !in labels)
-        assertTrue("config_in" !in labels)
-        assertTrue("config_out" !in labels)
+        assertTrue("lib_logging" in labels)
+        assertTrue("config_in" in labels)
+        assertTrue("config_out" in labels)
         assertTrue("payload" !in labels)
         assertTrue(sibling.name !in labels)
     }
