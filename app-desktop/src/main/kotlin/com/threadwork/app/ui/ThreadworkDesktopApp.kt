@@ -323,7 +323,7 @@ class ThreadworkDesktopApp(
         registerBuiltInCommands()
         configurePlugins()
         frame.defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
-        ThreadworkIcons.appIconImage()?.let(frame::setIconImage)
+        frame.iconImages = ThreadworkIcons.appIconImages()
         frame.jMenuBar = menuBar()
         frame.contentPane = layout()
         applyFontOptions()

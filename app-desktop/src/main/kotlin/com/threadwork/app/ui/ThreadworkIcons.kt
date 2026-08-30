@@ -11,12 +11,14 @@ object ThreadworkIcons {
 
     fun buttonIcon(id: String): ImageIcon? = load("$BUTTON_ICON_ROOT$id.png")
 
-    fun appIconImage(): Image? =
-        listOf(256, 128, 64, 48, 32, 16)
-            .asSequence()
+    fun appIconImages(): List<Image> =
+        listOf(512, 256, 128, 64, 48, 32, 24, 16)
             .mapNotNull { size -> load("$APP_ICON_ROOT$size.png")?.image }
-            .firstOrNull()
-            ?: buttonIcon("document")?.image
+            .ifEmpty { listOfNotNull(buttonIcon("document")?.image) }
+
+    fun trayIconImage(): Image? =
+        load("${APP_ICON_ROOT}24.png")?.image
+            ?: load("${APP_ICON_ROOT}16.png")?.image
 
     private fun load(path: String): ImageIcon? =
         cache.getOrPut(path) {

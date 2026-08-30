@@ -156,15 +156,26 @@ val generateIcons by tasks.registering {
 
 val generateAppIcon by tasks.registering {
     group = "build"
-    description = "Rasterizes the application icon into common desktop sizes when provided."
-    inputs.file(iconsSourceDir.file("appicon.svg"))
+    description = "Rasterizes size-specific application icons into common desktop sizes."
+    val fullSource = iconsSourceDir.file("threadwork.svg")
+    val smallSource = iconsSourceDir.file("threadwork-small.svg")
+    val symbolicSource = iconsSourceDir.file("threadwork-symbolic.svg")
+    inputs.files(fullSource, smallSource, symbolicSource)
     outputs.dir(generatedIconsDir)
     doLast {
-        val sourceSvg = iconsSourceDir.file("appicon.svg").asFile
-        if (!sourceSvg.exists() || sourceSvg.length() == 0L) return@doLast
-        listOf(256, 128, 64, 48, 32, 16).forEach { size ->
-            val target = generatedIconsDir.get().asFile.resolve("icons/app/$size.png")
-            renderSvgToPng(sourceSvg, target, size, size)
+        val variants = listOf(
+            fullSource.asFile to listOf(512, 256, 128),
+            smallSource.asFile to listOf(64, 48, 32),
+            symbolicSource.asFile to listOf(24, 16),
+        )
+        variants.forEach { (sourceSvg, sizes) ->
+            require(sourceSvg.exists() && sourceSvg.length() > 0L) {
+                "Application icon source is missing or empty: $sourceSvg"
+            }
+            sizes.forEach { size ->
+                val target = generatedIconsDir.get().asFile.resolve("icons/app/$size.png")
+                renderSvgToPng(sourceSvg, target, size, size)
+            }
         }
     }
 }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+    <title id="title">Threadwork small icon</title>
+    <desc id="desc">A central code node connected to two workflow nodes.</desc>
+    <path d="M32 2.5 C35 2.5 38 3.2 40.5 4.7 L55.5 13.3 C58.1 14.8 60 17.4 60 20.4 V43.6 C60 46.6 58.1 49.2 55.5 50.7 L40.5 59.3 C38 60.8 35 61.5 32 61.5 C29 61.5 26 60.8 23.5 59.3 L8.5 50.7 C5.9 49.2 4 46.6 4 43.6 V20.4 C4 17.4 5.9 14.8 8.5 13.3 L23.5 4.7 C26 3.2 29 2.5 32 2.5 Z" fill="#081a36" stroke="#285395" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M20 20 L27 27 M44 44 L37 37" fill="none" stroke="#08d1e9" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="17" cy="17" r="6" fill="#ffb525" stroke="#081a36" stroke-width="2"/>
+    <circle cx="47" cy="47" r="6" fill="#16dfb9" stroke="#081a36" stroke-width="2"/>
+    <rect x="22" y="22" width="20" height="20" rx="6" fill="#0a2547" stroke="#08d1e9" stroke-width="4"/>
+    <path d="M30 28 L26 32 L30 36 M34 28 L38 32 L34 36" fill="none" stroke="#08d1e9" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
