@@ -1,10 +1,96 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="title desc">
-    <title id="title">Threadwork symbolic icon</title>
-    <desc id="desc">A connected-node T symbol inside a hexagonal outline.</desc>
-    <path d="M12 1.5 L21 6.7 V17.3 L12 22.5 L3 17.3 V6.7 Z" fill="none" stroke="#08d1e9" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M12 7.5 V10.8 M12 10.8 L8.8 14.5 M12 10.8 L15.2 14.5" fill="none" stroke="#08d1e9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="12" cy="5.5" r="2" fill="none" stroke="#08d1e9" stroke-width="1.8"/>
-    <circle cx="7.5" cy="16" r="2" fill="none" stroke="#08d1e9" stroke-width="1.8"/>
-    <circle cx="16.5" cy="16" r="2" fill="none" stroke="#08d1e9" stroke-width="1.8"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="24"
+   height="24"
+   viewBox="0 0 24 24"
+   role="img"
+   aria-labelledby="title desc"
+   version="1.1"
+   id="svg14"
+   sodipodi:docname="threadwork-symbolic.svg"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs18" />
+  <sodipodi:namedview
+     id="namedview16"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:pageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     showgrid="false"
+     inkscape:zoom="4.9791667"
+     inkscape:cx="-12.351464"
+     inkscape:cy="18.075314"
+     inkscape:window-width="1876"
+     inkscape:window-height="1016"
+     inkscape:window-x="0"
+     inkscape:window-y="687"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg14" />
+  <title
+     id="title">Threadwork symbolic icon</title>
+  <desc
+     id="desc">A connected-node T symbol inside a hexagonal outline.</desc>
+  <path
+     d="M12 1.5 L21 6.7 V17.3 L12 22.5 L3 17.3 V6.7 Z"
+     fill="none"
+     stroke="#08d1e9"
+     stroke-width="2"
+     stroke-linejoin="round"
+     id="path4"
+     style="fill:#081a36;fill-opacity:1;stroke:#08d1e9;stroke-opacity:1" />
+  <path
+     d="M12 7.5 V10.8 M12 10.8 L8.8 14.5 M12 10.8 L15.2 14.5"
+     fill="none"
+     stroke="#08d1e9"
+     stroke-width="1.8"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     id="path6"
+     style="stroke:#08d1e9;stroke-opacity:1" />
+  <circle
+     cx="12"
+     cy="5.5"
+     r="2"
+     fill="none"
+     stroke="#08d1e9"
+     stroke-width="1.8"
+     id="circle8"
+     style="fill:#08abe9;fill-opacity:1;stroke:#285395;stroke-opacity:1" />
+  <circle
+     cx="7.5"
+     cy="16"
+     r="2"
+     fill="none"
+     stroke="#08d1e9"
+     stroke-width="1.8"
+     id="circle10"
+     style="fill:#ffb525;fill-opacity:1;stroke:#285395;stroke-opacity:1" />
+  <circle
+     cx="16.5"
+     cy="16"
+     r="2"
+     fill="none"
+     stroke="#08d1e9"
+     stroke-width="1.8"
+     id="circle12"
+     style="fill:#12b26d;fill-opacity:1;stroke:#285395;stroke-opacity:1" />
+  <metadata
+     id="metadata2435">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Threadwork symbolic icon</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
 </svg>

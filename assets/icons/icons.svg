@@ -1304,7 +1304,7 @@
        sodipodi:insensitive="true"
        style="display:none" />
     <rect
-       style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.661458;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+       style="fill:none;fill-opacity:0;stroke:none;stroke-width:0.661458;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
        id="rect4183"
        width="84.666664"
        height="84.666664"
