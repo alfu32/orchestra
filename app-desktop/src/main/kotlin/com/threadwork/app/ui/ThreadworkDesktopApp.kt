@@ -316,6 +316,9 @@ class ThreadworkDesktopApp(
     private var currentSnapshot = documentSnapshot()
     private var applyingHistory = false
     private var currentFile: Path? = null
+    private val currentFileLabel = JLabel("Untitled").apply {
+        border = BorderFactory.createEmptyBorder(0, 14, 0, 8)
+    }
     private val autosaveTimer = Timer(10_000) { autosave() }.apply { isRepeats = true }
     private val resourceTimer = Timer(1_000) { updateResourceStatus() }.apply { isRepeats = true }
 
@@ -496,6 +499,7 @@ class ThreadworkDesktopApp(
         add(JMenu("Help").apply {
             add(commandItem("help.about"))
         })
+        add(currentFileLabel)
     }
 
     private fun installKeyBindings(component: JComponent) {
@@ -1012,7 +1016,12 @@ class ThreadworkDesktopApp(
 
     private fun updateWindowTitle() {
         val fileName = currentFile?.fileName?.toString() ?: "Untitled"
-        frame.title = "Threadwork-${Version.CURRENT.semver} : $fileName"
+        frame.title = "Threadwork-${Version.CURRENT.semver}"
+        currentFileLabel.text = fileName
+        currentFileLabel.toolTipText = currentFile
+            ?.toAbsolutePath()
+            ?.normalize()
+            ?.toString()
     }
 
     private fun showAbout() {
