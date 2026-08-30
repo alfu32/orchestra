@@ -2968,7 +2968,9 @@ class GraphCanvas(
             .filter { viewport == null || it.id in selection || it.layout.rect().intersects(viewport) }
             .forEach { drawNode(g2, it) }
         links.filterNot(::isDependencyAnnotation).forEach { drawLink(g2, it) }
-        drawDependencyAnnotations(g2, links.filter(::isDependencyAnnotation))
+        // Annotation row indices must be derived from the complete link set. Tile-local
+        // culling changes those indices and produces mismatched fragments at tile edges.
+        drawDependencyAnnotations(g2, allLinks.filter(::isDependencyAnnotation))
         // Type annotations belong to the type node and must survive route tile culling.
         drawTypeUsageAnnotations(g2, allLinks, scopeIds)
     }
