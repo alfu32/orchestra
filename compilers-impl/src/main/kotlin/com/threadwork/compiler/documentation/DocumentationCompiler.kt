@@ -8,7 +8,6 @@ import com.threadwork.compiler.api.GeneratedFile
 import com.threadwork.compiler.api.GeneratedProject
 import com.threadwork.core.classification.LinkClassifier
 import com.threadwork.core.classification.LinkStereotype
-import com.threadwork.core.classification.NodeStereotype
 import com.threadwork.core.classification.stereotype
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.model.Node
@@ -22,10 +21,39 @@ import com.threadwork.core.model.linkTypeDisplayName
 import com.threadwork.core.model.projectName
 import com.threadwork.core.model.typeDisplayName
 
-/** Produces human-readable project documentation without participating in source compiler selection. */
+/** Preserves the two-file documentation API while delegating each document to its own compiler. */
 class DocumentationCompiler : CompilerPlugin {
     override val id: String = "documentation"
     override val displayName: String = "Documentation Compiler"
+    private val specificationCompiler = SpecificationDocumentationCompiler()
+    private val componentCompiler = ComponentDocumentationCompiler()
+
+    override fun supports(document: ThreadworkDocument): Boolean =
+        specificationCompiler.supports(document) && componentCompiler.supports(document)
+
+    override fun validate(document: ThreadworkDocument): List<Diagnostic> =
+        specificationCompiler.validate(document) + componentCompiler.validate(document)
+
+    override fun compile(document: ThreadworkDocument, options: CompilerOptions): CompilationResult {
+        val specification = specificationCompiler.compile(document, options)
+        val components = componentCompiler.compile(document, options)
+        val files = specification.generatedProject?.files.orEmpty() + components.generatedProject?.files.orEmpty()
+        val scope = DocumentationScope.resolve(document, options)
+        return CompilationResult(
+            generatedProject = GeneratedProject(scope.fileBaseName, files),
+            diagnostics = specification.diagnostics + components.diagnostics,
+            success = specification.success && components.success,
+        )
+    }
+
+    fun componentFiches(document: ThreadworkDocument, nodeIds: Collection<NodeId>): String =
+        componentCompiler.componentFiches(document, nodeIds)
+}
+
+/** Generates the detailed per-component annex and selected-node fiches. */
+class ComponentDocumentationCompiler : CompilerPlugin {
+    override val id: String = "documentation-components"
+    override val displayName: String = "Component Annex Documentation Compiler"
 
     override fun supports(document: ThreadworkDocument): Boolean = true
 
@@ -33,26 +61,15 @@ class DocumentationCompiler : CompilerPlugin {
 
     override fun compile(document: ThreadworkDocument, options: CompilerOptions): CompilationResult {
         val scope = DocumentationScope.resolve(document, options)
-        val documentation = projectDocumentation(document, scope)
-        val components = componentDocumentation(document, scope)
-        val files = listOf(
-            GeneratedFile(
-                path = "${scope.fileBaseName}.SPEC.md",
-                content = documentation,
-                originNodeId = scope.anchorNodeId,
-                reason = "Composed project documentation",
-                elementKind = GeneratedElementKind.Documentation,
-            ),
-            GeneratedFile(
-                path = "${scope.fileBaseName}.COMPONENTS.md",
-                content = components,
-                originNodeId = scope.anchorNodeId,
-                reason = "Composed components breakdown",
-                elementKind = GeneratedElementKind.Documentation,
-            ),
+        val file = GeneratedFile(
+            path = "${scope.fileBaseName}.COMPONENTS.md",
+            content = componentDocumentation(document, scope),
+            originNodeId = scope.anchorNodeId,
+            reason = "Composed components breakdown",
+            elementKind = GeneratedElementKind.Documentation,
         )
         return CompilationResult(
-            generatedProject = GeneratedProject(scope.fileBaseName, files),
+            generatedProject = GeneratedProject(scope.fileBaseName, listOf(file)),
             diagnostics = emptyList(),
             success = true,
         )
@@ -77,41 +94,6 @@ class DocumentationCompiler : CompilerPlugin {
         }.trimEnd() + "\n"
     }
 
-    private fun projectDocumentation(document: ThreadworkDocument, scope: DocumentationScope): String =
-        buildString {
-            appendLine("# ${scope.title} Functional and Technical Specification")
-            appendLine()
-            appendLine("Generated from Threadwork functional and technical specifications for `${scope.displayPath}`.")
-            appendLine()
-            appendTableOfContents(
-                scope.processingNodes.map { it.name.ifBlank { it.id.value } } +
-                    listOfNotNull(
-                        "Shared Types".takeIf { scope.types.isNotEmpty() },
-                        "Service Libraries".takeIf { scope.serviceLibraries(document).isNotEmpty() },
-                        "Notes".takeIf { scope.notes.isNotEmpty() },
-                    ),
-            )
-            appendLine("## Processing Nodes")
-            appendLine()
-            scope.processingNodes.forEach { node ->
-                appendLine("### ${node.name.ifBlank { node.id.value }}")
-                appendLine()
-                appendLine("- **Path:** `${nodePath(document, node)}`")
-                appendLine("- **Role:** `${node.stereotype(document).name}`")
-                appendLine()
-                appendTechnology(document, node)
-                appendCompositeOverview(document, node)
-                appendSpecification(node.text.specification, node.text.specificationLanguageId)
-                appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
-                appendLinkTable("Outputs", dataOutputs(document, node), document, incoming = false)
-                appendDependencies(document, node)
-                appendUsageInstructions(node)
-                appendTestData(node)
-            }
-            appendSpecificationAnnexes(document, scope)
-            appendNotes(scope.notes, document)
-        }.trimEnd() + "\n"
-
     private fun componentDocumentation(document: ThreadworkDocument, scope: DocumentationScope): String =
         buildString {
             appendLine("# ${scope.title} Annexes ; Components Breakdown")
@@ -127,6 +109,8 @@ class DocumentationCompiler : CompilerPlugin {
         }.trimEnd() + "\n"
 
     private fun StringBuilder.appendComponentFiche(document: ThreadworkDocument, node: Node) {
+        val inputs = dataInputs(document, node)
+        val outputs = dataOutputs(document, node)
         appendLine("## ${node.name.ifBlank { node.id.value }}")
         appendLine()
         appendLine("- **Path:** `${nodePath(document, node)}`")
@@ -135,10 +119,10 @@ class DocumentationCompiler : CompilerPlugin {
         appendTechnology(document, node)
         appendCompositeOverview(document, node)
         appendSpecification(node.text.specification, node.text.specificationLanguageId)
-        appendLinkTable("Inputs", dataInputs(document, node), document, incoming = true)
-        appendComponentLinkDocumentation(document, dataInputs(document, node), "Incoming Link Contracts")
-        appendLinkTable("Outputs", dataOutputs(document, node), document, incoming = false)
-        appendComponentLinkDocumentation(document, dataOutputs(document, node), "Outgoing Link Contracts")
+        appendLinkTable("Inputs", inputs, document, incoming = true)
+        appendComponentLinkDocumentation(document, inputs, "Incoming Link Contracts")
+        appendLinkTable("Outputs", outputs, document, incoming = false)
+        appendComponentLinkDocumentation(document, outputs, "Outgoing Link Contracts")
         appendUsedTypes(document, node)
         appendComponentDependencies(document, node)
         appendUsageInstructions(node)
@@ -202,14 +186,10 @@ class DocumentationCompiler : CompilerPlugin {
     }
 
     private fun StringBuilder.appendSpecification(specification: String, languageId: String) {
+        if (specification.isBlank()) return
         appendLine("#### Specification")
         appendLine()
-        if (specification.isBlank()) {
-            appendLine("_No functional specification provided._")
-            appendLine()
-        } else {
-            appendRichText(specification, languageId)
-        }
+        appendRichText(specification, languageId)
     }
 
     private fun StringBuilder.appendTechnology(document: ThreadworkDocument, node: Node) {
@@ -232,13 +212,9 @@ class DocumentationCompiler : CompilerPlugin {
         document: ThreadworkDocument,
         incoming: Boolean,
     ) {
+        if (links.isEmpty()) return
         appendLine("#### $heading")
         appendLine()
-        if (links.isEmpty()) {
-            appendLine("_None._")
-            appendLine()
-            return
-        }
         appendLine("| Name | Type | ${if (incoming) "Source" else "Target"} | Port |")
         appendLine("| --- | --- | --- | --- |")
         links.forEach { linkNode ->
@@ -254,36 +230,11 @@ class DocumentationCompiler : CompilerPlugin {
         appendLine()
     }
 
-    private fun StringBuilder.appendDependencies(document: ThreadworkDocument, node: Node) {
-        val dependencies = dependencyInputs(document, node)
-        appendLine("#### Dependencies")
-        appendLine()
-        if (dependencies.isEmpty()) {
-            appendLine("_None._")
-            appendLine()
-            return
-        }
-        appendLine("| Instance | Library | Classification |")
-        appendLine("| --- | --- | --- |")
-        dependencies.forEach { linkNode ->
-            val link = linkNode.link ?: return@forEach
-            appendLine(
-                "| ${tableCell(linkNode.name)} | ${tableCell(document.nodes[link.sourceNodeId]?.name ?: link.sourceNodeId.value)} | " +
-                    "${LinkClassifier.classify(document, linkNode).name} |",
-            )
-        }
-        appendLine()
-    }
-
     private fun StringBuilder.appendComponentDependencies(document: ThreadworkDocument, node: Node) {
         val dependencies = dependencyInputs(document, node)
+        if (dependencies.isEmpty()) return
         appendLine("#### Used Libraries and Capabilities")
         appendLine()
-        if (dependencies.isEmpty()) {
-            appendLine("_None._")
-            appendLine()
-            return
-        }
         dependencies.forEach { linkNode ->
             val link = linkNode.link ?: return@forEach
             val library = document.nodes[link.sourceNodeId]
@@ -312,13 +263,9 @@ class DocumentationCompiler : CompilerPlugin {
         links: List<Node>,
         heading: String,
     ) {
+        if (links.isEmpty()) return
         appendLine("#### $heading")
         appendLine()
-        if (links.isEmpty()) {
-            appendLine("_None._")
-            appendLine()
-            return
-        }
         links.forEach { linkNode ->
             val link = linkNode.link ?: return@forEach
             val type = document.nodes[NodeId(link.typeDefinitionId)]?.takeIf(Node::isType)
@@ -348,9 +295,6 @@ class DocumentationCompiler : CompilerPlugin {
                 }
             } else if (link.payloadDefinition.isNotBlank()) {
                 appendCodeBlock(link.payloadDefinition.trim(), linkNode.text.declarationLanguageId)
-            } else {
-                appendLine("_No payload type definition provided._")
-                appendLine()
             }
             if (linkNode.text.specification.isNotBlank()) {
                 appendLine("**Link specification**")
@@ -362,15 +306,15 @@ class DocumentationCompiler : CompilerPlugin {
 
     private fun StringBuilder.appendUsedTypes(document: ThreadworkDocument, node: Node) {
         val links = (dataInputs(document, node) + dataOutputs(document, node)).distinctBy { it.id }
+        val documentedLinks = links.filter { linkNode ->
+            val link = linkNode.link ?: return@filter false
+            document.nodes[NodeId(link.typeDefinitionId)]?.isType == true || link.payloadDefinition.isNotBlank()
+        }
+        if (documentedLinks.isEmpty()) return
         appendLine("#### Used Types")
         appendLine()
-        if (links.isEmpty()) {
-            appendLine("_None._")
-            appendLine()
-            return
-        }
         val describedTypeIds = mutableSetOf<String>()
-        links.forEach { linkNode ->
+        documentedLinks.forEach { linkNode ->
             val link = linkNode.link ?: return@forEach
             val typeId = link.typeDefinitionId.trim()
             val type = document.nodes[NodeId(typeId)]?.takeIf(Node::isType)
@@ -398,23 +342,19 @@ class DocumentationCompiler : CompilerPlugin {
                 }
             }
         }
-        if (describedTypeIds.isEmpty()) {
-            appendLine("_No type definitions provided._")
-            appendLine()
-        }
     }
 
     private fun StringBuilder.appendDirectChildren(document: ThreadworkDocument, node: Node) {
-        if (node.children.isEmpty()) return
+        val children = node.children
+            .mapNotNull(document.nodes::get)
+            .filterNot(Node::isLink)
+            .sortedWith(compareBy<Node>({ it.name.lowercase() }, { it.id.value }))
+        if (children.isEmpty()) return
         appendLine("#### Direct Children")
         appendLine()
         appendLine("| Name | Stereotype |")
         appendLine("| --- | --- |")
-        node.children
-            .mapNotNull(document.nodes::get)
-            .filterNot(Node::isLink)
-            .sortedWith(compareBy<Node>({ it.name.lowercase() }, { it.id.value }))
-            .forEach { child ->
+        children.forEach { child ->
                 appendLine("| ${tableCell(child.name.ifBlank { child.id.value })} | ${tableCell(child.stereotype(document).name)} |")
             }
         appendLine()
@@ -431,63 +371,18 @@ class DocumentationCompiler : CompilerPlugin {
     private fun mermaidArrowLabel(value: String): String =
         value.replace('|', '/').replace(Regex("\\s+"), " ").trim()
 
-    private fun StringBuilder.appendSpecificationAnnexes(document: ThreadworkDocument, scope: DocumentationScope) {
-        appendLine("## Annexes")
-        appendLine()
-        appendLine("### Shared Types")
-        appendLine()
-        if (scope.types.isEmpty()) {
-            appendLine("_No shared custom types are present in this scope._")
-        } else {
-            scope.types.forEach { type ->
-                appendLine("- `${escapeInlineCode(type.name.ifBlank { type.id.value })}`")
-            }
-        }
-        appendLine()
-        appendLine("### Service Libraries")
-        appendLine()
-        val services = scope.serviceLibraries(document)
-        if (services.isEmpty()) {
-            appendLine("_No service libraries are used in this scope._")
-        } else {
-            services.forEach { service ->
-                appendLine("- `${escapeInlineCode(service.name.ifBlank { service.id.value })}` at `${nodePath(document, service)}`")
-            }
-        }
-        appendLine()
-    }
-
-    private fun DocumentationScope.serviceLibraries(document: ThreadworkDocument): List<Node> =
-        buildList {
-            processingNodes
-                .filter { it.stereotype(document) == NodeStereotype.ServiceLibrary }
-                .forEach(::add)
-            links
-                .filter { LinkClassifier.classify(document, it) in dependencyKinds }
-                .mapNotNull { it.link?.sourceNodeId?.let(document.nodes::get) }
-                .forEach(::add)
-        }.distinctBy { it.id }.sortedWith(compareBy<Node>({ it.name.lowercase() }, { it.id.value }))
-
     private fun StringBuilder.appendUsageInstructions(node: Node) {
+        if (node.text.aiInstructions.isBlank()) return
         appendLine("#### Usage Instructions")
         appendLine()
-        if (node.text.aiInstructions.isBlank()) {
-            appendLine("_No usage instructions provided._")
-            appendLine()
-        } else {
-            appendRichText(node.text.aiInstructions, node.text.aiInstructionsLanguageId)
-        }
+        appendRichText(node.text.aiInstructions, node.text.aiInstructionsLanguageId)
     }
 
     private fun StringBuilder.appendTestData(node: Node) {
+        if (node.text.tests.isBlank()) return
         appendLine("#### Test Data")
         appendLine()
-        if (node.text.tests.isBlank()) {
-            appendLine("_No test data provided._")
-            appendLine()
-        } else {
-            appendRichText(node.text.tests, node.text.testsLanguageId)
-        }
+        appendRichText(node.text.tests, node.text.testsLanguageId)
     }
 
     private fun StringBuilder.appendCodeBlock(content: String, languageId: String) {
@@ -506,24 +401,6 @@ class DocumentationCompiler : CompilerPlugin {
             appendLine()
         } else {
             appendCodeBlock(content.trim(), languageId)
-        }
-    }
-
-    private fun StringBuilder.appendNotes(notes: List<Node>, document: ThreadworkDocument) {
-        if (notes.isEmpty()) return
-        appendLine("## Notes")
-        appendLine()
-        notes.forEach { note ->
-            appendLine("### ${note.name.ifBlank { note.id.value }}")
-            appendLine()
-            appendLine("_`${nodePath(document, note)}`_")
-            appendLine()
-            if (note.text.specification.isBlank()) {
-                appendLine("_No note text provided._")
-                appendLine()
-            } else {
-                appendRichText(note.text.specification, note.text.specificationLanguageId)
-            }
         }
     }
 
@@ -584,7 +461,7 @@ class DocumentationCompiler : CompilerPlugin {
     }
 }
 
-private data class DocumentationScope(
+internal data class DocumentationScope(
     val title: String,
     val fileBaseName: String,
     val displayPath: String,

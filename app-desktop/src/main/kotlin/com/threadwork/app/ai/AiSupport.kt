@@ -1,9 +1,14 @@
 package com.threadwork.app.ai
 
+import com.threadwork.core.classification.NodeStereotype
+import com.threadwork.core.classification.stereotype
+import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.ThreadworkDocument
+import com.threadwork.core.model.effectiveLanguageId
 import com.threadwork.core.model.effectiveTextLanguageId
+import com.threadwork.core.model.effectiveTechnologyId
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.util.prefs.Preferences
@@ -34,18 +39,71 @@ enum class AiSupportTask(
     ;
 
     fun instruction(document: ThreadworkDocument, nodeIds: Collection<NodeId>): String = when (this) {
-        GenerateSource ->
-            "Generate the source declaration for the selected component. Honor its stated inputs, outputs, used services, type definitions, specification, and effective language and technology. Return only the source text."
+        GenerateSource -> sourceInstruction(document, nodeIds)
 
         TidySpecification ->
-            "Rewrite the selected component specification as clear, precise Markdown. Preserve the intended behavior, inputs, outputs, constraints, and acceptance criteria. Return only the revised specification."
+            "Rewrite only the user-authored specification for the selected component as clear, precise Markdown. " +
+                "Preserve all stated behavior, constraints, edge cases, inputs, outputs, dependencies, and acceptance criteria. " +
+                "Do not invent implementation details, change the source implementation, or reproduce the surrounding dossier. " +
+                "Return only the revised specification Markdown."
 
         GenerateTestData -> {
             val formats = nodeIds.mapNotNull { nodeId ->
                 document.nodes[nodeId]?.let { document.effectiveTextLanguageId(it.id, NodeTextSection.Tests) }
             }.distinct()
             val format = formats.singleOrNull() ?: formats.joinToString(", ").ifBlank { "the node's test format" }
-            "Generate representative test data for the selected component from its specification and typed inputs and outputs in the test language $format. Return only the test data/script."
+            "Generate representative test data or a test script for the selected component in $format. " +
+                "Derive cases from the specification, exact input/output types, field constraints, dependencies, and failure behavior. " +
+                "Include normal, boundary, malformed, and dependency-failure cases where applicable. " +
+                "Use the exact compiler-provided buffer and service names from the dossier when the format is executable. " +
+                "Return only the test data or test script."
+        }
+    }
+
+    private fun sourceInstruction(document: ThreadworkDocument, nodeIds: Collection<NodeId>): String {
+        val nodes = nodeIds.mapNotNull(document.nodes::get).filterNot(Node::isLink)
+        val targets = nodes.joinToString("; ") { node ->
+            "${node.name} [language=${document.effectiveLanguageId(node.id).ifBlank { "unspecified" }}, " +
+                "technology=${document.effectiveTechnologyId(node.id).ifBlank { "unspecified" }}, " +
+                "role=${node.stereotype(document).name}]"
+        }.ifBlank { "the selected component and its effective compiler context" }
+        val hasCProcessor = nodes.any {
+            document.effectiveLanguageId(it.id).equals("c", ignoreCase = true) &&
+                it.stereotype(document) != NodeStereotype.ServiceLibrary
+        }
+        val hasCLibrary = nodes.any {
+            document.effectiveLanguageId(it.id).equals("c", ignoreCase = true) &&
+                it.stereotype(document) == NodeStereotype.ServiceLibrary
+        }
+        return buildString {
+            append(
+                "Generate the complete source implementation for the selected Threadwork editor target: $targets. " +
+                    "Honor the user specification, current implementation, exact typed inputs and outputs, service dependencies, " +
+                    "usage instructions, and effective language and technology. Use every compiler-provided argument name exactly " +
+                    "as written; do not rename it or change snake_case to camelCase. ",
+            )
+            append(
+                "For an ordinary processing node, return only the statements that belong in its editable recurring implementation body. " +
+                    "The Threadwork compiler owns the enclosing function, function name, parameters, forward declarations, initialization, " +
+                    "transport, and entry point. Do not emit any of those generated structures. ",
+            )
+            if (hasCProcessor) {
+                append(
+                    "For a C processing node specifically: do not emit a function signature, prototype, forward declaration, main function, " +
+                        "or #include directive. Read an input item with pop(input_buffer, &item), publish an output item with " +
+                        "push(output_buffer, &item), and use threadwork_buffer_count(buffer) when a count is needed. The generated wrapper " +
+                        "already returns THREADWORK_OK; return THREADWORK_ERROR only on an actual failure. ",
+                )
+            }
+            if (hasCLibrary) {
+                append(
+                    "For a C service-library node, return a complete translation-unit-level library declaration instead of a processor body; " +
+                        "system #include directives, typedefs, declarations, and function implementations are allowed there. ",
+                )
+            }
+            append(
+                "Do not return commentary, Markdown fences, a header, or a forward declaration. Return only source suitable for the selected editor field.",
+            )
         }
     }
 }
@@ -61,11 +119,37 @@ data class AiPromptRequest(
         appendLine()
         appendLine("Task: ${task.instruction(document, nodeIds)}")
         appendLine()
+        appendEditorState()
         appendLine("Component dossier:")
-        appendLine("```markdown")
-        append(componentMarkdown.trim())
+        appendPromptCodeBlock(componentMarkdown.trim(), "markdown")
+    }
+
+    private fun StringBuilder.appendEditorState() {
+        val nodes = nodeIds.distinct().mapNotNull(document.nodes::get).filterNot(Node::isLink)
+        if (nodes.isEmpty()) return
+        appendLine("Selected editor state:")
         appendLine()
-        appendLine("```")
+        nodes.forEach { node ->
+            val language = document.effectiveLanguageId(node.id).ifBlank { "unspecified" }
+            val technology = document.effectiveTechnologyId(node.id).ifBlank { "unspecified" }
+            appendLine("- `${node.name.ifBlank { node.id.value }}`: language `$language`, technology `$technology`, role `${node.stereotype(document).name}`")
+            if (node.text.declaration.isBlank()) {
+                appendLine("  Current implementation: empty.")
+            } else {
+                appendLine("  Current implementation:")
+                appendPromptCodeBlock(node.text.declaration.trim(), language, indentation = "  ")
+            }
+        }
+        appendLine()
+    }
+
+    private fun StringBuilder.appendPromptCodeBlock(content: String, language: String, indentation: String = "") {
+        val longestRun = Regex("`+").findAll(content).maxOfOrNull { it.value.length } ?: 0
+        val fence = "`".repeat(maxOf(3, longestRun + 1))
+        appendLine("$indentation$fence$language")
+        content.lineSequence().forEach { appendLine("$indentation$it") }
+        appendLine("$indentation$fence")
+        appendLine()
     }
 }
 

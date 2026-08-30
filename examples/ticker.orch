@@ -319,7 +319,7 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "",
+                "source": "Packet item;\n\n\nif (pop(ip_word, &item) != THREADWORK_OK) {\n    return THREADWORK_ERROR;\n}\n\nFILE *file = fopen(\"ticker_out.csv\", \"a\");\nif (file == NULL) {\n    return THREADWORK_ERROR;\n}\n\nint fprintf_result = fprintf(\n    file,\n    \"\"%s\",\"%s\",\"%s\",%.0f,%s\\n\",\n    item.timestamp != NULL ? item.timestamp : \"\",\n    item.uuid != NULL ? item.uuid : \"\",\n    item.random_word != NULL ? item.random_word : \"\",\n    item.random_word_length,\n    item.isok ? \"true\" : \"false\"\n);\n\nif (fprintf_result < 0) {\n    fclose(file);\n    return THREADWORK_ERROR;\n}\n\nif (fclose(file) != 0) {\n    return THREADWORK_ERROR;\n}",
                 "sourceLanguageId": "",
                 "specification": "takes ipWord, serializes it as csv string and concatenates the result to the file \"ticker_out.csv\"",
                 "specificationLanguageId": "markdown",
@@ -341,7 +341,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-30T19:55:20.020487885Z",
+                "date": "2026-08-30T23:22:11.668611474Z",
                 "user": "devlin"
             },
             "ports": [
@@ -731,7 +731,7 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "#ifndef FILE_LIB_H\n#define FILE_LIB_H\n\n#include <stdio.h>\n\n#endif /* FILE_LIB_H */",
+                "source": "#ifndef FILE_LIB_H\n#define FILE_LIB_H\n\n#include <stdio.h>\n\n#ifndef DEF_THREADWORK_ERROR\n#define THREADWORK_ERROR -1\n#endif\n\n#endif /* FILE_LIB_H */",
                 "sourceLanguageId": "",
                 "specification": "includes stdio.h or whatever is necessary for the source using the lib to have access to fopen write, fclose et al",
                 "specificationLanguageId": "markdown",
@@ -753,7 +753,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-30T20:13:37.094701827Z",
+                "date": "2026-08-30T23:22:23.900475492Z",
                 "user": "devlin"
             },
             "ports": [
