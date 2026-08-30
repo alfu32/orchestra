@@ -105,8 +105,8 @@ object ThreadworkAppearance {
         UIManager.put("TextComponent.arc", 4)
         UIManager.put("TitlePane.centerTitle", false)
         UIManager.put("TitlePane.centerTitleIfMenuBarEmbedded", false)
-        UIManager.put("TitlePane.showIcon", true)
-        UIManager.put("TitlePane.showIconBesideTitle", true)
+        UIManager.put("TitlePane.showIcon", false)
+        UIManager.put("TitlePane.showIconBesideTitle", false)
     }
 
     fun defaultPalette(theme: ApplicationTheme): DesignerPalette =

@@ -20,6 +20,10 @@ object ThreadworkIcons {
         load("${APP_ICON_ROOT}24.png")?.image
             ?: load("${APP_ICON_ROOT}16.png")?.image
 
+    fun titleBarIcon(): ImageIcon? =
+        load("${APP_ICON_ROOT}24.png")
+            ?: load("${APP_ICON_ROOT}32.png")
+
     private fun load(path: String): ImageIcon? =
         cache.getOrPut(path) {
             ThreadworkIcons::class.java.classLoader.getResource(path)?.let(::ImageIcon)

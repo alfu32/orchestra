@@ -1,5 +1,6 @@
 package com.threadwork.app.ui
 
+import com.formdev.flatlaf.FlatClientProperties
 import com.threadwork.app.editor.EditorCompletionContext
 import com.threadwork.app.editor.EditorHoverInfo
 import com.threadwork.app.editor.EditorHoverRequest
@@ -316,6 +317,14 @@ class ThreadworkDesktopApp(
     private var currentSnapshot = documentSnapshot()
     private var applyingHistory = false
     private var currentFile: Path? = null
+    private val applicationIdentityLabel = JLabel(
+        "Threadwork-${Version.CURRENT.semver}",
+        ThreadworkIcons.titleBarIcon(),
+        SwingConstants.LEADING,
+    ).apply {
+        border = BorderFactory.createEmptyBorder(0, 8, 0, 10)
+        iconTextGap = 6
+    }
     private val currentFileLabel = JLabel("Untitled").apply {
         border = BorderFactory.createEmptyBorder(0, 14, 0, 8)
     }
@@ -341,6 +350,8 @@ class ThreadworkDesktopApp(
         updateResourceStatus()
         resourceTimer.start()
         frame.isVisible = true
+        frame.rootPane.putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_TITLE, false)
+        frame.rootPane.putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_ICON, false)
     }
 
     private fun layout(): JComponent {
@@ -440,6 +451,7 @@ class ThreadworkDesktopApp(
     }
 
     private fun menuBar() = JMenuBar().apply {
+        add(applicationIdentityLabel)
         add(JMenu("File").apply {
             add(commandItem("file.new", "document"))
             add(commandItem("file.open", "open"))
@@ -1016,7 +1028,7 @@ class ThreadworkDesktopApp(
 
     private fun updateWindowTitle() {
         val fileName = currentFile?.fileName?.toString() ?: "Untitled"
-        frame.title = "Threadwork-${Version.CURRENT.semver}"
+        frame.title = "Threadwork-${Version.CURRENT.semver} : $fileName"
         currentFileLabel.text = fileName
         currentFileLabel.toolTipText = currentFile
             ?.toAbsolutePath()
