@@ -4,6 +4,7 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
+import java.awt.Dialog.ModalityType
 import java.awt.FlowLayout
 import java.awt.Graphics
 import java.awt.Graphics2D
@@ -11,6 +12,8 @@ import java.awt.Image
 import java.awt.image.BufferedImage
 import java.awt.print.PageFormat
 import java.awt.print.Printable
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import javax.print.PrintService
 import javax.swing.BorderFactory
 import javax.swing.DefaultListCellRenderer
@@ -19,6 +22,7 @@ import javax.swing.JButton
 import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JDialog
+import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
@@ -42,7 +46,7 @@ internal data class PrintDocumentationAsset(
 
 /** Unified per-printer print setup, keeping plan and documentation pagination independent. */
 internal class PreprintDialog(
-    parent: Component,
+    parent: JFrame,
     private val profiles: ThreadworkPrintProfileStore,
     private val formatChoices: List<String>,
     private val scaleChoices: List<String>,
@@ -54,7 +58,7 @@ internal class PreprintDialog(
     private val savePdf: (List<PrintDocumentationAsset>, DocumentationPrintSettings) -> Unit,
     private val print: (PrintService, List<PrintDocumentationAsset>, DocumentationPrintSettings) -> Unit,
     private val reportStatus: (String) -> Unit,
-) : JDialog() {
+) : JDialog(parent, "Print Preview", ModalityType.DOCUMENT_MODAL) {
     private val printerModel = DefaultListModel<PrinterTarget>()
     private val printerList = JList(printerModel).apply {
         selectionMode = ListSelectionModel.SINGLE_SELECTION
@@ -107,11 +111,33 @@ internal class PreprintDialog(
     }.apply { isRepeats = false }
 
     init {
-        title = "Print Preview"
-        isModal = true
         defaultCloseOperation = WindowConstants.DISPOSE_ON_CLOSE
         minimumSize = Dimension(1080, 700)
         setSize(1280, 840)
+        isAutoRequestFocus = true
+
+        val ownerFocusRestorer = object : WindowAdapter() {
+            override fun windowGainedFocus(event: WindowEvent) {
+                if (!isShowing) return
+                javax.swing.SwingUtilities.invokeLater {
+                    if (isShowing) {
+                        toFront()
+                        requestFocusInWindow()
+                    }
+                }
+            }
+        }
+        parent.addWindowFocusListener(ownerFocusRestorer)
+        addWindowListener(object : WindowAdapter() {
+            override fun windowOpened(event: WindowEvent) {
+                toFront()
+                requestFocusInWindow()
+            }
+
+            override fun windowClosed(event: WindowEvent) {
+                parent.removeWindowFocusListener(ownerFocusRestorer)
+            }
+        })
 
         planPreviewHost.add(planPreviewScroll, BorderLayout.CENTER)
         documentPreviewHost.add(documentPreviewScroll, BorderLayout.CENTER)
