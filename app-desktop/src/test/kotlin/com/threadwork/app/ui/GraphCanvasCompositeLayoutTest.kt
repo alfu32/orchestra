@@ -5,9 +5,27 @@ import com.threadwork.core.model.NodeLayout
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.newDocument
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class GraphCanvasCompositeLayoutTest {
+    @Test
+    fun `terminal nodes use the compact default height`() {
+        val repository = InMemoryDocumentRepository(newDocument("compact nodes"))
+        val node = repository.createNode(repository.getDocument().rootNodeId, "worker", NodeKind.Processor)
+        repository.updateNodeLayout(
+            node.id,
+            node.layout.copy(height = 100.0, closedHeight = 100.0, openHeight = 100.0),
+        )
+        val canvas = GraphCanvas(repository, linkedSetOf(), {}, {}, {})
+
+        canvas.refreshBoundsFromChildren()
+
+        assertEquals(70.0, node.layout.height)
+        assertEquals(70.0, node.layout.closedHeight)
+        assertEquals(70.0, node.layout.openHeight)
+    }
+
     @Test
     fun `expanded composite reserves horizontal routing clearance around children`() {
         val repository = InMemoryDocumentRepository(newDocument("routing clearance"))

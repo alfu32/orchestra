@@ -1,11 +1,45 @@
 package com.threadwork.app.ui
 
+import java.awt.Font
 import java.awt.Rectangle
+import java.awt.image.BufferedImage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class SheetLayoutTest {
+    @Test
+    fun `table columns follow measured content while fixed columns retain their width`() {
+        val image = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
+        val graphics = image.createGraphics()
+        try {
+            graphics.font = Font(Font.MONOSPACED, Font.PLAIN, 10)
+            val widths = SheetLayout.measuredColumnWidths(
+                headers = listOf("No.", "Part", "Signature"),
+                rows = listOf(
+                    listOf("1", "short", ""),
+                    listOf("2", "a much longer part", ""),
+                ),
+                metrics = graphics.fontMetrics,
+                horizontalPadding = 8,
+                fixedWidths = mapOf(2 to 110),
+            )
+
+            assertEquals(graphics.fontMetrics.stringWidth("No.") + 8, widths[0])
+            assertEquals(graphics.fontMetrics.stringWidth("a much longer part") + 8, widths[1])
+            assertEquals(110, widths[2])
+        } finally {
+            graphics.dispose()
+        }
+    }
+
+    @Test
+    fun `parts list reserves exactly one body row per component`() {
+        assertEquals(40, SheetLayout.partsListHeight(componentCount = 0, rowHeight = 20))
+        assertEquals(100, SheetLayout.partsListHeight(componentCount = 3, rowHeight = 20))
+        assertEquals(320, SheetLayout.partsListHeight(componentCount = 14, rowHeight = 20))
+    }
+
     @Test
     fun `disabled tiling centers one page on the content`() {
         val layout = SheetLayout.tile(

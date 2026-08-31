@@ -2205,6 +2205,21 @@ class GraphCanvas(
         const val PORT_TOP_SPACING = 28
         const val PORT_SPACING = 30
         const val PORT_BOTTOM_SPACING = 20
+        const val TERMINAL_NODE_BASE_HEIGHT = 70
+        const val TERMINAL_TITLE_SIZE = 15f
+        const val TERMINAL_INFO_SIZE = 11f
+        const val TERMINAL_TITLE_BASELINE = 22
+        const val TERMINAL_STEREOTYPE_BASELINE = 39
+        const val TERMINAL_TECHNOLOGY_BASELINE = 54
+        const val TERMINAL_TYPE_FIELD_BASELINE = 55
+        const val TERMINAL_TEXT_LINE_HEIGHT = 16
+        const val TERMINAL_BOTTOM_PADDING = 15
+        const val DEPENDENCY_ANNOTATION_FONT_SIZE = 10f
+        const val DEPENDENCY_SOURCE_GAP = 24
+        const val DEPENDENCY_SOURCE_MIN_WIDTH = 72
+        const val DEPENDENCY_TARGET_MIN_WIDTH = 80
+        const val DEPENDENCY_LABEL_HORIZONTAL_PADDING = 16
+        const val DEPENDENCY_TARGET_RULE_RATIO = 0.72
         const val PORT_STUB_LENGTH = 46
         const val PORT_OUTSIDE_OFFSET = 20
         const val ROUTING_STEP = 40
@@ -2576,9 +2591,9 @@ class GraphCanvas(
             .forEach { parent ->
                 val boxes = parent.children.mapNotNull(document.nodes::get).filter { !it.isLink }.map { it.layout.rect() }
                 val terminalWidth = max(requiredNodeWidth(parent), parent.layout.closedWidth)
-                val terminalHeight = max(requiredPortHeight(parent, PORT_TOP_SPACING), parent.layout.closedHeight)
+                val terminalHeight = requiredTerminalHeight(parent)
                 parent.layout.closedWidth = max(parent.layout.closedWidth, terminalWidth)
-                parent.layout.closedHeight = max(parent.layout.closedHeight, terminalHeight)
+                parent.layout.closedHeight = terminalHeight
                 if (boxes.isNotEmpty()) {
                     val childLeft = boxes.minOf { it.x }
                     val childTop = boxes.minOf { it.y }
@@ -2620,12 +2635,12 @@ class GraphCanvas(
 
     private fun ensureLayoutCanHoldPortsAndLabels(node: Node) {
         val terminalWidth = max(node.layout.closedWidth, requiredNodeWidth(node))
-        val terminalHeight = maxOf(node.layout.closedHeight, requiredPortHeight(node, PORT_TOP_SPACING), requiredTypeHeight(node))
+        val terminalHeight = requiredTerminalHeight(node)
         node.layout.closedWidth = max(node.layout.closedWidth, terminalWidth)
-        node.layout.closedHeight = max(node.layout.closedHeight, terminalHeight)
+        node.layout.closedHeight = terminalHeight
         if (!node.isComposite) {
             node.layout.openWidth = max(node.layout.openWidth, node.layout.closedWidth)
-            node.layout.openHeight = max(node.layout.openHeight, node.layout.closedHeight)
+            node.layout.openHeight = node.layout.closedHeight
         } else {
             node.layout.openHeight = max(node.layout.openHeight, node.layout.closedHeight + COMPOSITE_HEADER_EXTRA_HEIGHT)
         }
@@ -2639,6 +2654,12 @@ class GraphCanvas(
         return (topSpacing + portCount * PORT_SPACING + PORT_BOTTOM_SPACING).toDouble()
     }
 
+    private fun requiredTerminalHeight(node: Node): Double = maxOf(
+        TERMINAL_NODE_BASE_HEIGHT.toDouble(),
+        requiredPortHeight(node, PORT_TOP_SPACING),
+        requiredTypeHeight(node),
+    )
+
     private fun requiredNodeWidth(node: Node): Double {
         val labels = buildList {
             add(node.name)
@@ -2646,13 +2667,21 @@ class GraphCanvas(
             technologyLabel(node)?.let(::add)
             typeFieldLabels(node).forEach(::add)
         }
-        val contentWidth = labels.maxOfOrNull { monospaceTextWidth(it, 8, 28) } ?: 0
+        val contentWidth = labels.mapIndexed { index, label ->
+            monospaceTextWidth(label, if (index == 0) TERMINAL_TITLE_SIZE else TERMINAL_INFO_SIZE, 28)
+        }.maxOrNull() ?: 0
         val portWidth = node.ports.maxOfOrNull { monospaceTextWidth(it.name, 8, 68) } ?: 0
         return maxOf(200, contentWidth, portWidth).toDouble()
     }
 
-    private fun requiredTypeHeight(node: Node): Double =
-        if (node.isType) (78 + typeFieldLabels(node).size * 18).toDouble() else 0.0
+    private fun requiredTypeHeight(node: Node): Double {
+        if (!node.isType) return 0.0
+        val fields = typeFieldLabels(node)
+        if (fields.isEmpty()) return TERMINAL_NODE_BASE_HEIGHT.toDouble()
+        val firstBaseline = TERMINAL_TYPE_FIELD_BASELINE +
+            if (technologyLabel(node) == null) 0 else TERMINAL_TEXT_LINE_HEIGHT
+        return (firstBaseline + (fields.size - 1) * TERMINAL_TEXT_LINE_HEIGHT + TERMINAL_BOTTOM_PADDING).toDouble()
+    }
 
     private fun typeFieldLabels(node: Node): List<String> =
         node.typeDefinition?.fields.orEmpty().map { field ->
@@ -3116,7 +3145,7 @@ class GraphCanvas(
         val titleHeight = sheetMm(TITLE_BLOCK_HEIGHT_MM, scale)
         val partsWidth = partsColumns.totalWidth
         val partsRowHeight = sheetUnits(PARTS_ROW_HEIGHT, scale)
-        val partsRequiredHeight = ((bomRows.size + 2) * partsRowHeight).coerceAtLeast(sheetMm(80.0, scale))
+        val partsRequiredHeight = SheetLayout.partsListHeight(bomRows.size, partsRowHeight)
         val gap = sheetMm(8.0, scale)
 
         val requiredWidth = margin * 2 + contentBounds.width
@@ -3164,7 +3193,7 @@ class GraphCanvas(
             titleBlock = titleBlock,
             partsList = Rectangle(
                 drawing.x + drawing.width - partsWidth,
-                drawing.y + gap,
+                drawing.y,
                 partsWidth,
                 partsHeight,
             ),
@@ -3280,16 +3309,21 @@ class GraphCanvas(
     private fun partsListColumns(rows: List<BomRow>, scale: Int): PartsListColumns {
         val labels = listOf("No.", "Part", "Kind", "Modified", "Rev.", "Responsible", "Signature")
         val values = rows.map(::partsListValues)
-        val minimumCharacters = listOf(4, 16, 12, 18, 8, 14, 14)
-        val widths = labels.indices.map { column ->
-            val longest = maxOf(
-                values.maxOfOrNull { it[column].length } ?: 0,
-                labels[column].length,
-                minimumCharacters[column],
+        val image = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
+        val graphics = image.createGraphics()
+        return try {
+            graphics.font = designerFont.deriveFont(10f * scale)
+            val widths = SheetLayout.measuredColumnWidths(
+                headers = labels,
+                rows = values,
+                metrics = graphics.fontMetrics,
+                horizontalPadding = sheetUnits(8, scale),
+                fixedWidths = mapOf(labels.lastIndex to sheetUnits(110, scale)),
             )
-            sheetUnits(longest * 7 + 12, scale)
+            PartsListColumns(labels, widths)
+        } finally {
+            graphics.dispose()
         }
-        return PartsListColumns(labels, widths)
     }
 
     private fun partsListValues(row: BomRow): List<String> =
@@ -3550,7 +3584,6 @@ class GraphCanvas(
             strokeWidth = strokeWidth,
             dashArray = strokeDash,
         )
-        val compact = node.children.isEmpty() || !node.layout.isExpanded
         if (node.isComposite && node.layout.isExpanded) {
             val metrics = compositeTextMetrics(node)
             svgText(svg, node.name, r.x + 12, r.y + metrics.titleBaselineOffset, metrics.titleSize.roundToInt(), "#222222")
@@ -3560,12 +3593,17 @@ class GraphCanvas(
             }
         } else {
             val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
-            svgText(svg, node.name, r.x + 12, r.y + 22 + headerOffset, if (compact) 13 else 12, "#222222")
-            svgText(svg, stereotype.name, r.x + 12, r.y + 42 + headerOffset, 12, "#555555")
-            technologyLabel(node)?.let { svgText(svg, it, r.x + 12, r.y + 58 + headerOffset, 11, "#666666") }
+            svgText(svg, node.name, r.x + 12, r.y + TERMINAL_TITLE_BASELINE + headerOffset, TERMINAL_TITLE_SIZE.roundToInt(), "#222222")
+            svgText(svg, stereotype.name, r.x + 12, r.y + TERMINAL_STEREOTYPE_BASELINE + headerOffset, TERMINAL_INFO_SIZE.roundToInt(), "#555555")
+            val technology = technologyLabel(node)
+            technology?.let {
+                svgText(svg, it, r.x + 12, r.y + TERMINAL_TECHNOLOGY_BASELINE + headerOffset, TERMINAL_INFO_SIZE.roundToInt(), "#666666")
+            }
             if (node.isType) {
+                val firstBaseline = TERMINAL_TYPE_FIELD_BASELINE +
+                    if (technology == null) 0 else TERMINAL_TEXT_LINE_HEIGHT
                 typeFieldLabels(node).forEachIndexed { index, label ->
-                    svgText(svg, label, r.x + 12, r.y + 64 + index * 18, 11, "#00695c")
+                    svgText(svg, label, r.x + 12, r.y + firstBaseline + index * TERMINAL_TEXT_LINE_HEIGHT, TERMINAL_INFO_SIZE.roundToInt(), "#00695c")
                 }
             }
         }
@@ -3710,18 +3748,18 @@ class GraphCanvas(
         val r = library.layout.rect()
         links.forEachIndexed { index, linkNode ->
             val link = linkNode.link ?: return@forEachIndexed
-            val dependent = repository.getNode(link.targetNodeId) ?: return@forEachIndexed
-            val label = dependent.name.take(28)
-            val labelWidth = max(96, label.length * 8 + 22)
+            repository.getNode(link.targetNodeId) ?: return@forEachIndexed
+            val label = dependencyInjectionLabel(linkNode, library)
+            val labelWidth = dependencyAnnotationWidth(label, DEPENDENCY_SOURCE_MIN_WIDTH)
             val labelHeight = 24
             val y = r.y + 10 + index * (labelHeight + 8)
-            val x = r.x + r.width + 34
+            val x = r.x + r.width + DEPENDENCY_SOURCE_GAP
             val anchor = Point(r.x + r.width, y + labelHeight / 2)
             val color = hex(annotationColor(linkNode, selected = false))
             svgLine(svg, anchor.x, anchor.y, x, anchor.y, color, strokeWidth = 1.5)
             svgCircle(svg, anchor.x, anchor.y, 4, color)
             svgRect(svg, Rectangle(x, y, labelWidth, labelHeight), fill = "#f8f9ff", stroke = color, strokeWidth = 1.5)
-            svgText(svg, label, x + 10, y + 17, 12, color)
+            svgText(svg, label, x + 8, y + 17, DEPENDENCY_ANNOTATION_FONT_SIZE.roundToInt(), color)
         }
     }
 
@@ -3730,23 +3768,23 @@ class GraphCanvas(
         val rows = links.mapNotNull { linkNode ->
             val link = linkNode.link ?: return@mapNotNull null
             val source = repository.getNode(link.sourceNodeId) ?: return@mapNotNull null
-            linkNode to source.name.take(28)
+            linkNode to dependencyInjectionLabel(linkNode, source)
         }
         if (rows.isEmpty()) return
 
         val x = r.x + 36
         val rowHeight = 24
         val startY = r.y - rows.size * rowHeight - 16
-        val stemBottom = r.y + 16
+        val stemBottom = r.y
         val stemColor = hex(annotationColor(rows.first().first, selected = false))
         svgLine(svg, x, startY, x, stemBottom, stemColor, strokeWidth = 1.5)
         rows.forEachIndexed { index, (linkNode, label) ->
             val y = startY + index * rowHeight + 8
-            val width = max(110, label.length * 8 + 36)
+            val width = dependencyTargetRuleWidth(label)
             val color = hex(annotationColor(linkNode, selected = false))
             svgCircle(svg, x, y, 5, color)
             svgLine(svg, x, y, x + width, y, color, strokeWidth = 1.5)
-            svgText(svg, label, x + 14, y - 4, 12, color)
+            svgText(svg, label, x + 10, y - 4, DEPENDENCY_ANNOTATION_FONT_SIZE.roundToInt(), color)
         }
     }
 
@@ -3969,13 +4007,13 @@ class GraphCanvas(
         val selected = node.id in selection
         val stereotype = nodeStereotype(node)
         val previousStroke = g2.stroke
+        val previousFont = g2.font
         g2.color = fillFor(node)
         g2.fillRect(r.x, r.y, r.width, r.height)
         g2.color = strokeFor(node, selected)
         g2.stroke = nodeStroke(node, selected)
         g2.drawRect(r.x, r.y, r.width, r.height)
         g2.color = activePalette[DesignerColorKey.TextPrimary]
-        val compact = node.children.isEmpty() || !node.layout.isExpanded
         if (node.isComposite && node.layout.isExpanded) {
             val metrics = compositeTextMetrics(node)
             g2.font = designerFont.deriveFont(metrics.titleSize)
@@ -3988,26 +4026,29 @@ class GraphCanvas(
                 g2.drawString(it, r.x + 12, r.y + metrics.technologyBaselineOffset)
             }
         } else {
-            g2.font = g2.font.deriveFont(if (compact) 13f else 12f)
             val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
-            g2.drawString(node.name, r.x + 12, r.y + 22 + headerOffset)
+            g2.font = designerFont.deriveFont(TERMINAL_TITLE_SIZE)
+            g2.drawString(node.name, r.x + 12, r.y + TERMINAL_TITLE_BASELINE + headerOffset)
             g2.color = activePalette[DesignerColorKey.TextSecondary]
-            g2.drawString(stereotype.name, r.x + 12, r.y + 42 + headerOffset)
-            technologyLabel(node)?.let {
+            g2.font = designerFont.deriveFont(TERMINAL_INFO_SIZE)
+            g2.drawString(stereotype.name, r.x + 12, r.y + TERMINAL_STEREOTYPE_BASELINE + headerOffset)
+            val technology = technologyLabel(node)
+            technology?.let {
                 g2.color = activePalette[DesignerColorKey.TextMuted]
-                g2.font = g2.font.deriveFont(11f)
-                g2.drawString(it, r.x + 12, r.y + 58 + headerOffset)
+                g2.drawString(it, r.x + 12, r.y + TERMINAL_TECHNOLOGY_BASELINE + headerOffset)
             }
             if (node.isType) {
                 g2.color = activePalette[DesignerColorKey.TypeStroke]
-                g2.font = designerFont.deriveFont(11f)
+                val firstBaseline = TERMINAL_TYPE_FIELD_BASELINE +
+                    if (technology == null) 0 else TERMINAL_TEXT_LINE_HEIGHT
                 typeFieldLabels(node).forEachIndexed { index, label ->
-                    g2.drawString(label, r.x + 12, r.y + 64 + index * 18)
+                    g2.drawString(label, r.x + 12, r.y + firstBaseline + index * TERMINAL_TEXT_LINE_HEIGHT)
                 }
             }
         }
         drawCompositeToggle(g2, node)
         g2.stroke = previousStroke
+        g2.font = previousFont
     }
 
     private fun drawCompositeToggle(g2: Graphics2D, node: Node) {
@@ -4313,16 +4354,20 @@ class GraphCanvas(
     private fun drawLibraryDependents(g2: Graphics2D, library: Node, links: List<Node>) {
         val r = library.layout.rect()
         val previousStroke = g2.stroke
+        val previousFont = g2.font
+        g2.font = designerFont.deriveFont(DEPENDENCY_ANNOTATION_FONT_SIZE)
         links.forEachIndexed { index, linkNode ->
             val link = linkNode.link ?: return@forEachIndexed
-            val dependent = repository.getNode(link.targetNodeId) ?: return@forEachIndexed
+            repository.getNode(link.targetNodeId) ?: return@forEachIndexed
             val selected = linkNode.id in selection
             val label = dependencyInjectionLabel(linkNode, library)
-            val metrics = g2.fontMetrics
-            val labelWidth = max(96, monospaceTextWidth(label, 8, 22))
+            val labelWidth = max(
+                DEPENDENCY_SOURCE_MIN_WIDTH,
+                g2.fontMetrics.stringWidth(label) + DEPENDENCY_LABEL_HORIZONTAL_PADDING,
+            )
             val labelHeight = 24
             val y = r.y + 10 + index * (labelHeight + 8)
-            val x = r.x + r.width + 34
+            val x = r.x + r.width + DEPENDENCY_SOURCE_GAP
             val anchor = Point(r.x + r.width, y + labelHeight / 2)
             val color = annotationColor(linkNode, selected)
             g2.color = color
@@ -4333,25 +4378,28 @@ class GraphCanvas(
             g2.fillRect(x, y, labelWidth, labelHeight)
             g2.color = color
             g2.drawRect(x, y, labelWidth, labelHeight)
-            g2.drawString(label, x + 10, y + 17)
+            g2.drawString(label, x + 8, y + 17)
         }
         g2.stroke = previousStroke
+        g2.font = previousFont
     }
 
     private fun drawDependencyList(g2: Graphics2D, dependent: Node, links: List<Node>) {
         val r = dependent.layout.rect()
         val previousStroke = g2.stroke
+        val previousFont = g2.font
         val rows = links.mapNotNull { linkNode ->
             val link = linkNode.link ?: return@mapNotNull null
             val source = repository.getNode(link.sourceNodeId) ?: return@mapNotNull null
             linkNode to dependencyInjectionLabel(linkNode, source)
         }
         if (rows.isEmpty()) return
+        g2.font = designerFont.deriveFont(DEPENDENCY_ANNOTATION_FONT_SIZE)
 
         val x = r.x + 36
         val rowHeight = 24
         val startY = r.y - rows.size * rowHeight - 16
-        val stemBottom = r.y + 16
+        val stemBottom = r.y
         val selected = rows.any { it.first.id in selection }
         val stemColor = if (selected) activePalette[DesignerColorKey.Selection] else annotationColor(rows.first().first, false)
         g2.color = stemColor
@@ -4359,7 +4407,11 @@ class GraphCanvas(
         g2.drawLine(x, startY, x, stemBottom)
         rows.forEachIndexed { index, (linkNode, label) ->
             val y = startY + index * rowHeight + 8
-            val width = max(110, monospaceTextWidth(label, 8, 36))
+            val width = max(
+                DEPENDENCY_TARGET_MIN_WIDTH,
+                ((g2.fontMetrics.stringWidth(label) + DEPENDENCY_LABEL_HORIZONTAL_PADDING) *
+                    DEPENDENCY_TARGET_RULE_RATIO).roundToInt(),
+            )
             val color = annotationColor(linkNode, linkNode.id in selection)
             g2.color = color
             g2.fillOval(x - 5, y - 5, 10, 10)
@@ -4369,9 +4421,10 @@ class GraphCanvas(
                 g2.drawLine(x, y + 2, x + width, y + 2)
                 g2.stroke = BasicStroke(1.5f)
             }
-            g2.drawString(label, x + 14, y - 4)
+            g2.drawString(label, x + 10, y - 4)
         }
         g2.stroke = previousStroke
+        g2.font = previousFont
     }
 
     private fun drawTypeUsageAnnotations(g2: Graphics2D, links: List<Node>, scopeIds: Set<NodeId>?) {
@@ -4915,11 +4968,11 @@ class GraphCanvas(
                         x = point.x.toDouble(),
                         y = point.y.toDouble(),
                         width = 180.0,
-                        height = 90.0,
+                        height = TERMINAL_NODE_BASE_HEIGHT.toDouble(),
                         closedWidth = 180.0,
-                        closedHeight = 90.0,
+                        closedHeight = TERMINAL_NODE_BASE_HEIGHT.toDouble(),
                         openWidth = 180.0,
-                        openHeight = 90.0,
+                        openHeight = TERMINAL_NODE_BASE_HEIGHT.toDouble(),
                         isExpanded = true,
                     ),
                 )
@@ -4937,11 +4990,11 @@ class GraphCanvas(
                         x = point.x.toDouble(),
                         y = point.y.toDouble(),
                         width = 220.0,
-                        height = 96.0,
+                        height = TERMINAL_NODE_BASE_HEIGHT.toDouble(),
                         closedWidth = 220.0,
-                        closedHeight = 96.0,
+                        closedHeight = TERMINAL_NODE_BASE_HEIGHT.toDouble(),
                         openWidth = 220.0,
-                        openHeight = 96.0,
+                        openHeight = TERMINAL_NODE_BASE_HEIGHT.toDouble(),
                         isExpanded = true,
                     ),
                 )
@@ -5208,21 +5261,33 @@ class GraphCanvas(
         val targetIndex = targetLinks.indexOfFirst { it.id == linkNode.id }.coerceAtLeast(0)
         val sourceRect = source.layout.rect()
         val targetRect = target.layout.rect()
-        val labelWidth = max(96, monospaceTextWidth(target.name, 8, 22))
+        val label = dependencyInjectionLabel(linkNode, source)
+        val sourceLabelWidth = dependencyAnnotationWidth(label, DEPENDENCY_SOURCE_MIN_WIDTH)
         val sourceBounds = Rectangle(
             sourceRect.x + sourceRect.width,
             sourceRect.y + 10 + sourceIndex * 32,
-            max(120, monospaceTextWidth(dependencyInjectionLabel(linkNode, source), 8, 22)) + 36,
+            DEPENDENCY_SOURCE_GAP + sourceLabelWidth,
             24,
         )
+        val dependencyWidth = dependencyAnnotationWidth(label, DEPENDENCY_TARGET_MIN_WIDTH)
         val dependencyBounds = Rectangle(
-            targetRect.x + 24,
+            targetRect.x + 30,
             targetRect.y - targetLinks.size * 24 - 20 + targetIndex * 24,
-            max(120, monospaceTextWidth(dependencyInjectionLabel(linkNode, source), 8, 52)),
+            dependencyWidth + 12,
             24,
         )
         return listOf(sourceBounds, dependencyBounds)
     }
+
+    private fun dependencyAnnotationWidth(label: String, minimum: Int): Int = max(
+        minimum,
+        monospaceTextWidth(label, DEPENDENCY_ANNOTATION_FONT_SIZE, DEPENDENCY_LABEL_HORIZONTAL_PADDING),
+    )
+
+    private fun dependencyTargetRuleWidth(label: String): Int = max(
+        DEPENDENCY_TARGET_MIN_WIDTH,
+        (dependencyAnnotationWidth(label, DEPENDENCY_TARGET_MIN_WIDTH) * DEPENDENCY_TARGET_RULE_RATIO).roundToInt(),
+    )
 
     private fun dependencyInjectionLabel(linkNode: Node, sourceNode: Node): String {
         val linkName = linkNode.name.trim().ifBlank { linkNode.id.value }

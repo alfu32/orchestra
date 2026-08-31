@@ -25,11 +25,11 @@ data class NodeLayout(
     var x: Double = 0.0,
     var y: Double = 0.0,
     var width: Double = 200.0,
-    var height: Double = 100.0,
+    var height: Double = 70.0,
     var closedWidth: Double = 200.0,
-    var closedHeight: Double = 100.0,
+    var closedHeight: Double = 70.0,
     var openWidth: Double = 200.0,
-    var openHeight: Double = 100.0,
+    var openHeight: Double = 70.0,
     var isExpanded: Boolean = true,
 )
 

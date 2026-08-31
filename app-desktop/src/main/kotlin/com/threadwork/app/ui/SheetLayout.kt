@@ -1,5 +1,6 @@
 package com.threadwork.app.ui
 
+import java.awt.FontMetrics
 import java.awt.Rectangle
 import kotlin.math.ceil
 import kotlin.math.roundToInt
@@ -23,6 +24,27 @@ internal data class SheetTileLayout(
 }
 
 internal object SheetLayout {
+    fun measuredColumnWidths(
+        headers: List<String>,
+        rows: List<List<String>>,
+        metrics: FontMetrics,
+        horizontalPadding: Int,
+        fixedWidths: Map<Int, Int> = emptyMap(),
+    ): List<Int> = headers.indices.map { column ->
+        fixedWidths[column] ?: (
+            maxOf(
+                metrics.stringWidth(headers[column]),
+                rows.maxOfOrNull { row -> metrics.stringWidth(row.getOrElse(column) { "" }) } ?: 0,
+            ) + horizontalPadding
+        )
+    }
+
+    fun partsListHeight(componentCount: Int, rowHeight: Int): Int {
+        require(componentCount >= 0) { "Component count cannot be negative." }
+        require(rowHeight > 0) { "Row height must be positive." }
+        return (componentCount + 2) * rowHeight
+    }
+
     fun tile(
         contentBounds: Rectangle,
         sheetWidth: Int,
