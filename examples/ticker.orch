@@ -100,7 +100,7 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "time_t now = time(NULL);\nstruct tm time_info;\nchar timestamp[32];\n\nPacket packet = {\n    .timestamp = timestamp,\n    .uuid = NULL,\n    .random_word = NULL,\n    .random_word_length = 0,\n    .isok = false\n};\n\nif (now != (time_t)-1 &&\n    localtime_r(&now, &time_info) != NULL &&\n    strftime(\n        timestamp,\n        sizeof(timestamp),\n        \"%Y-%m-%dT%H:%M:%S%z\",\n        &time_info\n    ) > 0) {\n    packet.isok = true;\n} else {\n    timestamp[0] = '\\0';\n}\n\nipTime(packet);",
+                "source": "time_t now = time(NULL);\nstruct tm time_info;\nchar timestamp[32];\n\nPacket packet = {\n    .timestamp = timestamp,\n    .uuid = NULL,\n    .random_word = NULL,\n    .random_word_length = 0\n};\n\nif (now != (time_t)-1 &&\n    localtime_r(&now, &time_info) != NULL &&\n    strftime(\n        timestamp,\n        sizeof(timestamp),\n        \"%Y-%m-%dT%H:%M:%S%z\",\n        &time_info\n    ) > 0) {\n    packet.isok = true;\n} else {\n    timestamp[0] = '\\0';\n}\n\nipTime(packet);",
                 "sourceLanguageId": "",
                 "specification": "reads system time and puts it in a Packet and then pushes it into the ipTime output",
                 "specificationLanguageId": "markdown",
@@ -122,7 +122,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-30T20:08:29.341371331Z",
+                "date": "2026-08-31T00:25:26.569842970Z",
                 "user": "devlin"
             },
             "ports": [
@@ -300,8 +300,8 @@
             "parentId": "root",
             "children": [],
             "incomingLinks": [
-                "link_3f327a51-135b-4216-b55f-70ae41f06a30",
-                "link_dd5fcd39-8d54-4310-b6fe-242d927f0ec5"
+                "link_dd5fcd39-8d54-4310-b6fe-242d927f0ec5",
+                "link_3f327a51-135b-4216-b55f-70ae41f06a30"
             ],
             "outgoingLinks": [],
             "layout": {
@@ -403,7 +403,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-30T19:41:34.650898308Z",
+                "date": "2026-08-31T00:26:03.492773698Z",
                 "user": "devlin"
             },
             "ports": [],

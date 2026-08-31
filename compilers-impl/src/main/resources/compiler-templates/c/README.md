@@ -3,8 +3,8 @@
 This template set generates one portable C17 translation unit. `processor.peb` and
 `composite.peb` define setup/run functions, while their forward-declaration templates
 place prototypes before all generated bodies. `type-declaration.peb` maps shared Type
-entities to structs. Built-in arrays use `ThreadworkArray` from the runtime; reference
-fields become pointers to custom struct tags.
+entities to structs. Built-in booleans use C17 `bool`, arrays use `ThreadworkArray` from
+the runtime, and reference fields become pointers to custom struct tags.
 
 Every data link owns two `threadwork_buffer` values sized from the resolved Type and a
 named transport function. Generated processors receive incoming B buffers and outgoing A

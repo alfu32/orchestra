@@ -3,6 +3,7 @@ package com.threadwork.compiler.c
 import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.DirectFileSystemHomorphismLayoutStrategy
 import com.threadwork.compiler.api.SingleFileLayoutStrategy
+import com.threadwork.core.model.BuiltInTypeIds
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.NodePort
@@ -21,6 +22,25 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class CCompilerTest {
+    @Test
+    fun `built in boolean fields use C bool`() {
+        val repository = cProject()
+        val root = repository.getDocument().rootNodeId
+        val packet = repository.createNode(root, "Packet", NodeKind.Type)
+        repository.updateNodeTypeDefinition(
+            packet.id,
+            TypeDefinition(mutableListOf(TypeFieldDefinition("isok", BuiltInTypeIds.Boolean))),
+        )
+
+        val result = CCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val source = assertNotNull(result.generatedProject).files.single().content
+        assertTrue(source.contains("#include <stdbool.h>"))
+        assertTrue(source.contains("bool isok;"))
+        assertFalse(source.contains("struct boolean"))
+    }
+
     @Test
     fun `shared type entities declare typed link buffers`() {
         val repository = cProject()
@@ -147,7 +167,12 @@ class CCompilerTest {
         val workOrder = repository.createNode(root, "WorkOrder", NodeKind.Type)
         repository.updateNodeTypeDefinition(
             workOrder.id,
-            TypeDefinition(mutableListOf(TypeFieldDefinition("id", "number"))),
+            TypeDefinition(
+                mutableListOf(
+                    TypeFieldDefinition("id", BuiltInTypeIds.Number),
+                    TypeFieldDefinition("is_ready", BuiltInTypeIds.Boolean),
+                ),
+            ),
         )
         val producer = repository.createNode(root, "producer", NodeKind.Processor)
         val consumer = repository.createNode(root, "consumer", NodeKind.Processor)
@@ -159,7 +184,7 @@ class CCompilerTest {
             producer.id,
             producer.text.copy(
                 declaration = """
-                    WorkOrder order = { 42 };
+                    WorkOrder order = { 42, true };
                     if (push(records, &order) != THREADWORK_OK) {
                         return THREADWORK_ERROR;
                     }
@@ -176,6 +201,9 @@ class CCompilerTest {
         val result = CCompiler().compile(repository.getDocument())
         assertTrue(result.success, result.diagnostics.joinToString { it.message })
         val source = assertNotNull(result.generatedProject).files.single().content
+        assertTrue(source.contains("#include <stdbool.h>"))
+        assertTrue(source.contains("bool is_ready;"))
+        assertFalse(source.contains("struct boolean"))
         assertTrue(source.contains("int push(void *target, void *package)"))
         assertTrue(source.contains("int pop(void *target, void *package)"))
         assertTrue(source.contains("size_t threadwork_buffer_count(const threadwork_buffer *buffer)"))
