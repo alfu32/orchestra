@@ -1,6 +1,8 @@
 package com.threadwork.app.ui
 
 import com.threadwork.storage.KotlinxJsonDocumentStore
+import java.nio.file.Files
+import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -33,5 +35,31 @@ class WorkflowArchetypeResourcesTest {
             .useLines { lines -> lines.filter { it.isNotBlank() && !it.startsWith('#') }.toList() }
         assertEquals(resources.size, catalogRows.size)
         assertTrue(catalogRows.all { row -> row.substringAfterLast('\t').count { it == '/' } == 1 })
+    }
+
+    @Test
+    fun `user archetypes are discovered from immediate folders beside bundled archetypes`() {
+        val store = KotlinxJsonDocumentStore()
+        val userFolder = createTempDirectory("threadwork-user-archetypes")
+        val customGroup = Files.createDirectories(userFolder.resolve("custom-flows"))
+        val source = requireNotNull(
+            javaClass.getResourceAsStream("/workflow-archetypes/integration/request-response.orch"),
+        ).bufferedReader().use { it.readText() }
+        Files.writeString(customGroup.resolve("custom-request.orch"), source)
+
+        val archetypes = loadWorkflowArchetypes(store, userFolder)
+
+        assertEquals(3, archetypes.size)
+        assertEquals(2, archetypes.count { !it.id.startsWith("user:") })
+        val custom = archetypes.single { it.id == "user:custom-flows/custom-request.orch" }
+        assertEquals("custom-flows", custom.group)
+        assertEquals("Request Response Template", custom.label)
+        assertTrue(custom.description.startsWith("Coordinates one request"))
+    }
+
+    @Test
+    fun `archetype filenames are safe without changing model names`() {
+        assertEquals("Order-processing-v2", archetypeFileStem("Order processing / v2"))
+        assertEquals("archetype", archetypeFileStem(" / "))
     }
 }

@@ -303,6 +303,7 @@ class ThreadworkDesktopApp(
         add(statusRight, BorderLayout.EAST)
     }
     private lateinit var projectPanels: JTabbedPane
+    private lateinit var archetypesPanel: WorkflowArchetypesPanel
     private val modeButtons = mutableMapOf<CanvasMode, JToggleButton>()
     private var sheetButton: JToggleButton? = null
     private val commands = linkedMapOf<String, AppCommand>()
@@ -416,6 +417,7 @@ class ThreadworkDesktopApp(
             canvas,
         ).apply {
             resizeWeight = 0.16
+            ThreadworkUiSettings.rememberDividerLocation(this, "designer.hierarchy.divider")
         }
 
         val selectedAndHierarchy = JSplitPane(
@@ -424,6 +426,7 @@ class ThreadworkDesktopApp(
             labeledPanel("Entity Hierarchy Tree", JScrollPane(detailsHierarchyTree)),
         ).apply {
             resizeWeight = 0.45
+            ThreadworkUiSettings.rememberDividerLocation(this, "editor.selection.divider")
         }
         val editorAndInspector = JSplitPane(
             JSplitPane.HORIZONTAL_SPLIT,
@@ -431,20 +434,23 @@ class ThreadworkDesktopApp(
             labeledPanel("Inspector", JScrollPane(inspector)),
         ).apply {
             resizeWeight = 0.78
+            ThreadworkUiSettings.rememberDividerLocation(this, "editor.inspector.divider")
         }
         val detailsEditor = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, selectedAndHierarchy, editorAndInspector).apply {
             resizeWeight = 0.18
+            ThreadworkUiSettings.rememberDividerLocation(this, "editor.hierarchy.divider")
         }
 
         projectPanels = JTabbedPane().apply {
             addTab("Designer", flowDesigner)
             addTab("Editor", detailsEditor)
+            archetypesPanel = WorkflowArchetypesPanel(store) { archetype ->
+                canvas.insertArchetype(archetype)
+                checkpointHistory()
+            }
             addTab(
                 "Archetypes",
-                WorkflowArchetypesPanel(store) { archetype ->
-                    canvas.insertArchetype(archetype)
-                    checkpointHistory()
-                },
+                archetypesPanel,
             )
             pluginContentTabs.forEach { tab ->
                 addTab(tab.title, tab.createPanel())
@@ -464,6 +470,7 @@ class ThreadworkDesktopApp(
             add(commandItem("file.open", "open"))
             add(commandItem("file.save", "save"))
             add(commandItem("file.saveAs", "disk"))
+            add(commandItem("file.saveAsArchetype", "disk"))
             add(commandItem("file.printPreview", "sheet"))
             add(JMenu("Export").apply {
                 add(commandItem("export.plan.pdf", "pdf"))
@@ -544,6 +551,7 @@ class ThreadworkDesktopApp(
         registerCommand(AppCommand("file.open", "File: Open...", KeyStroke.getKeyStroke(KeyEvent.VK_O, shortcut)) { openFile() })
         registerCommand(AppCommand("file.save", "File: Save", KeyStroke.getKeyStroke(KeyEvent.VK_S, shortcut)) { saveFile() })
         registerCommand(AppCommand("file.saveAs", "File: Save As...", KeyStroke.getKeyStroke(KeyEvent.VK_S, shiftShortcut)) { saveAsFile() })
+        registerCommand(AppCommand("file.saveAsArchetype", "File: Save Model as Archetype...") { saveAsArchetype() })
         registerCommand(AppCommand("file.printPreview", "File: Print Preview...", KeyStroke.getKeyStroke(KeyEvent.VK_P, shortcut)) { showPreprintDialog() })
         registerCommand(AppCommand("file.quit", "File: Quit", KeyStroke.getKeyStroke(KeyEvent.VK_Q, shortcut)) { quit() })
         registerCommand(AppCommand("app.options", "Application: Options...") { showOptions() })
@@ -1117,6 +1125,49 @@ class ThreadworkDesktopApp(
         currentFile = path
         repository.clearDirty()
         updateWindowTitle()
+    }
+
+    private fun saveAsArchetype() {
+        val userDefinedFolder = defaultUserArchetypesFolder().resolve("user-defined")
+        val folder = runCatching { Files.createDirectories(userDefinedFolder) }.getOrElse { error ->
+            JOptionPane.showMessageDialog(
+                frame,
+                error.message ?: "Could not create the user archetypes folder.",
+                "Save Model as Archetype",
+                JOptionPane.ERROR_MESSAGE,
+            )
+            return
+        }
+        val dialog = FileDialog(frame, "Save Model as Archetype", FileDialog.SAVE).apply {
+            directory = folder.toString()
+            file = "${archetypeFileStem(repository.getDocument().projectName())}.$NATIVE_PROJECT_EXTENSION"
+            filenameFilter = FilenameFilter { _, name ->
+                name.endsWith(".$NATIVE_PROJECT_EXTENSION", ignoreCase = true)
+            }
+        }
+        dialog.isVisible = true
+        val selectedName = dialog.file?.takeIf(String::isNotBlank) ?: return
+        val selectedFolder = dialog.directory?.let(Path::of) ?: folder
+        val selected = selectedFolder.resolve(selectedName).let { path ->
+            if (path.fileName.toString().endsWith(".$NATIVE_PROJECT_EXTENSION", ignoreCase = true)) {
+                path
+            } else {
+                path.resolveSibling("${path.fileName}.$NATIVE_PROJECT_EXTENSION")
+            }
+        }
+        runCatching { store.save(repository.getDocument(), selected) }
+            .onSuccess {
+                archetypesPanel.reload()
+                status.text = "Saved model as archetype ${selected.toAbsolutePath().normalize()}"
+            }
+            .onFailure { error ->
+                JOptionPane.showMessageDialog(
+                    frame,
+                    error.message ?: "Could not save the archetype.",
+                    "Save Model as Archetype",
+                    JOptionPane.ERROR_MESSAGE,
+                )
+            }
     }
 
     private fun autosave() {

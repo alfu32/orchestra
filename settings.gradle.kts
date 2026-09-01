@@ -20,6 +20,7 @@ include(
     "completion-core",
     "compiler-api",
     "compilers-impl",
+    "builtin-archetype",
     "assets",
     "app-desktop",
 )

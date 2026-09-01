@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":storage-json"))
     implementation(project(":completion-core"))
     implementation(project(":compilers-impl"))
+    implementation(project(":builtin-archetype"))
     implementation(project(":assets"))
     implementation("com.formdev:flatlaf:3.7.2")
     implementation("com.vladsch.flexmark:flexmark:0.64.8")

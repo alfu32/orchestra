@@ -9,6 +9,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.nio.file.Files
+import java.nio.file.Path
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
@@ -32,12 +34,16 @@ internal class WorkflowArchetypesPanel(
     private val store: KotlinxJsonDocumentStore,
     onInsert: (ThreadworkDocument) -> Unit,
 ) : JPanel(BorderLayout()) {
-    private val templates = loadTemplates(store)
+    private var templates = emptyList<WorkflowArchetypeTemplate>()
     private val snapshotJson = Json { encodeDefaults = true }
     private val previewRepository = InMemoryDocumentRepository(newDocument("Workflow Archetype"))
     private val previewSelection = linkedSetOf<NodeId>()
     private lateinit var previewCanvas: GraphCanvas
     private var selectedTemplate: WorkflowArchetypeTemplate? = null
+    private val libraryScrollPane = JScrollPane().apply {
+        border = BorderFactory.createEmptyBorder()
+        horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+    }
     private val insertButton = JButton("Insert Archetype into Design").apply {
         isEnabled = false
     }
@@ -50,7 +56,6 @@ internal class WorkflowArchetypesPanel(
             refreshAll = ::refreshPreviewLayout,
             onModeChanged = {},
         )
-        val accordion = createAccordion()
         insertButton.addActionListener {
             selectedTemplate?.let { template -> onInsert(template.document) }
         }
@@ -58,10 +63,7 @@ internal class WorkflowArchetypesPanel(
             border = BorderFactory.createEmptyBorder(6, 6, 6, 6)
             preferredSize = Dimension(300, 500)
             add(
-                JScrollPane(accordion).apply {
-                    border = BorderFactory.createEmptyBorder()
-                    horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-                },
+                libraryScrollPane,
                 BorderLayout.CENTER,
             )
             add(insertButton, BorderLayout.SOUTH)
@@ -69,10 +71,18 @@ internal class WorkflowArchetypesPanel(
         add(
             JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, previewCanvas).apply {
                 resizeWeight = 0.22
-                dividerLocation = 300
+                ThreadworkUiSettings.rememberDividerLocation(this, "archetypes.divider", 300)
             },
             BorderLayout.CENTER,
         )
+        reload()
+    }
+
+    fun reload() {
+        templates = loadWorkflowArchetypes(store)
+        libraryScrollPane.setViewportView(createAccordion())
+        selectedTemplate = null
+        insertButton.isEnabled = false
         templates.firstOrNull()?.let(::selectTemplate)
     }
 
@@ -132,32 +142,6 @@ internal class WorkflowArchetypesPanel(
     }
 
     private companion object {
-        fun loadTemplates(store: KotlinxJsonDocumentStore): List<WorkflowArchetypeTemplate> {
-            val loader = WorkflowArchetypesPanel::class.java
-            val catalog = loader.getResourceAsStream("/workflow-archetypes/catalog.tsv")
-                ?.bufferedReader()
-                ?.use { it.readLines() }
-                .orEmpty()
-            return catalog.asSequence()
-                .map(String::trim)
-                .filter { it.isNotBlank() && !it.startsWith('#') }
-                .mapNotNull { row ->
-                    val fields = row.split('\t', limit = 4)
-                    if (fields.size != 4) return@mapNotNull null
-                    val resourcePath = fields[3]
-                    val group = resourcePath.substringBefore('/', "")
-                    if (group.isBlank() || resourcePath.substringAfter('/', "").contains('/')) return@mapNotNull null
-                    val source = loader.getResourceAsStream("/workflow-archetypes/$resourcePath")
-                        ?.bufferedReader()
-                        ?.use { it.readText() }
-                        ?: return@mapNotNull null
-                    runCatching {
-                        WorkflowArchetypeTemplate(fields[0], group, fields[1], fields[2], store.loadText(source))
-                    }.getOrNull()
-                }
-                .toList()
-        }
-
         fun displayGroupName(value: String): String = value
             .replace('-', ' ')
             .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
@@ -183,3 +167,88 @@ internal class WorkflowArchetypesPanel(
         }
     }
 }
+
+internal fun defaultUserArchetypesFolder(): Path = Path.of(
+    System.getProperty("user.home"),
+    ".threadworks",
+    "archetypes",
+)
+
+internal fun archetypeFileStem(projectName: String): String = projectName
+    .trim()
+    .replace(Regex("[^A-Za-z0-9._-]+"), "-")
+    .trim('-', '.')
+    .ifBlank { "archetype" }
+
+internal fun loadWorkflowArchetypes(
+    store: KotlinxJsonDocumentStore,
+    userFolder: Path = defaultUserArchetypesFolder(),
+): List<WorkflowArchetypeTemplate> = loadBundledWorkflowArchetypes(store) +
+    loadUserWorkflowArchetypes(store, userFolder)
+
+private fun loadBundledWorkflowArchetypes(store: KotlinxJsonDocumentStore): List<WorkflowArchetypeTemplate> {
+    val loader = WorkflowArchetypesPanel::class.java
+    val catalog = loader.getResourceAsStream("/workflow-archetypes/catalog.tsv")
+        ?.bufferedReader()
+        ?.use { it.readLines() }
+        .orEmpty()
+    return catalog.asSequence()
+        .map(String::trim)
+        .filter { it.isNotBlank() && !it.startsWith('#') }
+        .mapNotNull { row ->
+            val fields = row.split('\t', limit = 4)
+            if (fields.size != 4) return@mapNotNull null
+            val resourcePath = fields[3]
+            val group = resourcePath.substringBefore('/', "")
+            if (group.isBlank() || resourcePath.substringAfter('/', "").contains('/')) return@mapNotNull null
+            val source = loader.getResourceAsStream("/workflow-archetypes/$resourcePath")
+                ?.bufferedReader()
+                ?.use { it.readText() }
+                ?: return@mapNotNull null
+            runCatching {
+                WorkflowArchetypeTemplate(fields[0], group, fields[1], fields[2], store.loadText(source))
+            }.getOrNull()
+        }
+        .toList()
+}
+
+private fun loadUserWorkflowArchetypes(
+    store: KotlinxJsonDocumentStore,
+    userFolder: Path,
+): List<WorkflowArchetypeTemplate> {
+    if (runCatching { Files.createDirectories(userFolder) }.isFailure) return emptyList()
+    val candidates = mutableListOf<Pair<String, Path>>()
+    Files.list(userFolder).use { entries ->
+        entries.sorted().forEach { entry ->
+            when {
+                Files.isRegularFile(entry) && entry.isArchetypeFile() -> candidates += "User" to entry
+                Files.isDirectory(entry) -> Files.list(entry).use { groupEntries ->
+                    groupEntries
+                        .filter { Files.isRegularFile(it) && it.isArchetypeFile() }
+                        .sorted()
+                        .forEach { candidates += entry.fileName.toString() to it }
+                }
+            }
+        }
+    }
+    return candidates.mapNotNull { (group, file) ->
+        runCatching {
+            val document = store.loadText(Files.readString(file))
+            val label = document.name.ifBlank { file.fileName.toString().substringBeforeLast('.') }
+            val description = document.nodes.values.asSequence()
+                .filter { it.id != document.rootNodeId && !it.isLink }
+                .map { it.text.specification.trim() }
+                .firstOrNull(String::isNotBlank)
+                ?: "User workflow archetype."
+            WorkflowArchetypeTemplate(
+                id = "user:${userFolder.relativize(file).toString().replace('\\', '/')}",
+                group = group,
+                label = label,
+                description = description,
+                document = document,
+            )
+        }.getOrNull()
+    }
+}
+
+private fun Path.isArchetypeFile(): Boolean = fileName.toString().endsWith(".orch", ignoreCase = true)
