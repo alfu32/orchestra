@@ -15,6 +15,8 @@ import com.threadwork.compiler.api.StructuredCompiler
 import com.threadwork.compiler.api.defaultTypeInformation
 import com.threadwork.compiler.api.ANY_LANGUAGE_ID
 import com.threadwork.compiler.api.CompilerTechnology
+import com.threadwork.compiler.api.CompilerCodeSymbol
+import com.threadwork.compiler.api.CompilerCodeSymbolKind
 import com.threadwork.core.classification.LinkClassifier
 import com.threadwork.core.classification.LinkStereotype
 import com.threadwork.core.classification.NodeStereotype
@@ -262,6 +264,28 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
 
     override fun getStaticFiles(document: ThreadworkDocument, options: CompilerOptions): List<String> =
         templatesFor(document, options).staticFileNames.toList()
+
+    override fun generatedEntitySymbols(document: ThreadworkDocument, node: Node): List<CompilerCodeSymbol> {
+        if (node.isLink || node.stereotype(document) == NodeStereotype.ServiceLibrary) return emptyList()
+        return when (document.effectiveLanguageId(node.id).lowercase()) {
+            "kotlin" -> {
+                val symbol = indexedNodeSymbol(document, node)
+                listOf(
+                    generatedFunction("init_$symbol", "generated child initialization function"),
+                    generatedFunction("run_$symbol", "generated child execution function"),
+                )
+            }
+
+            "javascript", "typescript", "php" -> listOf(
+                generatedFunction(
+                    safeIdentifier(node.name, preserveCase = true),
+                    "generated child execution function",
+                ),
+            )
+
+            else -> emptyList()
+        }
+    }
 
     final override fun projectFiles(
         document: ThreadworkDocument,
@@ -674,6 +698,13 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
     private fun requireTemplateSet(): CompilerTemplateSet =
         checkNotNull(activeTemplateSet.get()) { "Compiler template set is only available during compilation." }
 }
+
+private fun generatedFunction(name: String, detail: String): CompilerCodeSymbol = CompilerCodeSymbol(
+    name = name,
+    kind = CompilerCodeSymbolKind.GeneratedFunction,
+    detail = detail,
+    documentation = "Compiler-generated callable for a direct composite child.",
+)
 
 open class StringTemplateCompiler(
     override val id: String,

@@ -93,6 +93,27 @@ class CCompiler : TemplateSetCompiler() {
         )
     }
 
+    override fun generatedEntitySymbols(document: ThreadworkDocument, node: Node): List<CompilerCodeSymbol> {
+        if (node.isLink || node.stereotype(document) == NodeStereotype.ServiceLibrary) return emptyList()
+        val symbol = indexedNodeSymbol(document, node)
+        return listOf(
+            CompilerCodeSymbol(
+                name = "tw_init_$symbol",
+                kind = CompilerCodeSymbolKind.GeneratedFunction,
+                detail = "generated child initialization function",
+                documentation = "Initialize direct child '${node.name}' in the C execution context.",
+                originNodeId = node.id,
+            ),
+            CompilerCodeSymbol(
+                name = "tw_run_$symbol",
+                kind = CompilerCodeSymbolKind.GeneratedFunction,
+                detail = "generated child execution function",
+                documentation = "Run direct child '${node.name}' in the C execution context.",
+                originNodeId = node.id,
+            ),
+        )
+    }
+
     override fun generatedFunctionHeader(
         document: ThreadworkDocument,
         node: Node,

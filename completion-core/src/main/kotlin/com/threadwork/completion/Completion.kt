@@ -51,6 +51,7 @@ enum class CompletionSuggestionKind {
     OutputBuffer,
     ServiceInstance,
     LibraryFunction,
+    GeneratedFunction,
     BufferMember,
     Type,
     TypeMember,
@@ -106,32 +107,33 @@ class ModelAwareCompletionService(
     ) {
         if (request.textSection != NodeTextSection.Declaration) return
 
-        compilerProvider(document, node)
-            ?.let { compiler ->
-                compiler.codeIntelligence(document, node).symbols.forEach { symbol ->
-                    suggestions += CompletionSuggestion(
-                        label = symbol.name,
-                        insertText = symbol.name,
-                        kind = symbol.kind.toCompletionKind(),
-                        detail = symbol.detail.ifBlank { symbol.typeName },
-                        documentation = symbol.documentation,
-                        sourcePluginId = compiler.id,
-                    )
-                    symbol.members.forEach { member ->
-                        suggestions += CompletionSuggestion(
-                            label = member.name,
-                            insertText = member.name,
-                            kind = when (symbol.kind) {
-                                CompilerCodeSymbolKind.Type -> CompletionSuggestionKind.TypeMember
-                                else -> CompletionSuggestionKind.BufferMember
-                            },
-                            detail = member.detail,
-                            documentation = member.documentation,
-                            sourcePluginId = compiler.id,
+        compilerProvider(document, node)?.let { compiler ->
+            addCompilerSymbols(suggestions, compiler, compiler.codeIntelligence(document, node).symbols)
+
+            // A composite owns the execution scope of its direct children. Expose
+            // their compiler-emitted callable names and generated local interface,
+            // but never names from unrelated siblings or descendants.
+            if (node.isComposite) {
+                node.children.mapNotNull(document.nodes::get)
+                    .filterNot { it.isLink }
+                    .forEach { child ->
+                        val childCompiler = compilerProvider(document, child) ?: compiler
+                        val childPrefix = "Direct child '${child.name}': "
+                        addCompilerSymbols(
+                            suggestions,
+                            childCompiler,
+                            childCompiler.generatedEntitySymbols(document, child),
+                            childPrefix,
+                        )
+                        addCompilerSymbols(
+                            suggestions,
+                            childCompiler,
+                            childCompiler.codeIntelligence(document, child).symbols,
+                            childPrefix,
                         )
                     }
-                }
             }
+        }
 
         getDeclarationSymbols(request).mapTo(suggestions) { symbol ->
             CompletionSuggestion(
@@ -144,11 +146,43 @@ class ModelAwareCompletionService(
         }
     }
 
+    private fun addCompilerSymbols(
+        suggestions: MutableList<CompletionSuggestion>,
+        compiler: CompilerPlugin,
+        symbols: List<com.threadwork.compiler.api.CompilerCodeSymbol>,
+        detailPrefix: String = "",
+    ) {
+        symbols.forEach { symbol ->
+            suggestions += CompletionSuggestion(
+                label = symbol.name,
+                insertText = symbol.name,
+                kind = symbol.kind.toCompletionKind(),
+                detail = detailPrefix + symbol.detail.ifBlank { symbol.typeName },
+                documentation = symbol.documentation,
+                sourcePluginId = compiler.id,
+            )
+            symbol.members.forEach { member ->
+                suggestions += CompletionSuggestion(
+                    label = member.name,
+                    insertText = member.name,
+                    kind = when (symbol.kind) {
+                        CompilerCodeSymbolKind.Type -> CompletionSuggestionKind.TypeMember
+                        else -> CompletionSuggestionKind.BufferMember
+                    },
+                    detail = detailPrefix + member.detail,
+                    documentation = member.documentation,
+                    sourcePluginId = compiler.id,
+                )
+            }
+        }
+    }
+
     private fun suggestionPriority(kind: CompletionSuggestionKind): Int = when (kind) {
         CompletionSuggestionKind.InputBuffer,
         CompletionSuggestionKind.OutputBuffer,
         CompletionSuggestionKind.ServiceInstance,
-        CompletionSuggestionKind.LibraryFunction -> 0
+        CompletionSuggestionKind.LibraryFunction,
+        CompletionSuggestionKind.GeneratedFunction -> 0
         CompletionSuggestionKind.CompilerSymbol,
         CompletionSuggestionKind.BufferMember,
         CompletionSuggestionKind.Type,
@@ -178,6 +212,7 @@ private fun CompilerCodeSymbolKind.toCompletionKind(): CompletionSuggestionKind 
     CompilerCodeSymbolKind.OutputBuffer -> CompletionSuggestionKind.OutputBuffer
     CompilerCodeSymbolKind.ServiceInstance -> CompletionSuggestionKind.ServiceInstance
     CompilerCodeSymbolKind.LibraryFunction -> CompletionSuggestionKind.LibraryFunction
+    CompilerCodeSymbolKind.GeneratedFunction -> CompletionSuggestionKind.GeneratedFunction
     CompilerCodeSymbolKind.SourceCapability,
     CompilerCodeSymbolKind.RunnableCapability -> CompletionSuggestionKind.ServiceInstance
     CompilerCodeSymbolKind.Type -> CompletionSuggestionKind.Type

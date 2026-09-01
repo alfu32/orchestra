@@ -68,6 +68,13 @@ interface CompilerPlugin : FsStorage {
     fun codeIntelligence(document: ThreadworkDocument, node: Node): CompilerCodeIntelligence =
         defaultCodeIntelligence(document, node)
 
+    /**
+     * Callable or otherwise directly addressable names emitted for [node].
+     * Composite editors use these names to refer to their direct children
+     * without guessing compiler-specific identifier conventions.
+     */
+    fun generatedEntitySymbols(document: ThreadworkDocument, node: Node): List<CompilerCodeSymbol> = emptyList()
+
     /** Exact generated function header enclosing an editable source section, when applicable. */
     fun generatedFunctionHeader(
         document: ThreadworkDocument,

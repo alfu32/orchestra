@@ -27,6 +27,7 @@ enum class CompilerCodeSymbolKind {
     BufferMember,
     SourceCapability,
     RunnableCapability,
+    GeneratedFunction,
 }
 
 data class CompilerCodeMember(

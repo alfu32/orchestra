@@ -1,5 +1,7 @@
 package com.threadwork.storage
 
+import com.threadwork.core.classification.NodeStereotype
+import com.threadwork.core.classification.stereotype
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.LinkData
 import com.threadwork.core.model.LinkInteractionKinds
@@ -285,7 +287,14 @@ class InMemoryDocumentRepository(
                 targetNodeId,
                 targetPortName,
                 compositeBoundaryIds = document.compositeBoundaryIdsBetween(sourceNodeId, targetNodeId).toMutableList(),
-                interactionKind = LinkInteractionKinds.Data,
+                interactionKind = if (
+                    requireNode(sourceNodeId).stereotype(document) == NodeStereotype.ServiceLibrary ||
+                    requireNode(targetNodeId).stereotype(document) == NodeStereotype.ServiceLibrary
+                ) {
+                    LinkInteractionKinds.Library
+                } else {
+                    LinkInteractionKinds.Data
+                },
             ),
         )
         document.nodes[node.id] = node
