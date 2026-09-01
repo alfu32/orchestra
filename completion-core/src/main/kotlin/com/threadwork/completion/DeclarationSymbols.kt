@@ -46,15 +46,18 @@ class DocumentDeclarationSymbolIndex(
     fun symbols(document: ThreadworkDocument, request: CompletionRequest): List<DeclarationSymbol> {
         val requestedLanguage = normalizedLanguageId(request.languageId)
         if (requestedLanguage.isBlank() || requestedLanguage == "plain") return emptyList()
-        if (request.textSection != NodeTextSection.Declaration) return emptyList()
-
         val node = document.nodes[request.nodeId] ?: return emptyList()
         val languageId = document.effectiveTextLanguageId(node.id, NodeTextSection.Declaration)
         if (normalizedLanguageId(languageId) != requestedLanguage) return emptyList()
-        if (request.fullText.isBlank()) return emptyList()
+        val source = if (request.textSection == NodeTextSection.Declaration) {
+            request.fullText
+        } else {
+            node.text.declaration
+        }
+        if (source.isBlank()) return emptyList()
 
         return extractors.firstOrNull { it.supports(languageId) }
-            ?.extract(request.fullText, languageId, node.id, node.name)
+            ?.extract(source, languageId, node.id, node.name)
             .orEmpty()
             .distinctBy { listOf(it.languageId, it.kind.name, it.name, it.header) }
     }

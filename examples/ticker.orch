@@ -746,7 +746,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-09-01T10:57:44.380012310Z",
+                "date": "2026-09-01T15:14:25.783396193Z",
                 "user": "devlin"
             },
             "ports": [
@@ -869,7 +869,7 @@
                 "initializationLanguageId": "",
                 "source": "time_t now = time(NULL);\nstruct tm time_info;\nchar timestamp[32];\n\nPacket packet = {\n    .timestamp = timestamp,\n    .uuid = NULL,\n    .random_word = NULL,\n    .random_word_length = 0\n};\n\nif (now != (time_t)-1 &&\n    localtime_r(&now, &time_info) != NULL &&\n    strftime(\n        timestamp,\n        sizeof(timestamp),\n        \"%Y-%m-%dT%H:%M:%S%z\",\n        &time_info\n    ) > 0) {\n    packet.isok = true;\n} else {\n    timestamp[0] = '\\0';\n}\n\npacket.timestamp = strdup(timestamp);\n\nprintf(\"read_time.timestamp:%s\\n\",packet.timestamp != NULL ? packet.timestamp : \"null\");\n\npush(ip_time, &packet);",
                 "sourceLanguageId": "",
-                "specification": "reads system time and puts it in a Packet and then pushes it into the ip_time output",
+                "specification": "reads system time and puts it in a Packet and then pushes it into the ip_time output\n\n",
                 "specificationLanguageId": "markdown",
                 "tests": "",
                 "testsLanguageId": "json",
@@ -889,7 +889,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-09-01T09:45:13.755532204Z",
+                "date": "2026-09-01T15:14:58.087137875Z",
                 "user": "devlin"
             },
             "ports": [
@@ -920,8 +920,8 @@
             "parentId": "node_a911c5c3-6366-4ba4-814a-1731b124ca66",
             "children": [],
             "incomingLinks": [
-                "link_d1b9d286-d43a-439a-bee0-e66bf2943400",
-                "link_a17dca3c-a162-4f7f-a264-abcd20c1f421"
+                "link_a17dca3c-a162-4f7f-a264-abcd20c1f421",
+                "link_d1b9d286-d43a-439a-bee0-e66bf2943400"
             ],
             "outgoingLinks": [
                 "link_8e881876-8d2a-41a8-92a4-2ee3f2c839ce"
@@ -1197,8 +1197,8 @@
             "parentId": "node_a911c5c3-6366-4ba4-814a-1731b124ca66",
             "children": [],
             "incomingLinks": [
-                "link_dd5fcd39-8d54-4310-b6fe-242d927f0ec5",
                 "link_3f327a51-135b-4216-b55f-70ae41f06a30",
+                "link_dd5fcd39-8d54-4310-b6fe-242d927f0ec5",
                 "link_1a6bae84-65aa-43b8-b8f7-3fe067f296f8"
             ],
             "outgoingLinks": [],

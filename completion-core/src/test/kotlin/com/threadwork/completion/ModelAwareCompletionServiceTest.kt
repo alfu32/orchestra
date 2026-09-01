@@ -125,6 +125,26 @@ class ModelAwareCompletionServiceTest {
     }
 
     @Test
+    fun `offers processing scope completion in every executable editor`() {
+        val repository = InMemoryDocumentRepository(newDocument("completion"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val worker = repository.createNode(root, "worker", NodeKind.Processor)
+        repository.createLink(root, "incoming_packet", source.id, "out", worker.id, "in")
+
+        val service = ModelAwareCompletionService(
+            documentProvider = repository::getDocument,
+            compilerProvider = { _, _ -> CodeIntelligenceCompiler },
+        )
+        listOf(NodeTextSection.Declaration, NodeTextSection.Instantiation, NodeTextSection.Tests).forEach { section ->
+            val labels = service.getSuggestions(requestFor(worker.id, section)).map { it.label }
+            assertTrue("incoming_packet" in labels, "Expected input completion in $section editor")
+            assertTrue("incoming_packet.push(item)" in labels, "Expected buffer method completion in $section editor")
+        }
+    }
+
+    @Test
     fun `suggests template model fields for compiler overrides`() {
         val repository = InMemoryDocumentRepository(newDocument("completion"))
         val root = repository.getDocument().rootNodeId
@@ -173,9 +193,12 @@ class ModelAwareCompletionServiceTest {
         assertTrue("result" in labels)
     }
 
-    private fun requestFor(nodeId: com.threadwork.core.model.NodeId): CompletionRequest = CompletionRequest(
+    private fun requestFor(
+        nodeId: com.threadwork.core.model.NodeId,
+        section: NodeTextSection = NodeTextSection.Declaration,
+    ): CompletionRequest = CompletionRequest(
         nodeId = nodeId,
-        textSection = NodeTextSection.Declaration,
+        textSection = section,
         languageId = "javascript",
         technologyId = "nodejs",
         cursorOffset = 0,
