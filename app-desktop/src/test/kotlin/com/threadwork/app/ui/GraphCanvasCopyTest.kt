@@ -1,9 +1,11 @@
 package com.threadwork.app.ui
 
 import com.threadwork.core.model.NodeKind
+import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.PortDirection
 import com.threadwork.storage.InMemoryDocumentRepository
+import com.threadwork.storage.KotlinxJsonDocumentStore
 import com.threadwork.storage.newDocument
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -53,5 +55,38 @@ class GraphCanvasCopyTest {
         assertEquals("specification", copiedSource.text.specification)
         assertEquals("usage", copiedSource.text.aiInstructions)
         assertEquals("test data", copiedSource.text.tests)
+    }
+
+    @Test
+    fun `inserting an archetype twice creates disjoint hierarchies with remapped links`() {
+        val source = requireNotNull(
+            javaClass.getResourceAsStream("/workflow-archetypes/integration/request-response.orch"),
+        ).bufferedReader().use { it.readText() }
+        val archetype = KotlinxJsonDocumentStore().loadText(source)
+        val repository = InMemoryDocumentRepository(newDocument("Insertion Test"))
+        val selection = linkedSetOf<NodeId>()
+        val canvas = GraphCanvas(repository, selection, {}, {}, {})
+
+        canvas.insertArchetype(archetype)
+        val firstInsertion = selection.toSet()
+        canvas.insertArchetype(archetype)
+        val secondInsertion = selection.toSet()
+
+        assertTrue(firstInsertion.isNotEmpty())
+        assertTrue(secondInsertion.isNotEmpty())
+        assertTrue(firstInsertion.intersect(secondInsertion).isEmpty())
+        assertEquals(
+            firstInsertion.size + secondInsertion.size + 1,
+            repository.getDocument().nodes.size,
+        )
+        val secondNodes = secondInsertion.mapNotNull(repository::getNode)
+        val secondNodeIds = secondNodes.filterNot { it.isLink }.mapTo(linkedSetOf()) { it.id }
+        secondNodes.filter { it.isLink }.forEach { copiedLink ->
+            assertTrue(copiedLink.link?.sourceNodeId in secondNodeIds)
+            assertTrue(copiedLink.link?.targetNodeId in secondNodeIds)
+        }
+        val copiedComposite = secondNodes.single { it.name == "request_response" }
+        assertTrue(copiedComposite.children.all { it in secondInsertion })
+        assertTrue(secondInsertion.none { it in archetype.nodes })
     }
 }

@@ -29,7 +29,7 @@
       "name": "validate_data",
       "kind": "Processor",
       "parentId": "validation_pipeline",
-      "layout": { "x": 330, "y": 150, "width": 170, "height": 70 },
+      "layout": { "x": 600, "y": 150, "width": 170, "height": 70 },
       "text": { "specification": "Evaluates all configured validation rules and classifies the package." },
       "ports": [
         { "id": "candidate_in", "name": "candidate", "direction": "Input" },
@@ -42,7 +42,7 @@
       "name": "accept_data",
       "kind": "Processor",
       "parentId": "validation_pipeline",
-      "layout": { "x": 570, "y": 100, "width": 170, "height": 70 },
+      "layout": { "x": 1100, "y": 100, "width": 170, "height": 70 },
       "text": { "specification": "Emits packages that satisfy every validation rule." },
       "ports": [{ "id": "accepted_in", "name": "accepted", "direction": "Input" }]
     },
@@ -51,7 +51,7 @@
       "name": "report_failure",
       "kind": "Processor",
       "parentId": "validation_pipeline",
-      "layout": { "x": 570, "y": 220, "width": 170, "height": 70 },
+      "layout": { "x": 1100, "y": 220, "width": 170, "height": 70 },
       "text": { "specification": "Reports rejected packages together with validation diagnostics." },
       "ports": [{ "id": "failure_in", "name": "failure", "direction": "Input" }]
     },

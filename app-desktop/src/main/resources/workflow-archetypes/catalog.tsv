@@ -1,0 +1,3 @@
+# id	label	description	group/resource
+request-response	Request / Response	Receive, handle, and return a typed request.	integration/request-response.orch
+validation-pipeline	Validation Pipeline	Validate input, route failures, and emit accepted data.	quality/validation-pipeline.orch

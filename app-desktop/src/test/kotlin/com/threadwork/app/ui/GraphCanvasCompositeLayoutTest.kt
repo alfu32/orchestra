@@ -44,4 +44,34 @@ class GraphCanvasCompositeLayoutTest {
         assertTrue(leftClearance >= 180.0, "left clearance was $leftClearance")
         assertTrue(rightClearance >= 180.0, "right clearance was $rightClearance")
     }
+
+    @Test
+    fun `recomputed composite bounds survive collapse and expansion`() {
+        val repository = InMemoryDocumentRepository(newDocument("resizable composite"))
+        val root = repository.getDocument().rootNodeId
+        val composite = repository.createNode(root, "group", NodeKind.Group)
+        val fixedChild = repository.createNode(composite.id, "fixed", NodeKind.Processor)
+        val movedChild = repository.createNode(composite.id, "moved", NodeKind.Processor)
+        repository.updateNodeLayout(fixedChild.id, NodeLayout(x = 400.0, y = 300.0, width = 180.0, height = 70.0))
+        repository.updateNodeLayout(movedChild.id, NodeLayout(x = 700.0, y = 300.0, width = 180.0, height = 70.0))
+        val canvas = GraphCanvas(repository, linkedSetOf(), {}, {}, {})
+        canvas.refreshBoundsFromChildren()
+        val originalOpenWidth = composite.layout.openWidth
+
+        repository.updateNodeLayout(movedChild.id, movedChild.layout.copy(x = movedChild.layout.x + 500.0))
+        canvas.refreshBoundsFromChildren()
+        val resizedOpenWidth = composite.layout.openWidth
+        composite.layout.isExpanded = false
+        canvas.refreshBoundsFromChildren()
+
+        assertTrue(resizedOpenWidth > originalOpenWidth)
+        assertEquals(resizedOpenWidth, composite.layout.openWidth)
+        assertEquals(composite.layout.closedWidth, composite.layout.width)
+
+        composite.layout.isExpanded = true
+        canvas.refreshBoundsFromChildren()
+
+        assertEquals(resizedOpenWidth, composite.layout.openWidth)
+        assertEquals(resizedOpenWidth, composite.layout.width)
+    }
 }

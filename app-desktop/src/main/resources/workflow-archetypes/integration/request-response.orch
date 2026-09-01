@@ -34,7 +34,7 @@
       "name": "handle_request",
       "kind": "Processor",
       "parentId": "request_response",
-      "layout": { "x": 325, "y": 130, "width": 170, "height": 70 },
+      "layout": { "x": 600, "y": 130, "width": 170, "height": 70 },
       "text": { "specification": "Applies the route-specific behavior and constructs a response package." },
       "ports": [
         { "id": "in_request", "name": "request", "direction": "Input" },
@@ -46,7 +46,7 @@
       "name": "send_response",
       "kind": "Processor",
       "parentId": "request_response",
-      "layout": { "x": 550, "y": 130, "width": 170, "height": 70 },
+      "layout": { "x": 1100, "y": 130, "width": 170, "height": 70 },
       "text": { "specification": "Returns the response over the request's originating connection." },
       "ports": [{ "id": "in_response", "name": "response", "direction": "Input" }]
     },

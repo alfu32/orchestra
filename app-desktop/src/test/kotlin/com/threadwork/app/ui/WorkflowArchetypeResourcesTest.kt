@@ -5,13 +5,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class WorkflowStereotypeResourcesTest {
+class WorkflowArchetypeResourcesTest {
     @Test
-    fun `bundled workflow stereotypes are valid specification-only documents`() {
+    fun `bundled workflow archetypes are grouped valid specification-only documents`() {
         val store = KotlinxJsonDocumentStore()
         val resources = listOf(
-            "/workflow-stereotypes/request-response.orch",
-            "/workflow-stereotypes/validation-pipeline.orch",
+            "/workflow-archetypes/integration/request-response.orch",
+            "/workflow-archetypes/quality/validation-pipeline.orch",
         )
 
         resources.forEach { path ->
@@ -28,9 +28,10 @@ class WorkflowStereotypeResourcesTest {
             )
         }
 
-        val catalog = requireNotNull(javaClass.getResourceAsStream("/workflow-stereotypes/catalog.tsv"))
+        val catalogRows = requireNotNull(javaClass.getResourceAsStream("/workflow-archetypes/catalog.tsv"))
             .bufferedReader()
-            .useLines { lines -> lines.count { it.isNotBlank() && !it.startsWith('#') } }
-        assertEquals(resources.size, catalog)
+            .useLines { lines -> lines.filter { it.isNotBlank() && !it.startsWith('#') }.toList() }
+        assertEquals(resources.size, catalogRows.size)
+        assertTrue(catalogRows.all { row -> row.substringAfterLast('\t').count { it == '/' } == 1 })
     }
 }

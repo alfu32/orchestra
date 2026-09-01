@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
+#include <unistd.h>
 
 {{ runtimeSupport }}
 {% if hoistedDeclarations is not empty %}
@@ -21,6 +23,16 @@
 /* Generated root definition. */
 {{ ownDeclaration }}
 {% if isCompilationRoot %}
+
+
+static volatile sig_atomic_t running = 1;
+
+static void handle_signal(int sig)
+{
+    (void)sig;
+    running = 0;
+}
+
 int main(void)
 {
     threadwork_context context;
@@ -29,11 +41,25 @@ int main(void)
     if (threadwork_context_init(&context) != THREADWORK_OK) {
         return EXIT_FAILURE;
     }
+    struct sigaction sa = {
+        .sa_handler = handle_signal,
+        .sa_flags = 0
+    };
 
-    status = tw_{{ initializerSymbol }}(&context);
-    if (status == THREADWORK_OK) {
-        status = tw_{{ runSymbol }}(&context);
+    sigemptyset(&sa.sa_mask);
+
+    sigaction(SIGINT,  &sa, NULL);   // Ctrl-C
+    sigaction(SIGTERM, &sa, NULL);   // kill / systemd stop
+
+    while (running) {
+        status = tw_{{ initializerSymbol }}(&context);
+        if (status == THREADWORK_OK) {
+            status = tw_{{ runSymbol }}(&context);
+        }
     }
+
+    /* graceful shutdown */
+    printf("Shutting down...\n");
 
     threadwork_context_destroy(&context);
     return status == THREADWORK_OK ? EXIT_SUCCESS : EXIT_FAILURE;

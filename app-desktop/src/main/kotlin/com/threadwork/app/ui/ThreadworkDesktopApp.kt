@@ -440,9 +440,9 @@ class ThreadworkDesktopApp(
             addTab("Flow Designer", flowDesigner)
             addTab("Entities Edit(IDE)", detailsEditor)
             addTab(
-                "Workflow Stereotypes",
-                WorkflowStereotypesPanel(store) { template ->
-                    canvas.insertTemplate(template)
+                "Workflow Archetypes",
+                WorkflowArchetypesPanel(store) { archetype ->
+                    canvas.insertArchetype(archetype)
                     checkpointHistory()
                 },
             )
@@ -1142,16 +1142,15 @@ class ThreadworkDesktopApp(
         val scopedSelection = selection
             .filter { it in document.nodes }
             .toSet()
-        val outputName = if (scopedSelection.isEmpty()) currentProjectFileStem() ?: document.projectName() else "generated"
-        val output = chooseOutputDirectory(outputName) ?: return
         val projectName = document.projectName()
+        val options = CompilerOptions(
+            projectName = projectName,
+            scopeNodeIds = scopedSelection,
+            compilerPlugins = compilerPlugins,
+        )
         val result = compiler.compile(
             document,
-            CompilerOptions(
-                projectName = projectName,
-                scopeNodeIds = scopedSelection,
-                compilerPlugins = compilerPlugins,
-            ),
+            options,
         )
         val diagnostics = result.diagnostics.joinToString(separator = "\n") { "${it.severity}: ${it.message}" }
         val generatedProject = result.generatedProject
@@ -1165,15 +1164,31 @@ class ThreadworkDesktopApp(
             status.text = "Compilation failed with ${compiler.displayName}"
             return
         }
+        val singleFile = generatedProject.files.size == 1
+        val outputName = if (scopedSelection.isEmpty()) currentProjectFileStem() ?: projectName else "generated"
+        val output = if (singleFile) {
+            chooseCompileOutputFile(generatedProject.files.single().path) ?: return
+        } else {
+            chooseOutputDirectory(outputName) ?: return
+        }
         runCatching {
-            Files.createDirectories(output)
-            generatedProject.writeTo(output)
+            if (singleFile) {
+                output.parent?.let(Files::createDirectories)
+                Files.writeString(output, generatedProject.files.single().content)
+            } else {
+                Files.createDirectories(output)
+                generatedProject.writeTo(output)
+            }
         }.onSuccess {
             val scope = if (scopedSelection.isEmpty()) "project" else "${scopedSelection.size} selected entities"
             status.text = "Compiled $scope with ${compiler.displayName} to ${output.toAbsolutePath()}"
             JOptionPane.showMessageDialog(
                 frame,
-                "Generated ${generatedProject.files.size} files in ${output.toAbsolutePath()}",
+                if (singleFile) {
+                    "Generated ${output.toAbsolutePath()}"
+                } else {
+                    "Generated ${generatedProject.files.size} files in ${output.toAbsolutePath()}"
+                },
                 "Compile",
                 JOptionPane.INFORMATION_MESSAGE,
             )
@@ -1597,6 +1612,17 @@ class ThreadworkDesktopApp(
         val directory = dialog.directory?.takeIf { it.isNotBlank() } ?: return null
         val file = dialog.file?.takeIf { it.isNotBlank() }
         return if (file == null) Path.of(directory) else Path.of(directory).resolve(file)
+    }
+
+    private fun chooseCompileOutputFile(suggestedName: String): Path? {
+        val dialog = FileDialog(frame, "Save compiled source", FileDialog.SAVE).apply {
+            directory = currentFile?.parent?.toString() ?: Path.of(".").toAbsolutePath().toString()
+            file = Path.of(suggestedName).fileName.toString()
+        }
+        dialog.isVisible = true
+        val directory = dialog.directory?.takeIf { it.isNotBlank() } ?: return null
+        val file = dialog.file?.takeIf { it.isNotBlank() } ?: return null
+        return Path.of(directory).resolve(file)
     }
 
     private fun currentProjectFileStem(): String? =
@@ -2532,7 +2558,7 @@ class GraphCanvas(
         pasteEntities(clipboard)
     }
 
-    fun insertTemplate(document: ThreadworkDocument) {
+    fun insertArchetype(document: ThreadworkDocument) {
         val entities = document.nodes.values
             .filter { it.id != document.rootNodeId }
             .map(::clipboardCopy)
