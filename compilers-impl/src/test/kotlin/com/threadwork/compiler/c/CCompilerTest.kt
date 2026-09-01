@@ -16,6 +16,7 @@ import com.threadwork.core.model.TypeFieldDefinition
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.newDocument
 import java.nio.file.Files
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,6 +25,70 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class CCompilerTest {
+    @Test
+    fun `C generator shutdown is owned by the generated runtime and main`() {
+        val repository = cProject()
+        val root = repository.getDocument().rootNodeId
+        val packet = repository.createNode(root, "Packet", NodeKind.Type)
+        repository.updateNodeTypeDefinition(
+            packet.id,
+            TypeDefinition(mutableListOf(TypeFieldDefinition("value", BuiltInTypeIds.Number))),
+        )
+        val generator = repository.createNode(root, "source", NodeKind.Processor)
+        val sink = repository.createNode(root, "sink", NodeKind.Processor)
+        repository.addPort(generator.id, NodePort("out", "packet", PortDirection.Output))
+        repository.addPort(sink.id, NodePort("in", "packet", PortDirection.Input))
+        val link = repository.createLink(root, "packet", generator.id, "packet", sink.id, "packet")
+        repository.updateLinkData(link.id, requireNotNull(link.link).copy(typeDefinitionId = packet.id.value))
+        repository.updateNodeText(
+            generator.id,
+            generator.text.copy(
+                declaration = """
+                    Packet item = { 7.0 };
+                    if (push(packet, &item) != THREADWORK_OK) {
+                        return THREADWORK_ERROR;
+                    }
+                """.trimIndent(),
+            ),
+        )
+        repository.updateNodeText(
+            sink.id,
+            sink.text.copy(
+                declaration = """
+                    if (threadwork_buffer_count(packet) > 0U) {
+                        Packet item;
+                        if (pop(packet, &item) != THREADWORK_OK) {
+                            return THREADWORK_ERROR;
+                        }
+                    }
+                """.trimIndent(),
+            ),
+        )
+
+        val result = CCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val source = assertNotNull(result.generatedProject).files.single().content
+        assertTrue(source.contains("volatile sig_atomic_t threadwork_running = 1;"))
+        assertTrue(source.contains("unsigned long long threadwork_transit = 0ULL;"))
+        assertTrue(source.contains("int threadwork_install_shutdown_signal_handlers(void)"))
+        assertTrue(source.contains("void threadwork_network_shutdown_begin(unsigned int idle_ticks)"))
+        assertTrue(source.contains("int threadwork_network_has_recent_transit(void)"))
+        assertTrue(source.contains("if (!threadwork_running) {"))
+        assertTrue(source.contains("threadwork_buffer_count(&packet1_a_port) > 0U"))
+        assertTrue(source.contains("threadwork_transit++;"))
+        assertTrue(source.contains("status = threadwork_install_shutdown_signal_handlers();"))
+        assertTrue(source.contains("threadwork_network_shutdown_begin(10U);"))
+        assertTrue(source.contains("threadwork_shutdown_request();"))
+        assertTrue(source.contains("while (threadwork_network_has_recent_transit())"))
+        assertTrue(
+            CCompiler().codeIntelligence(repository.getDocument(), generator).symbols.any {
+                it.name == "threadwork_running" && it.kind == CompilerCodeSymbolKind.RuntimeSymbol
+            },
+        )
+        compileAndRunWhenAvailable(source)
+    }
+
     @Test
     fun `C compiler accepts model runtime and transport template overrides`() {
         val repository = cProject()
@@ -412,6 +477,36 @@ class CCompilerTest {
             ).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader().use { it.readText() }
             assertEquals(0, process.waitFor(), "$output\n\n$source")
+        } finally {
+            directory.toFile().deleteRecursively()
+        }
+    }
+
+    private fun compileAndRunWhenAvailable(source: String) {
+        if (!hasNativeCompiler()) return
+        val directory = createTempDirectory("threadwork-c-runtime-")
+        try {
+            val sourceFile = directory.resolve("generated.c")
+            val executable = directory.resolve("generated")
+            Files.writeString(sourceFile, source)
+            val compilation = ProcessBuilder(
+                "cc",
+                "-std=c17",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-pedantic",
+                sourceFile.toString(),
+                "-o",
+                executable.toString(),
+            ).redirectErrorStream(true).start()
+            val compilationOutput = compilation.inputStream.bufferedReader().use { it.readText() }
+            assertEquals(0, compilation.waitFor(), "$compilationOutput\n\n$source")
+
+            val execution = ProcessBuilder(executable.toString()).redirectErrorStream(true).start()
+            assertTrue(execution.waitFor(3L, TimeUnit.SECONDS), "Generated one-shot C program did not finish draining.")
+            val executionOutput = execution.inputStream.bufferedReader().use { it.readText() }
+            assertEquals(0, execution.exitValue(), executionOutput)
         } finally {
             directory.toFile().deleteRecursively()
         }

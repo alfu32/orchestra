@@ -6423,12 +6423,12 @@ private class NodeTextEditor(
                     editor.setText(spec.textGetter(node.text))
                     editor.setTechnology(technology.copy(languageId = effectiveLanguage))
                     editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
-                    editor.setSemanticIdentifierColors(semanticIdentifierColors())
+                    applySemanticIdentifierPresentation(editor)
                     editor.setPinnedHeader(generatedFunctionHeader(node, spec.section))
                 }
             }
             editorsBySection[NodeTextSection.Tests]?.setText(node.text.tests)
-            editorsBySection[NodeTextSection.Tests]?.setSemanticIdentifierColors(semanticIdentifierColors())
+            editorsBySection[NodeTextSection.Tests]?.let(::applySemanticIdentifierPresentation)
             testsPanel?.bindLanguage(effectiveTextLanguage(NodeTextSection.Tests))
             testsPanel?.refreshTopology()
         } finally {
@@ -6442,14 +6442,23 @@ private class NodeTextEditor(
 
     fun applyPalette(palette: DesignerPalette) {
         activePalette = palette
-        val colors = semanticIdentifierColors()
-        editorsBySection.values.forEach { it.setSemanticIdentifierColors(colors) }
+        editorsBySection.values.forEach(::applySemanticIdentifierPresentation)
     }
 
-    private fun semanticIdentifierColors(): Map<String, Color> {
+    private data class SemanticIdentifierPresentation(
+        val colors: Map<String, Color>,
+    )
+
+    private fun applySemanticIdentifierPresentation(editor: GridCodeEditorAdapter) {
+        val presentation = semanticIdentifierPresentation()
+        editor.setSemanticIdentifierColors(presentation.colors)
+    }
+
+    private fun semanticIdentifierPresentation(): SemanticIdentifierPresentation {
         val document = repository.getDocument()
-        val node = document.getElementById(nodeId) ?: return emptyMap()
-        val compiler = compilerCapabilityResolver.compilerFor(document, node.id) ?: return emptyMap()
+        val node = document.getElementById(nodeId) ?: return SemanticIdentifierPresentation(emptyMap())
+        val compiler = compilerCapabilityResolver.compilerFor(document, node.id)
+            ?: return SemanticIdentifierPresentation(emptyMap())
         val colors = linkedMapOf<String, Color>()
         compiler.codeIntelligence(document, node).symbols.forEach { symbol ->
             val originLink = symbol.originNodeId?.let(document::getElementById)
@@ -6463,7 +6472,19 @@ private class NodeTextEditor(
                 colors["${'$'}${symbol.name}"] = color
             }
         }
-        return colors
+        if (node.isComposite) {
+            node.children.mapNotNull(document::getElementById)
+                .filterNot { it.isLink }
+                .forEach { child ->
+                    val childCompiler = compilerCapabilityResolver.compilerFor(document, child.id) ?: compiler
+                    childCompiler.generatedEntitySymbols(document, child).forEach { symbol ->
+                        if (symbol.kind == CompilerCodeSymbolKind.GeneratedFunction) {
+                            colors[symbol.name] = Color(0xe06cbb)
+                        }
+                    }
+                }
+        }
+        return SemanticIdentifierPresentation(colors)
     }
 
     private fun generatedFunctionHeader(node: Node, section: NodeTextSection): String {
@@ -6497,7 +6518,7 @@ private class NodeTextEditor(
         }
         editor.setTechnology(effectiveTechnology().copy(languageId = effectiveTextLanguage(spec.section)))
         editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
-        editor.setSemanticIdentifierColors(semanticIdentifierColors())
+        applySemanticIdentifierPresentation(editor)
         editor.setPinnedHeader(generatedFunctionHeader(node, spec.section))
         editor.onCompletionRequested = completionService::getSuggestions
         editor.onDeclarationSymbolsRequested = completionService::getDeclarationSymbols
@@ -6565,7 +6586,7 @@ private class NodeTextEditor(
         }
         editor.setTechnology(effectiveTechnology().copy(languageId = effectiveTextLanguage(NodeTextSection.Tests)))
         editor.setCompletionContext(EditorCompletionContext(node.id.value, NodeTextSection.Tests))
-        editor.setSemanticIdentifierColors(semanticIdentifierColors())
+        applySemanticIdentifierPresentation(editor)
         editor.onCompletionRequested = completionService::getSuggestions
         editor.onDeclarationSymbolsRequested = completionService::getDeclarationSymbols
         editor.onHoverInfoRequested = ::typeHoverInfo

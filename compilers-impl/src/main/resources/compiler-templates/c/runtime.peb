@@ -4,6 +4,56 @@ enum {
     THREADWORK_ERROR = 1
 };
 
+volatile sig_atomic_t threadwork_running = 1;
+unsigned long long threadwork_transit = 0ULL;
+
+static unsigned long long threadwork_shutdown_previous_transit = 0ULL;
+static unsigned int threadwork_shutdown_idle_ticks = 0U;
+static unsigned int threadwork_shutdown_remaining_ticks = 0U;
+
+static void threadwork_shutdown_signal_handler(int signal_number)
+{
+    (void)signal_number;
+    threadwork_running = 0;
+}
+
+int threadwork_install_shutdown_signal_handlers(void)
+{
+    if (signal(SIGINT, threadwork_shutdown_signal_handler) == SIG_ERR) {
+        return THREADWORK_ERROR;
+    }
+    if (signal(SIGTERM, threadwork_shutdown_signal_handler) == SIG_ERR) {
+        return THREADWORK_ERROR;
+    }
+    return THREADWORK_OK;
+}
+
+void threadwork_shutdown_request(void)
+{
+    threadwork_running = 0;
+}
+
+void threadwork_network_shutdown_begin(unsigned int idle_ticks)
+{
+    threadwork_shutdown_previous_transit = threadwork_transit;
+    threadwork_shutdown_idle_ticks = idle_ticks;
+    threadwork_shutdown_remaining_ticks = idle_ticks;
+}
+
+int threadwork_network_has_recent_transit(void)
+{
+    if (threadwork_transit != threadwork_shutdown_previous_transit) {
+        threadwork_shutdown_previous_transit = threadwork_transit;
+        threadwork_shutdown_remaining_ticks = threadwork_shutdown_idle_ticks;
+        return 1;
+    }
+    if (threadwork_shutdown_remaining_ticks == 0U) {
+        return 0;
+    }
+    threadwork_shutdown_remaining_ticks--;
+    return 1;
+}
+
 typedef struct threadwork_packet {
     void *data;
     size_t size;

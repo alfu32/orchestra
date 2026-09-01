@@ -211,6 +211,7 @@ private fun CompilerCodeSymbolKind.toCompletionKind(): CompletionSuggestionKind 
     CompilerCodeSymbolKind.ServiceInstance -> CompletionSuggestionKind.ServiceInstance
     CompilerCodeSymbolKind.LibraryFunction -> CompletionSuggestionKind.LibraryFunction
     CompilerCodeSymbolKind.GeneratedFunction -> CompletionSuggestionKind.GeneratedFunction
+    CompilerCodeSymbolKind.RuntimeSymbol -> CompletionSuggestionKind.CompilerSymbol
     CompilerCodeSymbolKind.SourceCapability,
     CompilerCodeSymbolKind.RunnableCapability -> CompletionSuggestionKind.ServiceInstance
     CompilerCodeSymbolKind.Type -> CompletionSuggestionKind.Type

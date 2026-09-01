@@ -94,9 +94,53 @@ class CCompiler : TemplateSetCompiler() {
                 )
             }
         }
+        val runtimeSymbols = listOf(
+            CompilerCodeSymbol(
+                name = "threadwork_running",
+                kind = CompilerCodeSymbolKind.RuntimeSymbol,
+                typeName = "volatile sig_atomic_t",
+                detail = "C runtime ingress flag",
+                documentation = "Set to zero by SIGINT, SIGTERM, or the generated one-shot shutdown. C generator nodes return before producing new packets when this flag is zero.",
+            ),
+            CompilerCodeSymbol(
+                name = "threadwork_transit",
+                kind = CompilerCodeSymbolKind.RuntimeSymbol,
+                typeName = "unsigned long long",
+                detail = "C runtime completed transport count",
+                documentation = "Incremented after each non-empty modeled data-link transport completes.",
+            ),
+            CompilerCodeSymbol(
+                name = "threadwork_network_shutdown_begin",
+                kind = CompilerCodeSymbolKind.RuntimeSymbol,
+                typeName = "void threadwork_network_shutdown_begin(unsigned int idle_ticks)",
+                detail = "begin network drain monitoring",
+                documentation = "Begins a bounded idle-window check for residual modeled link traffic.",
+            ),
+            CompilerCodeSymbol(
+                name = "threadwork_network_has_recent_transit",
+                kind = CompilerCodeSymbolKind.RuntimeSymbol,
+                typeName = "int threadwork_network_has_recent_transit(void)",
+                detail = "continue network drain while traffic is recent",
+                documentation = "Returns non-zero while link transports are still active or the configured idle window has not elapsed.",
+            ),
+            CompilerCodeSymbol(
+                name = "threadwork_install_shutdown_signal_handlers",
+                kind = CompilerCodeSymbolKind.RuntimeSymbol,
+                typeName = "int threadwork_install_shutdown_signal_handlers(void)",
+                detail = "install SIGINT and SIGTERM shutdown handling",
+                documentation = "Installs the standard C runtime signal handlers that close generator ingress by setting threadwork_running to zero.",
+            ),
+            CompilerCodeSymbol(
+                name = "threadwork_shutdown_request",
+                kind = CompilerCodeSymbolKind.RuntimeSymbol,
+                typeName = "void threadwork_shutdown_request(void)",
+                detail = "close generator ingress",
+                documentation = "Requests a graceful shutdown by setting threadwork_running to zero while processors continue draining modeled links.",
+            ),
+        )
         return defaults.copy(
             symbols = (
-                defaults.symbols.filterNot { it.originNodeId in libraryLinkIds } + functions
+                defaults.symbols.filterNot { it.originNodeId in libraryLinkIds } + functions + runtimeSymbols
                 ).distinctBy { it.name to it.kind },
         )
     }

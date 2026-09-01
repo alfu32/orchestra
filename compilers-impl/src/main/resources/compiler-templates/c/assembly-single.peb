@@ -33,9 +33,22 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    status = tw_{{ initializerSymbol }}(&context);
+    status = threadwork_install_shutdown_signal_handlers();
+    if (status == THREADWORK_OK) {
+        status = tw_{{ initializerSymbol }}(&context);
+    }
     if (status == THREADWORK_OK) {
         status = tw_{{ runSymbol }}(&context);
+    }
+    if (status == THREADWORK_OK) {
+        threadwork_network_shutdown_begin(10U);
+        threadwork_shutdown_request();
+        while (threadwork_network_has_recent_transit()) {
+            status = tw_{{ runSymbol }}(&context);
+            if (status != THREADWORK_OK) {
+                break;
+            }
+        }
     }
 
     threadwork_context_destroy(&context);
