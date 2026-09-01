@@ -1155,10 +1155,11 @@ class ThreadworkDesktopApp(
                 path.resolveSibling("${path.fileName}.$NATIVE_PROJECT_EXTENSION")
             }
         }
-        runCatching { store.save(repository.getDocument(), selected) }
+        val document = archetypeSnapshot(repository.getDocument(), selection)
+        runCatching { store.save(document, selected) }
             .onSuccess {
                 archetypesPanel.reload()
-                status.text = "Saved model as archetype ${selected.toAbsolutePath().normalize()}"
+                status.text = "Saved ${if (selection.isEmpty()) "model" else "selection"} as archetype ${selected.toAbsolutePath().normalize()}"
             }
             .onFailure { error ->
                 JOptionPane.showMessageDialog(

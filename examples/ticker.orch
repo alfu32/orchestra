@@ -21,7 +21,12 @@
                 "node_bfbcce44-541d-4b63-94cf-c29411c15bb4",
                 "link_a9fa5ad0-5571-4aba-9163-66a1e46c2fb1",
                 "node_98b1de57-6b1a-4a96-8e55-6e9a11eb1fc4",
-                "link_1a6bae84-65aa-43b8-b8f7-3fe067f296f8"
+                "link_1a6bae84-65aa-43b8-b8f7-3fe067f296f8",
+                "node_5f8d1854-0319-4d8a-a3d1-66161370dcad",
+                "node_d2ed0e40-961a-4915-ac41-de64637401a8",
+                "node_8a0049f5-871b-4477-8aa6-1857ab9c52d2",
+                "link_0b41dd34-a7c6-4dbd-a3ec-44c81f27ba24",
+                "node_94834eaa-ebca-4487-b9eb-694d5a7842be"
             ],
             "incomingLinks": [],
             "outgoingLinks": [],
@@ -62,7 +67,7 @@
             },
             "responsible": "devlin",
             "modified": {
-                "date": "2026-09-01T10:52:15.896686060Z",
+                "date": "2026-09-01T20:45:45.796376710Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -82,8 +87,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 2182.0,
-                "y": 1383.0,
+                "x": 3184.0,
+                "y": 1360.0,
                 "width": 236.0,
                 "height": 134.0,
                 "closedWidth": 236.0,
@@ -166,8 +171,8 @@
                 "link_ecc22fe5-032c-4b24-812b-cc93b4ca76b0"
             ],
             "layout": {
-                "x": 1769.0,
-                "y": 921.0,
+                "x": 1511.0,
+                "y": 927.0,
                 "width": 220.0,
                 "height": 78.0,
                 "closedWidth": 220.0,
@@ -237,8 +242,8 @@
                 "link_3f327a51-135b-4216-b55f-70ae41f06a30"
             ],
             "layout": {
-                "x": 2182.0,
-                "y": 1217.6666666666665,
+                "x": 2838.0,
+                "y": 1355.6666666666665,
                 "width": 220.0,
                 "height": 78.0,
                 "closedWidth": 220.0,
@@ -376,8 +381,8 @@
                 "link_a17dca3c-a162-4f7f-a264-abcd20c1f421"
             ],
             "layout": {
-                "x": 2182.0,
-                "y": 1300.3333333333333,
+                "x": 2839.0,
+                "y": 1443.3333333333333,
                 "width": 220.0,
                 "height": 78.0,
                 "closedWidth": 220.0,
@@ -445,8 +450,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 618.0,
-                "y": 921.0,
+                "x": 512.0,
+                "y": 931.0,
                 "width": 220.0,
                 "height": 70.0,
                 "closedWidth": 220.0,
@@ -637,8 +642,8 @@
                 "link_a9fa5ad0-5571-4aba-9163-66a1e46c2fb1"
             ],
             "layout": {
-                "x": 1001.6666666666667,
-                "y": 921.0,
+                "x": 747.6666666666667,
+                "y": 924.0,
                 "width": 200.0,
                 "height": 78.0,
                 "closedWidth": 200.0,
@@ -706,25 +711,26 @@
                 "node_a911c5c3-6366-4ba4-814a-1731b124ca66"
             ],
             "incomingLinks": [
-                "link_a9fa5ad0-5571-4aba-9163-66a1e46c2fb1"
+                "link_a9fa5ad0-5571-4aba-9163-66a1e46c2fb1",
+                "link_0b41dd34-a7c6-4dbd-a3ec-44c81f27ba24"
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 426.0,
-                "y": 1013.0,
-                "width": 1701.0,
-                "height": 639.0,
+                "x": 291.0,
+                "y": 1032.0,
+                "width": 2496.0,
+                "height": 721.0,
                 "closedWidth": 200.0,
                 "closedHeight": 78.0,
-                "openWidth": 1701.0,
-                "openHeight": 639.0,
+                "openWidth": 2496.0,
+                "openHeight": 721.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "\nsig_interceptor__sigaction_init();\n\nint status;\n\nstatus = tw_init_flow_6(context);\n\nif (status == THREADWORK_OK) {\n    while(running){\n            status = tw_run_flow_6(context);\n    }\n}\n\nusleep(5000);\nprintf(\"exiting ...\\n\");\nusleep(1000000);",
+                "source": "\nsig_interceptor__sigaction_init();\n\nint status;\n\nstatus = tw_init_flow_9(context);\n\nif (status == THREADWORK_OK) {\n    while(running){\n            status = tw_run_flow_9(context);\n    }\n}\n\nusleep(5000);\nprintf(\"\\nexit sequence: beginning networ purge\\n\");\n\nif (status == THREADWORK_OK) {\n    network_purge__begin_shutdown(10U);\n  \n    while (network_purge__has_recent_transit() &&\n           status == THREADWORK_OK) {\n        status = tw_run_flow_9(context);\n    }\n}\n\nusleep(5000);\nprintf(\"\\nexit sequence: network purge ended\\n\");\nusleep(1000000);",
                 "sourceLanguageId": "",
                 "specification": "",
                 "specificationLanguageId": "markdown",
@@ -746,7 +752,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-09-01T15:14:25.783396193Z",
+                "date": "2026-09-01T20:53:56.173385652Z",
                 "user": "devlin"
             },
             "ports": [
@@ -787,14 +793,14 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 606.0,
-                "y": 1174.0,
-                "width": 1341.0,
-                "height": 430.0,
+                "x": 471.0,
+                "y": 1237.0,
+                "width": 2136.0,
+                "height": 468.0,
                 "closedWidth": 200.0,
                 "closedHeight": 70.0,
-                "openWidth": 1341.0,
-                "openHeight": 430.0,
+                "openWidth": 2136.0,
+                "openHeight": 468.0,
                 "isExpanded": true
             },
             "fileLayoutStrategyId": "none",
@@ -853,8 +859,8 @@
                 "link_d1b9d286-d43a-439a-bee0-e66bf2943400"
             ],
             "layout": {
-                "x": 786.0,
-                "y": 1318.0,
+                "x": 651.0,
+                "y": 1423.0,
                 "width": 220.0,
                 "height": 108.0,
                 "closedWidth": 220.0,
@@ -867,9 +873,9 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "time_t now = time(NULL);\nstruct tm time_info;\nchar timestamp[32];\n\nPacket packet = {\n    .timestamp = timestamp,\n    .uuid = NULL,\n    .random_word = NULL,\n    .random_word_length = 0\n};\n\nif (now != (time_t)-1 &&\n    localtime_r(&now, &time_info) != NULL &&\n    strftime(\n        timestamp,\n        sizeof(timestamp),\n        \"%Y-%m-%dT%H:%M:%S%z\",\n        &time_info\n    ) > 0) {\n    packet.isok = true;\n} else {\n    timestamp[0] = '\\0';\n}\n\npacket.timestamp = strdup(timestamp);\n\nprintf(\"read_time.timestamp:%s\\n\",packet.timestamp != NULL ? packet.timestamp : \"null\");\n\npush(ip_time, &packet);",
+                "source": "time_t now = time(NULL);\nstruct tm time_info;\nchar timestamp[32];\n\nPacket packet = {\n    .timestamp = timestamp,\n    .uuid = NULL,\n    .random_word = NULL,\n    .random_word_length = 0\n};\n\nif (now != (time_t)-1 &&\n    localtime_r(&now, &time_info) != NULL &&\n    strftime(\n        timestamp,\n        sizeof(timestamp),\n        \"%Y-%m-%dT%H:%M:%S%z\",\n        &time_info\n    ) > 0) {\n    packet.isok = true;\n} else {\n    timestamp[0] = '\\0';\n}\n\npacket.timestamp = strdup(timestamp);\n\nprintf(\"read_time.timestamp:%s\\n\",packet.timestamp != NULL ? packet.timestamp : \"null\");\n\npush(ip_time, &packet);\n",
                 "sourceLanguageId": "",
-                "specification": "reads system time and puts it in a Packet and then pushes it into the ip_time output\n\n",
+                "specification": "reads system time and puts it in a Packet and then pushes it into the ip_time output",
                 "specificationLanguageId": "markdown",
                 "tests": "",
                 "testsLanguageId": "json",
@@ -889,7 +895,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-09-01T15:25:59.822820665Z",
+                "date": "2026-09-01T20:45:19.923749736Z",
                 "user": "devlin"
             },
             "ports": [
@@ -927,8 +933,8 @@
                 "link_8e881876-8d2a-41a8-92a4-2ee3f2c839ce"
             ],
             "layout": {
-                "x": 1046.3333333333335,
-                "y": 1448.0,
+                "x": 1169.6666666666665,
+                "y": 1549.0,
                 "width": 220.0,
                 "height": 108.0,
                 "closedWidth": 220.0,
@@ -1065,8 +1071,8 @@
                 "link_dd5fcd39-8d54-4310-b6fe-242d927f0ec5"
             ],
             "layout": {
-                "x": 1290.666666666667,
-                "y": 1309.0,
+                "x": 1688.3333333333333,
+                "y": 1439.0,
                 "width": 220.0,
                 "height": 78.0,
                 "closedWidth": 220.0,
@@ -1203,8 +1209,8 @@
             ],
             "outgoingLinks": [],
             "layout": {
-                "x": 1547.0,
-                "y": 1437.0,
+                "x": 2207.0,
+                "y": 1530.0,
                 "width": 220.0,
                 "height": 108.0,
                 "closedWidth": 220.0,
@@ -1217,7 +1223,7 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "Packet item;\n\nchar *value;\nint sleepval=5000;\nint p = argslib__option(\"sleep\", &value);\nif(p>=0){\n    sleepval=atoi(value);\n}\nprintf(\"write_append_file.sleepvalue:%d\\n\",sleepval);\n\n\nif (pop(ip_word, &item) != THREADWORK_OK) {\n    return THREADWORK_OK;\n}\n\nFILE *file = fopen(\"ticker_out.csv\", \"a\");\nif (file == NULL) {\n    return THREADWORK_ERROR;\n}\n\nint fprintf_result = fprintf(\n    file,\n    \"\\\"%s\\\",\\\"%s\\\",\\\"%s\\\",%.0f,%s\\n\",\n    item.timestamp != NULL ? item.timestamp : \"\",\n    item.uuid != NULL ? item.uuid : \"\",\n    item.random_word != NULL ? item.random_word : \"\",\n    item.random_word_length,\n    item.isok ? \"true\" : \"false\"\n);\nprintf(\"write_append_file.timestamp:%s\\n\",item.timestamp != NULL ? item.timestamp : \"null\");\nprintf(\"write_append_file.uuid:%s\\n\",item.uuid != NULL ? item.uuid : \"null\");\nprintf(\"write_append_file.random_word:%s\\n\",item.random_word != NULL ? item.random_word : \"null\");\n\nif (fprintf_result < 0) {\n    fclose(file);\n    return THREADWORK_ERROR;\n}\n\nif (fclose(file) != 0) {\n    return THREADWORK_ERROR;\n}\n\nfree(item.timestamp);\n\nprintf(\"write_append_file.sleeping 5000 ns \\n\");\nusleep(sleepval);",
+                "source": "Packet item;\nif(!running){\n    return THREADWORK_OK;\n}\nchar *value;\nint sleepval=5000;\nint p = argslib__option(\"sleep\", &value);\nif(p>=0){\n    sleepval=atoi(value);\n}\nprintf(\"write_append_file.sleepvalue:%d\\n\",sleepval);\n\n\nif (pop(ip_word, &item) != THREADWORK_OK) {\n    return THREADWORK_OK;\n}\n\nFILE *file = fopen(\"ticker_out.csv\", \"a\");\nif (file == NULL) {\n    return THREADWORK_ERROR;\n}\n\nint fprintf_result = fprintf(\n    file,\n    \"\\\"%s\\\",\\\"%s\\\",\\\"%s\\\",%.0f,%s\\n\",\n    item.timestamp != NULL ? item.timestamp : \"\",\n    item.uuid != NULL ? item.uuid : \"\",\n    item.random_word != NULL ? item.random_word : \"\",\n    item.random_word_length,\n    item.isok ? \"true\" : \"false\"\n);\nprintf(\"write_append_file.timestamp:%s\\n\",item.timestamp != NULL ? item.timestamp : \"null\");\nprintf(\"write_append_file.uuid:%s\\n\",item.uuid != NULL ? item.uuid : \"null\");\nprintf(\"write_append_file.random_word:%s\\n\",item.random_word != NULL ? item.random_word : \"null\");\n\nif (fprintf_result < 0) {\n    fclose(file);\n    return THREADWORK_ERROR;\n}\n\nif (fclose(file) != 0) {\n    return THREADWORK_ERROR;\n}\n\nfree(item.timestamp);\n\nprintf(\"write_append_file.sleeping 5000 ns \\n\");\nusleep(sleepval);",
                 "sourceLanguageId": "",
                 "specification": "takes a Packet from ip_word, serializes it as a CSV record, and appends the result to \"ticker_out.csv\"",
                 "specificationLanguageId": "markdown",
@@ -1239,7 +1245,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-09-01T11:09:17.510838196Z",
+                "date": "2026-09-01T20:24:03.975386437Z",
                 "user": "devlin"
             },
             "ports": [
@@ -1397,8 +1403,8 @@
                 "link_1a6bae84-65aa-43b8-b8f7-3fe067f296f8"
             ],
             "layout": {
-                "x": 1385.3333333333335,
-                "y": 921.0,
+                "x": 1144.3333333333335,
+                "y": 927.0,
                 "width": 200.0,
                 "height": 78.0,
                 "closedWidth": 200.0,
@@ -1521,6 +1527,297 @@
                 ],
                 "interactionKind": "lib"
             },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_5f8d1854-0319-4d8a-a3d1-66161370dcad",
+            "name": "network_purge_lib",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [
+                "link_0b41dd34-a7c6-4dbd-a3ec-44c81f27ba24"
+            ],
+            "layout": {
+                "x": 1898.0,
+                "y": 935.0,
+                "width": 200.0,
+                "height": 78.0,
+                "closedWidth": 200.0,
+                "closedHeight": 78.0,
+                "openWidth": 200.0,
+                "openHeight": 78.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "  #include <stdbool.h>\n\n  /* Defined by this project's @RuntimeSupport override. */\nstatic unsigned long long network_purge_previous_transit = 0ULL;\nstatic unsigned int network_purge_idle_ticks = 0U;\nstatic unsigned int network_purge_remaining_ticks = 0U;\n\nvoid begin_shutdown(unsigned int idle_ticks)\n{\n    printf(\n        \"[begin_shutdown] ENTER \"\n        \"threadwork_transit=%llu \"\n        \"idle_ticks=%u\\n\",\n        threadwork_transit,\n        idle_ticks\n    );\n\n    network_purge_previous_transit = threadwork_transit;\n    network_purge_idle_ticks = idle_ticks;\n    network_purge_remaining_ticks = idle_ticks;\n\n    printf(\n        \"[begin_shutdown] SET \"\n        \"previous=%llu \"\n        \"idle=%u \"\n        \"remaining=%u\\n\",\n        network_purge_previous_transit,\n        network_purge_idle_ticks,\n        network_purge_remaining_ticks\n    );\n}\n\nint has_recent_transit(void)\n{\n    printf(\n        \"[has_recent_transit] ENTER \"\n        \"transit=%llu \"\n        \"previous=%llu \"\n        \"idle=%u \"\n        \"remaining=%u\\n\",\n        threadwork_transit,\n        network_purge_previous_transit,\n        network_purge_idle_ticks,\n        network_purge_remaining_ticks\n    );\n\n    if (threadwork_transit != network_purge_previous_transit) {\n\n        printf(\n            \"[has_recent_transit] TRANSIT DETECTED \"\n            \"%llu -> %llu\\n\",\n            network_purge_previous_transit,\n            threadwork_transit\n        );\n\n        network_purge_previous_transit = threadwork_transit;\n        network_purge_remaining_ticks = network_purge_idle_ticks;\n\n        printf(\n            \"[has_recent_transit] RESET remaining=%u, returning 1\\n\",\n            network_purge_remaining_ticks\n        );\n\n        return 1;\n    }\n\n    if (network_purge_remaining_ticks == 0U) {\n\n        printf(\n            \"[has_recent_transit] NO TRANSIT, remaining=0, returning 0\\n\"\n        );\n\n        return 0;\n    }\n\n    printf(\n        \"[has_recent_transit] NO TRANSIT, decrementing remaining \"\n        \"%u -> %u\\n\",\n        network_purge_remaining_ticks,\n        network_purge_remaining_ticks - 1U\n    );\n\n    network_purge_remaining_ticks--;\n\n    printf(\n        \"[has_recent_transit] returning 1, remaining=%u\\n\",\n        network_purge_remaining_ticks\n    );\n\n    return 1;\n}\n",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "A",
+                "date": "20260831"
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-09-01T20:34:08.970973547Z",
+                "user": "devlin"
+            },
+            "ports": [
+                {
+                    "id": "output_out",
+                    "name": "out",
+                    "direction": "Output",
+                    "dataType": "",
+                    "metadata": {}
+                }
+            ],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_d2ed0e40-961a-4915-ac41-de64637401a8",
+            "name": "@RuntimeSupport",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 2864.0,
+                "y": 1229.0,
+                "width": 200.0,
+                "height": 70.0,
+                "closedWidth": 200.0,
+                "closedHeight": 70.0,
+                "openWidth": 200.0,
+                "openHeight": 70.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "{# Byte-copying endpoint queue runtime shared by all generated C processors. #}\n\nunsigned long long threadwork_transit = 0ULL;\n\nenum {\n    THREADWORK_OK = 0,\n    THREADWORK_ERROR = 1\n};\n\ntypedef struct threadwork_packet {\n    void *data;\n    size_t size;\n    struct threadwork_packet *next;\n} threadwork_packet;\n\ntypedef struct threadwork_queue {\n    threadwork_packet *head;\n    threadwork_packet *tail;\n} threadwork_queue;\n\ntypedef struct ThreadworkArray {\n    void **items;\n    size_t length;\n    size_t capacity;\n} ThreadworkArray;\n\ntypedef struct threadwork_buffer {\n    threadwork_queue queue;\n    size_t element_size;\n} threadwork_buffer;\n\ntypedef struct threadwork_endpoint {\n    char *name;\n    threadwork_queue queue;\n    struct threadwork_endpoint *next;\n} threadwork_endpoint;\n\ntypedef struct threadwork_context {\n    threadwork_endpoint *inputs;\n    threadwork_endpoint *outputs;\n} threadwork_context;\n\ntypedef struct threadwork_build_parameter {\n    const char *name;\n    const char *value;\n} threadwork_build_parameter;\n\nstatic char *threadwork_string_copy(const char *value)\n{\n    size_t size;\n    char *copy;\n\n    if (value == NULL) {\n        return NULL;\n    }\n    size = strlen(value) + 1U;\n    copy = (char *)malloc(size);\n    if (copy != NULL) {\n        memcpy(copy, value, size);\n    }\n    return copy;\n}\n\nstatic char *threadwork_replace_all(const char *source, const char *needle, const char *replacement)\n{\n    const char *cursor;\n    const char *match;\n    char *result;\n    char *output;\n    size_t count = 0U;\n    size_t source_size;\n    size_t needle_size;\n    size_t replacement_size;\n    size_t result_size;\n\n    if (source == NULL || needle == NULL || replacement == NULL || needle[0] == '\\0') {\n        return NULL;\n    }\n    source_size = strlen(source);\n    needle_size = strlen(needle);\n    replacement_size = strlen(replacement);\n    cursor = source;\n    while ((match = strstr(cursor, needle)) != NULL) {\n        count++;\n        cursor = match + needle_size;\n    }\n    result_size = replacement_size >= needle_size\n        ? source_size + count * (replacement_size - needle_size)\n        : source_size - count * (needle_size - replacement_size);\n    result = (char *)malloc(result_size + 1U);\n    if (result == NULL) {\n        return NULL;\n    }\n    cursor = source;\n    output = result;\n    while ((match = strstr(cursor, needle)) != NULL) {\n        size_t prefix_size = (size_t)(match - cursor);\n        memcpy(output, cursor, prefix_size);\n        output += prefix_size;\n        memcpy(output, replacement, replacement_size);\n        output += replacement_size;\n        cursor = match + needle_size;\n    }\n    strcpy(output, cursor);\n    return result;\n}\n\nchar *threadwork_materialize_source(\n    const char *source,\n    const threadwork_build_parameter *parameters,\n    size_t parameter_count)\n{\n    char *product = threadwork_string_copy(source);\n    size_t index;\n\n    if (product == NULL) {\n        return NULL;\n    }\n    for (index = 0U; index < parameter_count; index++) {\n        char marker[256];\n        char *next;\n        if (parameters[index].name == NULL || parameters[index].value == NULL) {\n            continue;\n        }\n        if (snprintf(marker, sizeof(marker), \"%c%c%s%c\", '$', '{', parameters[index].name, '}') < 0) {\n            free(product);\n            return NULL;\n        }\n        next = threadwork_replace_all(product, marker, parameters[index].value);\n        free(product);\n        if (next == NULL) {\n            return NULL;\n        }\n        product = next;\n    }\n    return product;\n}\n\nstatic threadwork_endpoint *threadwork_endpoint_find(\n    threadwork_endpoint *head,\n    const char *name)\n{\n    threadwork_endpoint *current = head;\n\n    while (current != NULL) {\n        if (strcmp(current->name, name) == 0) {\n            return current;\n        }\n        current = current->next;\n    }\n    return NULL;\n}\n\nstatic threadwork_endpoint *threadwork_endpoint_get_or_create(\n    threadwork_endpoint **head,\n    const char *name)\n{\n    threadwork_endpoint *endpoint;\n\n    if (head == NULL || name == NULL) {\n        return NULL;\n    }\n    endpoint = threadwork_endpoint_find(*head, name);\n    if (endpoint != NULL) {\n        return endpoint;\n    }\n    endpoint = (threadwork_endpoint *)calloc(1U, sizeof(*endpoint));\n    if (endpoint == NULL) {\n        return NULL;\n    }\n    endpoint->name = threadwork_string_copy(name);\n    if (endpoint->name == NULL) {\n        free(endpoint);\n        return NULL;\n    }\n    endpoint->next = *head;\n    *head = endpoint;\n    return endpoint;\n}\n\nstatic void threadwork_packet_destroy(threadwork_packet *packet)\n{\n    if (packet != NULL) {\n        free(packet->data);\n        free(packet);\n    }\n}\n\nstatic int threadwork_buffer_transport(threadwork_buffer *source, threadwork_buffer *target)\n{\n    threadwork_packet *packet;\n\n    if (source == NULL || target == NULL || source->element_size != target->element_size) {\n        return THREADWORK_ERROR;\n    }\n    packet = source->queue.head;\n    if (packet == NULL) {\n        return THREADWORK_OK;\n    }\n    source->queue.head = packet->next;\n    if (source->queue.head == NULL) {\n        source->queue.tail = NULL;\n    }\n    packet->next = NULL;\n    if (target->queue.tail == NULL) {\n        target->queue.head = packet;\n    } else {\n        target->queue.tail->next = packet;\n    }\n    target->queue.tail = packet;\n    return THREADWORK_OK;\n}\n\nint threadwork_buffer_push(threadwork_buffer *buffer, const void *data, size_t size)\n{\n    threadwork_packet *packet;\n\n    if (buffer == NULL || data == NULL || size != buffer->element_size) {\n        return THREADWORK_ERROR;\n    }\n    packet = (threadwork_packet *)calloc(1U, sizeof(*packet));\n    if (packet == NULL) {\n        return THREADWORK_ERROR;\n    }\n    packet->data = malloc(size);\n    if (packet->data == NULL) {\n        free(packet);\n        return THREADWORK_ERROR;\n    }\n    memcpy(packet->data, data, size);\n    packet->size = size;\n    if (buffer->queue.tail == NULL) {\n        buffer->queue.head = packet;\n    } else {\n        buffer->queue.tail->next = packet;\n    }\n    buffer->queue.tail = packet;\n    return THREADWORK_OK;\n}\n\nint threadwork_buffer_pop(threadwork_buffer *buffer, void *destination, size_t size)\n{\n    threadwork_packet *packet;\n\n    if (buffer == NULL || destination == NULL || size != buffer->element_size) {\n        return THREADWORK_ERROR;\n    }\n    packet = buffer->queue.head;\n    if (packet == NULL || packet->size != size) {\n        return THREADWORK_ERROR;\n    }\n    memcpy(destination, packet->data, size);\n    buffer->queue.head = packet->next;\n    if (buffer->queue.head == NULL) {\n        buffer->queue.tail = NULL;\n    }\n    threadwork_packet_destroy(packet);\n    return THREADWORK_OK;\n}\n\nint push(void *target, void *package)\n{\n    threadwork_buffer *buffer = (threadwork_buffer *)target;\n\n    if (buffer == NULL) {\n        return THREADWORK_ERROR;\n    }\n    return threadwork_buffer_push(buffer, package, buffer->element_size);\n}\n\nint pop(void *target, void *package)\n{\n    threadwork_buffer *buffer = (threadwork_buffer *)target;\n\n    if (buffer == NULL) {\n        return THREADWORK_ERROR;\n    }\n    return threadwork_buffer_pop(buffer, package, buffer->element_size);\n}\n\nsize_t threadwork_buffer_count(const threadwork_buffer *buffer)\n{\n    const threadwork_packet *packet;\n    size_t result = 0U;\n\n    if (buffer == NULL) {\n        return 0U;\n    }\n    packet = buffer->queue.head;\n    while (packet != NULL) {\n        result++;\n        packet = packet->next;\n    }\n    return result;\n}\n\nstatic void threadwork_endpoint_list_destroy(threadwork_endpoint *head)\n{\n    while (head != NULL) {\n        threadwork_endpoint *next_endpoint = head->next;\n        threadwork_packet *packet = head->queue.head;\n        while (packet != NULL) {\n            threadwork_packet *next_packet = packet->next;\n            threadwork_packet_destroy(packet);\n            packet = next_packet;\n        }\n        free(head->name);\n        free(head);\n        head = next_endpoint;\n    }\n}\n\nint threadwork_context_init(threadwork_context *context)\n{\n    if (context == NULL) {\n        return THREADWORK_ERROR;\n    }\n    context->inputs = NULL;\n    context->outputs = NULL;\n    return THREADWORK_OK;\n}\n\nvoid threadwork_context_destroy(threadwork_context *context)\n{\n    if (context == NULL) {\n        return;\n    }\n    threadwork_endpoint_list_destroy(context->inputs);\n    threadwork_endpoint_list_destroy(context->outputs);\n    context->inputs = NULL;\n    context->outputs = NULL;\n}\n\nint threadwork_output_write(\n    threadwork_context *context,\n    const char *endpoint_name,\n    const void *data,\n    size_t size)\n{\n    threadwork_endpoint *endpoint;\n    threadwork_packet *packet;\n\n    if (context == NULL || endpoint_name == NULL || (size > 0U && data == NULL)) {\n        return THREADWORK_ERROR;\n    }\n    endpoint = threadwork_endpoint_get_or_create(&context->outputs, endpoint_name);\n    if (endpoint == NULL) {\n        return THREADWORK_ERROR;\n    }\n    packet = (threadwork_packet *)calloc(1U, sizeof(*packet));\n    if (packet == NULL) {\n        return THREADWORK_ERROR;\n    }\n    if (size > 0U) {\n        packet->data = malloc(size);\n        if (packet->data == NULL) {\n            free(packet);\n            return THREADWORK_ERROR;\n        }\n        memcpy(packet->data, data, size);\n    }\n    packet->size = size;\n    if (endpoint->queue.tail == NULL) {\n        endpoint->queue.head = packet;\n    } else {\n        endpoint->queue.tail->next = packet;\n    }\n    endpoint->queue.tail = packet;\n    return THREADWORK_OK;\n}\n\nint threadwork_input_read(\n    threadwork_context *context,\n    const char *endpoint_name,\n    void *destination,\n    size_t capacity,\n    size_t *actual_size)\n{\n    threadwork_endpoint *endpoint;\n    threadwork_packet *packet;\n\n    if (context == NULL || endpoint_name == NULL) {\n        return THREADWORK_ERROR;\n    }\n    endpoint = threadwork_endpoint_find(context->inputs, endpoint_name);\n    if (endpoint == NULL || endpoint->queue.head == NULL) {\n        return THREADWORK_ERROR;\n    }\n    packet = endpoint->queue.head;\n    if (actual_size != NULL) {\n        *actual_size = packet->size;\n    }\n    if (packet->size > capacity || (packet->size > 0U && destination == NULL)) {\n        return THREADWORK_ERROR;\n    }\n    if (packet->size > 0U) {\n        memcpy(destination, packet->data, packet->size);\n    }\n    endpoint->queue.head = packet->next;\n    if (endpoint->queue.head == NULL) {\n        endpoint->queue.tail = NULL;\n    }\n    threadwork_packet_destroy(packet);\n    return THREADWORK_OK;\n}\n\nint threadwork_transport(\n    threadwork_context *context,\n    const char *link_reference,\n    const char *source_name,\n    const char *target_name)\n{\n    threadwork_endpoint *source;\n    threadwork_endpoint *target;\n\n    if (context == NULL || link_reference == NULL || source_name == NULL || target_name == NULL) {\n        return THREADWORK_ERROR;\n    }\n    source = threadwork_endpoint_find(context->outputs, source_name);\n    if (source == NULL || source->queue.head == NULL) {\n        return THREADWORK_OK;\n    }\n    target = threadwork_endpoint_get_or_create(&context->inputs, target_name);\n    if (target == NULL) {\n        return THREADWORK_ERROR;\n    }\n    if (target->queue.tail == NULL) {\n        target->queue.head = source->queue.head;\n    } else {\n        target->queue.tail->next = source->queue.head;\n    }\n    target->queue.tail = source->queue.tail;\n    source->queue.head = NULL;\n    source->queue.tail = NULL;\n    return THREADWORK_OK;\n}\n\n\n",
+                "sourceLanguageId": "c",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "A",
+                "date": "20260831"
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-09-01T17:04:02.809968563Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_8a0049f5-871b-4477-8aa6-1857ab9c52d2",
+            "name": "@LinkInstantiation",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 3170.0,
+                "y": 1232.0,
+                "width": 200.0,
+                "height": 70.0,
+                "closedWidth": 200.0,
+                "closedHeight": 70.0,
+                "openWidth": 200.0,
+                "openHeight": 70.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "  {% if not link.isCapability %}\n      if (threadwork_buffer_count(&{{ link.aPortSymbol }}) > 0U) {\n          if ({{ link.transportSymbol }}(\n                  &{{ link.aPortSymbol }},\n                  &{{ link.bPortSymbol }}\n              ) != THREADWORK_OK) {\n              return THREADWORK_ERROR;\n          }\n\n          threadwork_transit++;\n      }\n  {% endif %}\n\n",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "A",
+                "date": "20260831"
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-09-01T20:40:59.313039569Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": null,
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "link_0b41dd34-a7c6-4dbd-a3ec-44c81f27ba24",
+            "name": "network_purge",
+            "kind": "Link",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 200.0,
+                "height": 70.0,
+                "closedWidth": 200.0,
+                "closedHeight": 70.0,
+                "openWidth": 200.0,
+                "openHeight": 70.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "A",
+                "date": "20260831"
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-09-01T20:09:13.142188679Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": {
+                "sourceNodeId": "node_5f8d1854-0319-4d8a-a3d1-66161370dcad",
+                "sourcePortName": "out",
+                "targetNodeId": "node_bfbcce44-541d-4b63-94cf-c29411c15bb4",
+                "targetPortName": "in",
+                "transportKind": "in-process",
+                "typeName": "",
+                "payloadDefinition": "",
+                "typeDefinitionId": "",
+                "compositeBoundaryIds": [],
+                "interactionKind": "lib"
+            },
+            "typeDefinition": null,
+            "metadata": {},
+            "pluginData": {}
+        },
+        {
+            "id": "node_94834eaa-ebca-4487-b9eb-694d5a7842be",
+            "name": "@GeneratorDeclaration",
+            "kind": "Processor",
+            "parentId": "root",
+            "children": [],
+            "incomingLinks": [],
+            "outgoingLinks": [],
+            "layout": {
+                "x": 3490.0,
+                "y": 1233.0,
+                "width": 223.0,
+                "height": 70.0,
+                "closedWidth": 223.0,
+                "closedHeight": 70.0,
+                "openWidth": 223.0,
+                "openHeight": 70.0,
+                "isExpanded": true
+            },
+            "fileLayoutStrategyId": "none",
+            "text": {
+                "initialization": "",
+                "initializationLanguageId": "",
+                "source": "{# Defines one terminal processor. Instantiation is setup code; declaration is recurring code. #}\nstatic int tw_{{ initializerSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}{% if not link.isLibraryCapability %}, {% if link.isSourceCapability %}{{ link.capabilityTypeSymbol }} *{% elseif link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.argumentSymbol }}{% endif %}{% endfor %})\n{\n    (void)context;\n{% for link in incomingDataLinks %}    (void){{ link.argumentSymbol }};\n{% endfor %}{% for link in outgoingDataLinks %}    (void){{ link.argumentSymbol }};\n{% endfor %}{% for link in dependencyInjectionLinks %}{% if not link.isLibraryCapability %}    (void){{ link.argumentSymbol }};\n{% endif %}\n{% endfor %}\n\n{% if instantiation is not empty %}{{ instantiationIndent4 }}\n{% endif %}    return THREADWORK_OK;\n}\n\nstatic int tw_{{ runSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}{% if not link.isLibraryCapability %}, {% if link.isSourceCapability %}{{ link.capabilityTypeSymbol }} *{% elseif link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.argumentSymbol }}{% endif %}{% endfor %})\n{\n    (void)context;\n{% for link in incomingDataLinks %}    (void){{ link.argumentSymbol }};\n{% endfor %}{% for link in outgoingDataLinks %}    (void){{ link.argumentSymbol }};\n{% endfor %}{% for link in dependencyInjectionLinks %}{% if not link.isLibraryCapability %}    (void){{ link.argumentSymbol }};\n{% endif %}\n{% endfor %}\nif(!running){\n    return THREADWORK_OK;\n}\n{% if declaration is not empty %}{{ declarationIndent4 }}\n{% endif %}    return THREADWORK_OK;\n}",
+                "sourceLanguageId": "",
+                "specification": "",
+                "specificationLanguageId": "markdown",
+                "tests": "",
+                "testsLanguageId": "json",
+                "aiInstructions": "",
+                "aiInstructionsLanguageId": "markdown"
+            },
+            "technology": {
+                "languageId": "",
+                "technologyId": "",
+                "compilerId": "",
+                "fileExtension": "",
+                "contentType": ""
+            },
+            "revision": {
+                "name": "A",
+                "date": "20260831"
+            },
+            "responsible": null,
+            "modified": {
+                "date": "2026-09-01T20:56:43.606579688Z",
+                "user": "devlin"
+            },
+            "ports": [],
+            "link": null,
             "typeDefinition": null,
             "metadata": {},
             "pluginData": {}

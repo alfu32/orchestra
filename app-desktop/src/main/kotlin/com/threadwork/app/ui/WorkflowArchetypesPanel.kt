@@ -1,7 +1,9 @@
 package com.threadwork.app.ui
 
 import com.threadwork.core.model.NodeId
+import com.threadwork.core.model.Node
 import com.threadwork.core.model.ThreadworkDocument
+import com.threadwork.core.model.rootNode
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.KotlinxJsonDocumentStore
 import com.threadwork.storage.newDocument
@@ -179,6 +181,134 @@ internal fun archetypeFileStem(projectName: String): String = projectName
     .replace(Regex("[^A-Za-z0-9._-]+"), "-")
     .trim('-', '.')
     .ifBlank { "archetype" }
+
+/**
+ * Produces a self-contained archetype from the selected topology. Selecting a
+ * composite includes its hierarchy; selecting a link includes its endpoints.
+ */
+internal fun archetypeSnapshot(
+    document: ThreadworkDocument,
+    selection: Set<NodeId>,
+): ThreadworkDocument {
+    if (selection.isEmpty() || document.rootNodeId in selection) return document
+
+    val includedNodeIds = linkedSetOf<NodeId>()
+
+    fun includeNodeHierarchy(id: NodeId) {
+        val node = document.nodes[id] ?: return
+        if (!includedNodeIds.add(id) || node.isLink) return
+        node.children.forEach(::includeNodeHierarchy)
+    }
+
+    selection.mapNotNull(document.nodes::get).forEach { selected ->
+        if (selected.isLink) {
+            selected.link?.let {
+                includeNodeHierarchy(it.sourceNodeId)
+                includeNodeHierarchy(it.targetNodeId)
+            }
+        } else {
+            includeNodeHierarchy(selected.id)
+        }
+    }
+
+    val includedLinks = document.nodes.values
+        .asSequence()
+        .filter(Node::isLink)
+        .filter { linkNode ->
+            val link = linkNode.link ?: return@filter false
+            linkNode.id in selection ||
+                (link.sourceNodeId in includedNodeIds && link.targetNodeId in includedNodeIds)
+        }
+        .toList()
+
+    includedLinks.forEach { linkNode ->
+        linkNode.link?.let {
+            includeNodeHierarchy(it.sourceNodeId)
+            includeNodeHierarchy(it.targetNodeId)
+        }
+    }
+
+    // Preserve user-defined link types, including field references between types.
+    fun includeType(id: NodeId) {
+        val type = document.nodes[id] ?: return
+        if (!includedNodeIds.add(id)) return
+        type.typeDefinition?.fields.orEmpty().forEach { field ->
+            document.nodes[NodeId(field.typeId)]?.takeIf(Node::isType)?.let { includeType(it.id) }
+        }
+    }
+    includedLinks.mapNotNull { it.link?.typeDefinitionId?.takeIf(String::isNotBlank) }
+        .forEach { includeType(NodeId(it)) }
+
+    val snapshotRoot = copyArchetypeNode(document.rootNode()).also {
+        it.parentId = null
+        it.children.clear()
+        it.incomingLinks.clear()
+        it.outgoingLinks.clear()
+    }
+    val nodes = linkedMapOf<NodeId, Node>(snapshotRoot.id to snapshotRoot)
+    includedNodeIds.mapNotNull(document.nodes::get).forEach { source ->
+        val copy = copyArchetypeNode(source).also {
+            it.parentId = source.parentId?.takeIf(includedNodeIds::contains) ?: snapshotRoot.id
+            it.children.clear()
+            it.incomingLinks.clear()
+            it.outgoingLinks.clear()
+        }
+        nodes[copy.id] = copy
+    }
+    includedLinks.forEach { source ->
+        val link = source.link ?: return@forEach
+        if (link.sourceNodeId !in nodes || link.targetNodeId !in nodes) return@forEach
+        val copy = copyArchetypeNode(source).also {
+            it.parentId = source.parentId?.takeIf(includedNodeIds::contains) ?: snapshotRoot.id
+            it.children.clear()
+            it.incomingLinks.clear()
+            it.outgoingLinks.clear()
+            it.link = link.copy(
+                compositeBoundaryIds = link.compositeBoundaryIds
+                    .filter(includedNodeIds::contains)
+                    .toMutableList(),
+            )
+        }
+        nodes[copy.id] = copy
+    }
+
+    nodes.values.filter { it.id != snapshotRoot.id }.forEach { node ->
+        val parent = nodes[node.parentId] ?: snapshotRoot
+        parent.children += node.id
+    }
+    nodes.values.filter(Node::isLink).forEach { linkNode ->
+        val link = linkNode.link ?: return@forEach
+        nodes[link.sourceNodeId]?.outgoingLinks?.add(linkNode.id)
+        nodes[link.targetNodeId]?.incomingLinks?.add(linkNode.id)
+    }
+
+    return ThreadworkDocument(
+        id = document.id,
+        name = document.name,
+        rootNodeId = snapshotRoot.id,
+        nodes = nodes.toMutableMap(),
+        metadata = document.metadata.toMutableMap(),
+        masterRevision = document.masterRevision.copy(),
+    )
+}
+
+private fun copyArchetypeNode(node: Node): Node = node.copy(
+    children = node.children.toMutableList(),
+    incomingLinks = node.incomingLinks.toMutableList(),
+    outgoingLinks = node.outgoingLinks.toMutableList(),
+    layout = node.layout.copy(),
+    text = node.text.copy(),
+    technology = node.technology.copy(),
+    revision = node.revision?.copy(),
+    modified = node.modified.copy(),
+    ports = node.ports.map { it.copy(metadata = it.metadata.toMutableMap()) }.toMutableList(),
+    link = node.link?.copy(compositeBoundaryIds = node.link!!.compositeBoundaryIds.toMutableList()),
+    typeDefinition = node.typeDefinition?.copy(
+        fields = node.typeDefinition!!.fields.map { it.copy() }.toMutableList(),
+    ),
+    metadata = node.metadata.toMutableMap(),
+    pluginData = node.pluginData.toMutableMap(),
+)
 
 internal fun loadWorkflowArchetypes(
     store: KotlinxJsonDocumentStore,
