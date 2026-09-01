@@ -50,6 +50,7 @@ enum class CompletionSuggestionKind {
     InputBuffer,
     OutputBuffer,
     ServiceInstance,
+    LibraryFunction,
     BufferMember,
     Type,
     TypeMember,
@@ -146,7 +147,8 @@ class ModelAwareCompletionService(
     private fun suggestionPriority(kind: CompletionSuggestionKind): Int = when (kind) {
         CompletionSuggestionKind.InputBuffer,
         CompletionSuggestionKind.OutputBuffer,
-        CompletionSuggestionKind.ServiceInstance -> 0
+        CompletionSuggestionKind.ServiceInstance,
+        CompletionSuggestionKind.LibraryFunction -> 0
         CompletionSuggestionKind.CompilerSymbol,
         CompletionSuggestionKind.BufferMember,
         CompletionSuggestionKind.Type,
@@ -175,6 +177,7 @@ private fun CompilerCodeSymbolKind.toCompletionKind(): CompletionSuggestionKind 
     CompilerCodeSymbolKind.InputBuffer -> CompletionSuggestionKind.InputBuffer
     CompilerCodeSymbolKind.OutputBuffer -> CompletionSuggestionKind.OutputBuffer
     CompilerCodeSymbolKind.ServiceInstance -> CompletionSuggestionKind.ServiceInstance
+    CompilerCodeSymbolKind.LibraryFunction -> CompletionSuggestionKind.LibraryFunction
     CompilerCodeSymbolKind.SourceCapability,
     CompilerCodeSymbolKind.RunnableCapability -> CompletionSuggestionKind.ServiceInstance
     CompilerCodeSymbolKind.Type -> CompletionSuggestionKind.Type

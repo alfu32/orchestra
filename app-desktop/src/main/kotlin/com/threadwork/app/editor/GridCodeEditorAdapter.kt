@@ -84,6 +84,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private var diagnostics: List<Diagnostic> = emptyList()
     private var declarationSymbols: List<DeclarationSymbol> = emptyList()
     private var semanticIdentifierColors: Map<String, Color> = emptyMap()
+    private var pinnedHeader: String = ""
     private var completionItems: List<CompletionSuggestion> = emptyList()
     private var completionIndex = 0
     private var completionScrollOffset = 0
@@ -260,6 +261,14 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         repaint()
     }
 
+    override fun setPinnedHeader(text: String?) {
+        val next = text.orEmpty().lineSequence().joinToString(" ") { it.trim() }.trim()
+        if (pinnedHeader == next) return
+        pinnedHeader = next
+        revalidate()
+        repaint()
+    }
+
     override fun focus() {
         requestFocusInWindow()
     }
@@ -289,25 +298,72 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val lineHeight = metrics.height
         val charWidth = max(1, metrics.charWidth('M'))
         val gutterWidth = gutterWidth(metrics, charWidth)
-        val visibleRows = max(1, height / lineHeight)
+        val bodyTop = pinnedHeaderHeight(metrics)
+        val visibleRows = max(1, (height - bodyTop) / lineHeight)
         val visualRows = visualRows(metrics, charWidth, gutterWidth)
         scrollVisualRow = scrollVisualRow.coerceIn(0, maxScrollVisualRow(visualRows))
 
         g2.color = Color(0x1e1e1e)
         g2.fillRect(0, 0, width, height)
-        drawGutter(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows, visualRows)
+        if (pinnedHeader.isNotBlank()) {
+            drawPinnedHeader(g2, metrics, lineHeight, charWidth, gutterWidth)
+        }
+        val bodyGraphics = g2.create(0, bodyTop, width, (height - bodyTop).coerceAtLeast(1)) as Graphics2D
+        drawGutter(bodyGraphics, metrics, lineHeight, charWidth, gutterWidth, visibleRows, visualRows)
         for (row in 0 until visibleRows) {
             val visualRow = visualRows.getOrNull(scrollVisualRow + row) ?: break
             val baseline = row * lineHeight + metrics.ascent
-            drawLineBackground(g2, visualRow, row, lineHeight, gutterWidth, visualRows)
-            drawSelection(g2, visualRow, row, lineHeight, charWidth, gutterWidth)
-            drawHighlightedLine(g2, lines[visualRow.lineIndex], visualRow, gutterWidth, baseline, charWidth)
-            drawDiagnostics(g2, visualRow, row, lineHeight, gutterWidth, charWidth)
+            drawLineBackground(bodyGraphics, visualRow, row, lineHeight, gutterWidth, visualRows)
+            drawSelection(bodyGraphics, visualRow, row, lineHeight, charWidth, gutterWidth)
+            drawHighlightedLine(bodyGraphics, lines[visualRow.lineIndex], visualRow, gutterWidth, baseline, charWidth)
+            drawDiagnostics(bodyGraphics, visualRow, row, lineHeight, gutterWidth, charWidth)
         }
-        drawCaret(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows, visualRows)
-        drawCompletionPopup(g2, metrics, lineHeight, charWidth, gutterWidth, visibleRows, visualRows)
-        drawHoverPopup(g2, metrics, lineHeight)
+        drawCaret(bodyGraphics, metrics, lineHeight, charWidth, gutterWidth, visibleRows, visualRows)
+        drawCompletionPopup(bodyGraphics, metrics, lineHeight, charWidth, gutterWidth, visibleRows, visualRows)
+        drawHoverPopup(bodyGraphics, metrics, lineHeight)
+        bodyGraphics.dispose()
         drawEditorStatus(g2, metrics)
+    }
+
+    private fun drawPinnedHeader(
+        g2: Graphics2D,
+        metrics: FontMetrics,
+        lineHeight: Int,
+        charWidth: Int,
+        gutterWidth: Int,
+    ) {
+        g2.color = Color(0x252526)
+        g2.fillRect(0, 0, gutterWidth, lineHeight)
+        g2.color = Color(0x3c3c3c)
+        g2.drawLine(gutterWidth - 1, 0, gutterWidth - 1, lineHeight)
+        drawHighlightedText(g2, pinnedHeader, gutterWidth, metrics.ascent)
+        if (scrollVisualRow > 0) {
+            g2.color = Color(0x5a5a5a)
+            g2.drawLine(0, lineHeight - 1, width, lineHeight - 1)
+        }
+    }
+
+    private fun drawHighlightedText(g2: Graphics2D, text: String, x: Int, baseline: Int) {
+        val tokens = RegexSyntaxHighlighter.highlightLine(
+            languageId,
+            text,
+            declarationSymbols,
+            semanticIdentifierColors,
+        )
+        var cursor = 0
+        var drawX = x
+        fun draw(segment: String, color: Color) {
+            if (segment.isEmpty()) return
+            g2.color = color
+            g2.drawString(segment, drawX, baseline)
+            drawX += g2.fontMetrics.stringWidth(segment)
+        }
+        tokens.forEach { token ->
+            if (cursor < token.start) draw(text.substring(cursor, token.start), RegexSyntaxHighlighter.Default)
+            draw(text.substring(token.start, token.endExclusive), token.color)
+            cursor = token.endExclusive
+        }
+        if (cursor < text.length) draw(text.substring(cursor), RegexSyntaxHighlighter.Default)
     }
 
     private fun handleKeyPressed(e: KeyEvent) {
@@ -701,7 +757,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         visualRows: List<VisualRow>,
     ) {
         g2.color = Color(0x252526)
-        g2.fillRect(0, 0, gutterWidth, height)
+        g2.fillRect(0, 0, gutterWidth, bodyHeight())
         g2.color = Color(0x858585)
         for (row in 0 until visibleRows) {
             val visualRow = visualRows.getOrNull(scrollVisualRow + row) ?: break
@@ -710,7 +766,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             g2.drawString(label, charWidth, row * lineHeight + metrics.ascent)
         }
         g2.color = Color(0x3c3c3c)
-        g2.drawLine(gutterWidth - 1, 0, gutterWidth - 1, height)
+        g2.drawLine(gutterWidth - 1, 0, gutterWidth - 1, bodyHeight())
     }
 
     private fun drawLineBackground(
@@ -895,7 +951,8 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             .coerceIn(220, maxContentWidth)
         val popupHeight = (bodyLines.size + 1) * lineHeight + 14
         val x = point.x.coerceIn(4, max(4, width - popupWidth - 4))
-        val y = (point.y + lineHeight).coerceIn(4, max(4, height - popupHeight - 4))
+        val bodyPointY = (point.y - pinnedHeaderHeight(metrics)).coerceAtLeast(0)
+        val y = (bodyPointY + lineHeight).coerceIn(4, max(4, bodyHeight() - popupHeight - 4))
         g2.color = Color(0x252526)
         g2.fillRoundRect(x, y, popupWidth, popupHeight, 6, 6)
         g2.color = Color(0x5f5f5f)
@@ -999,7 +1056,8 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val lineHeight = metrics.height.coerceAtLeast(1)
         val gutter = gutterWidth(metrics, charWidth)
         val visualRows = visualRows(metrics, charWidth, gutter)
-        val visualIndex = (scrollVisualRow + point.y / lineHeight).coerceIn(0, visualRows.lastIndex)
+        val bodyY = (point.y - pinnedHeaderHeight(metrics)).coerceAtLeast(0)
+        val visualIndex = (scrollVisualRow + bodyY / lineHeight).coerceIn(0, visualRows.lastIndex)
         val visualRow = visualRows[visualIndex]
         val column = (visualRow.startColumn + ((point.x - gutter).coerceAtLeast(0) / charWidth))
             .coerceIn(visualRow.startColumn, visualRow.endColumn)
@@ -1007,7 +1065,17 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     }
 
     private fun visibleRowCount(): Int =
-        max(1, height / getFontMetrics(editorFont).height.coerceAtLeast(1))
+        max(
+            1,
+            (height - pinnedHeaderHeight(getFontMetrics(editorFont))) /
+                getFontMetrics(editorFont).height.coerceAtLeast(1),
+        )
+
+    private fun pinnedHeaderHeight(metrics: FontMetrics): Int =
+        if (pinnedHeader.isBlank()) 0 else metrics.height
+
+    private fun bodyHeight(): Int =
+        (height - pinnedHeaderHeight(getFontMetrics(editorFont))).coerceAtLeast(1)
 
     private fun gutterWidth(metrics: FontMetrics, charWidth: Int): Int =
         (lines.size + 1).toString().length * charWidth + charWidth * 3
@@ -1436,7 +1504,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val visibleItemCount = visibleCompletionRows(lineHeight)
         val popupHeight = visibleItemCount * lineHeight + 6
         val x = (gutterWidth + col * charWidth).coerceIn(0, max(0, width - popupWidth - 4))
-        val y = (row * lineHeight).coerceIn(0, max(0, height - popupHeight - 4))
+        val y = (row * lineHeight).coerceIn(0, max(0, bodyHeight() - popupHeight - 4))
         return CompletionPopupGeometry(x, y, popupWidth, popupHeight, labelColumnWidth, lineHeight, visibleItemCount)
     }
 
@@ -1447,15 +1515,16 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val lineHeight = metrics.height.coerceAtLeast(1)
         val gutter = gutterWidth(metrics, charWidth)
         val geometry = completionPopupGeometry(metrics, lineHeight, charWidth, gutter, visibleRowCount()) ?: return null
-        if (point.x !in geometry.x..(geometry.x + geometry.width)) return null
-        if (point.y !in geometry.y..(geometry.y + geometry.height)) return null
-        val index = completionScrollOffset + (point.y - geometry.y - 3) / geometry.lineHeight
+        val bodyPoint = Point(point.x, point.y - pinnedHeaderHeight(metrics))
+        if (bodyPoint.x !in geometry.x..(geometry.x + geometry.width)) return null
+        if (bodyPoint.y !in geometry.y..(geometry.y + geometry.height)) return null
+        val index = completionScrollOffset + (bodyPoint.y - geometry.y - 3) / geometry.lineHeight
         return index.takeIf { it in completionItems.indices }
     }
 
     private fun visibleCompletionRows(lineHeight: Int = getFontMetrics(editorFont).height.coerceAtLeast(1)): Int {
         if (completionItems.isEmpty()) return 0
-        val maxByHeight = ((height - 12) / lineHeight).coerceAtLeast(3)
+        val maxByHeight = ((bodyHeight() - 12) / lineHeight).coerceAtLeast(3)
         return min(completionItems.size, min(20, maxByHeight))
     }
 

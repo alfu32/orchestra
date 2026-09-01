@@ -1,12 +1,14 @@
 package com.threadwork.compiler.c
 
 import com.threadwork.compiler.api.CompilerOptions
+import com.threadwork.compiler.api.CompilerCodeSymbolKind
 import com.threadwork.compiler.api.DirectFileSystemHomorphismLayoutStrategy
 import com.threadwork.compiler.api.SingleFileLayoutStrategy
 import com.threadwork.core.model.BuiltInTypeIds
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.NodePort
+import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.PortDirection
 import com.threadwork.core.model.TechnologyMetadata
 import com.threadwork.core.model.TypeDefinition
@@ -265,6 +267,62 @@ class CCompilerTest {
     }
 
     @Test
+    fun `C library links expose prefixed function pointers instead of service instances`() {
+        val repository = cProject()
+        val root = repository.getDocument().rootNodeId
+        val library = repository.createNode(root, "lib_math", NodeKind.Processor)
+        val processor = repository.createNode(root, "calculate", NodeKind.Processor)
+        val sink = repository.createNode(root, "result_sink", NodeKind.Processor)
+        repository.addPort(library.id, NodePort("service", "service", PortDirection.Output))
+        repository.addPort(processor.id, NodePort("math", "math", PortDirection.Input))
+        repository.addPort(processor.id, NodePort("result", "result", PortDirection.Output))
+        repository.addPort(sink.id, NodePort("result", "result", PortDirection.Input))
+        repository.updateNodeText(
+            library.id,
+            library.text.copy(
+                declaration = """
+                    int maximum(int left, int right) {
+                        return left > right ? left : right;
+                    }
+                """.trimIndent(),
+            ),
+        )
+        repository.updateNodeText(
+            processor.id,
+            processor.text.copy(declaration = "int result_value = math_service__maximum(2, 4);\n(void)result_value;"),
+        )
+        val serviceLink = repository.createLink(root, "math_service", library.id, "service", processor.id, "math")
+        repository.updateLinkData(
+            serviceLink.id,
+            requireNotNull(serviceLink.link).copy(interactionKind = LinkInteractionKinds.Library),
+        )
+        repository.createLink(root, "result", processor.id, "result", sink.id, "result")
+
+        val compiler = CCompiler()
+        val result = compiler.compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val source = assertNotNull(result.generatedProject).files.single().content
+        assertTrue(source.contains("int (*math_service__maximum)(int left, int right) = maximum;"), source)
+        assertFalse(source.contains("lib_math math_service"))
+        val intelligence = compiler.codeIntelligence(repository.getDocument(), processor)
+        assertTrue(
+            intelligence.symbols.any {
+                it.name == "math_service__maximum" && it.kind == CompilerCodeSymbolKind.LibraryFunction
+            },
+        )
+        assertFalse(intelligence.symbols.any { it.name == "math_service" })
+        val header = compiler.generatedFunctionHeader(
+            repository.getDocument(),
+            processor,
+            NodeTextSection.Declaration,
+        )
+        assertTrue(header.contains("threadwork_buffer *result"))
+        assertFalse(header.contains("math_service"))
+        compileStrictlyWhenAvailable(source)
+    }
+
+    @Test
     fun `processing node declarations reject include directives`() {
         val repository = cProject()
         val root = repository.getDocument().rootNodeId
@@ -298,4 +356,29 @@ class CCompilerTest {
         runCatching {
             ProcessBuilder("cc", "--version").start().waitFor() == 0
         }.getOrDefault(false)
+
+    private fun compileStrictlyWhenAvailable(source: String) {
+        if (!hasNativeCompiler()) return
+        val directory = createTempDirectory("threadwork-c-library-")
+        try {
+            val sourceFile = directory.resolve("generated.c")
+            val executable = directory.resolve("generated")
+            Files.writeString(sourceFile, source)
+            val process = ProcessBuilder(
+                "cc",
+                "-std=c17",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-pedantic",
+                sourceFile.toString(),
+                "-o",
+                executable.toString(),
+            ).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            assertEquals(0, process.waitFor(), "$output\n\n$source")
+        } finally {
+            directory.toFile().deleteRecursively()
+        }
+    }
 }

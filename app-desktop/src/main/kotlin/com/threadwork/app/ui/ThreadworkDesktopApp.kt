@@ -439,6 +439,13 @@ class ThreadworkDesktopApp(
         projectPanels = JTabbedPane().apply {
             addTab("Flow Designer", flowDesigner)
             addTab("Entities Edit(IDE)", detailsEditor)
+            addTab(
+                "Workflow Stereotypes",
+                WorkflowStereotypesPanel(store) { template ->
+                    canvas.insertTemplate(template)
+                    checkpointHistory()
+                },
+            )
             pluginContentTabs.forEach { tab ->
                 addTab(tab.title, tab.createPanel())
             }
@@ -1978,7 +1985,10 @@ class ThreadworkDesktopApp(
         iconId: String,
         description: String,
     ) {
+        text = label
         icon = ThreadworkIcons.buttonIcon(iconId)
+        horizontalTextPosition = SwingConstants.RIGHT
+        iconTextGap = 5
         toolTipText = "<html><b>$label</b><br>$description</html>"
         accessibleContext.accessibleName = label
         accessibleContext.accessibleDescription = description
@@ -2515,32 +2525,111 @@ class GraphCanvas(
     }
 
     fun copySelection() {
-        clipboard = selection.mapNotNull { repository.getNode(it) }.filter { !it.isLink }.map { it.copy() }
+        clipboard = selection.mapNotNull(repository::getNode).map(::clipboardCopy)
     }
 
     fun pasteSelection() {
+        pasteEntities(clipboard)
+    }
+
+    fun insertTemplate(document: ThreadworkDocument) {
+        val entities = document.nodes.values
+            .filter { it.id != document.rootNodeId }
+            .map(::clipboardCopy)
+        pasteEntities(entities)
+        zoomExtentsAfterLayout()
+    }
+
+    private fun pasteEntities(entities: List<Node>) {
         val root = repository.getDocument().rootNodeId
         val pasted = mutableListOf<NodeId>()
-        clipboard.forEachIndexed { index, node ->
-            val copy = repository.createNode(root, "${node.name} copy", node.kind)
-            repository.updateNodeLayout(copy.id, node.layout.copy(x = node.layout.x + 40 + index * 20, y = node.layout.y + 40 + index * 20))
-            repository.updateNodeText(copy.id, node.text.copy())
-            repository.updateNodeTechnology(copy.id, node.technology.copy())
-            repository.updateNodeFileLayoutStrategy(copy.id, node.fileLayoutStrategyId)
-            repository.updateNodeMetadata(copy.id, node.metadata)
-            repository.updateNodeResponsible(copy.id, node.responsible)
-            node.typeDefinition?.let { definition ->
-                repository.updateNodeTypeDefinition(
-                    copy.id,
-                    definition.copy(fields = definition.fields.map { it.copy() }.toMutableList()),
-                )
-            }
-            node.ports.forEach { repository.addPort(copy.id, it.copy(id = "${it.id}_copy_$index")) }
+        val snapshots = entities.associateBy(Node::id)
+        val copiedIds = linkedMapOf<NodeId, NodeId>()
+        val selectedNodes = entities.filterNot(Node::isLink).sortedBy { snapshot ->
+            generateSequence(snapshot.parentId) { snapshots[it]?.parentId }.count()
+        }
+        selectedNodes.forEach { node ->
+            val parentId = node.parentId?.let(copiedIds::get) ?: root
+            val copy = repository.createNode(parentId, node.name, node.kind)
+            copiedIds[node.id] = copy.id
+            applyClipboardNode(copy, node, copiedIds)
+            pasted += copy.id
+        }
+        entities.filter(Node::isLink).forEach { node ->
+            val link = node.link ?: return@forEach
+            val sourceId = copiedIds[link.sourceNodeId] ?: return@forEach
+            val targetId = copiedIds[link.targetNodeId] ?: return@forEach
+            val copy = repository.createLink(
+                parentId = null,
+                name = node.name,
+                sourceNodeId = sourceId,
+                sourcePortName = link.sourcePortName,
+                targetNodeId = targetId,
+                targetPortName = link.targetPortName,
+            )
+            copiedIds[node.id] = copy.id
+            applyClipboardNode(copy, node, copiedIds)
+            repository.updateLinkData(
+                copy.id,
+                link.copy(
+                    sourceNodeId = sourceId,
+                    targetNodeId = targetId,
+                    typeDefinitionId = copiedIds[NodeId(link.typeDefinitionId)]?.value ?: link.typeDefinitionId,
+                    compositeBoundaryIds = mutableListOf(),
+                ),
+            )
             pasted += copy.id
         }
         selection.clear()
         selection += pasted
         refreshAll()
+    }
+
+    private fun clipboardCopy(node: Node): Node = node.copy(
+        children = node.children.toMutableList(),
+        incomingLinks = node.incomingLinks.toMutableList(),
+        outgoingLinks = node.outgoingLinks.toMutableList(),
+        layout = node.layout.copy(),
+        text = node.text.copy(),
+        technology = node.technology.copy(),
+        revision = node.revision?.copy(),
+        modified = node.modified.copy(),
+        ports = node.ports.map { it.copy(metadata = it.metadata.toMutableMap()) }.toMutableList(),
+        link = node.link?.copy(compositeBoundaryIds = node.link!!.compositeBoundaryIds.toMutableList()),
+        typeDefinition = node.typeDefinition?.copy(
+            fields = node.typeDefinition!!.fields.map { it.copy() }.toMutableList(),
+        ),
+        metadata = node.metadata.toMutableMap(),
+        pluginData = node.pluginData.toMutableMap(),
+    )
+
+    private fun applyClipboardNode(copy: Node, source: Node, copiedIds: Map<NodeId, NodeId>) {
+        repository.updateNodeLayout(
+            copy.id,
+            source.layout.copy(x = source.layout.x + 40, y = source.layout.y + 40),
+        )
+        repository.updateNodeText(copy.id, source.text.copy())
+        repository.updateNodeTechnology(copy.id, source.technology.copy())
+        repository.updateNodeFileLayoutStrategy(copy.id, source.fileLayoutStrategyId)
+        repository.updateNodeMetadata(copy.id, source.metadata)
+        repository.updateNodeResponsible(copy.id, source.responsible)
+        source.typeDefinition?.let { definition ->
+            repository.updateNodeTypeDefinition(
+                copy.id,
+                definition.copy(
+                    fields = definition.fields.map { field ->
+                        field.copy(typeId = copiedIds[NodeId(field.typeId)]?.value ?: field.typeId)
+                    }.toMutableList(),
+                ),
+            )
+        }
+        source.ports.forEach { port ->
+            repository.addPort(copy.id, port.copy(metadata = port.metadata.toMutableMap()))
+        }
+        copy.revision = source.revision?.copy()
+        copy.modified = source.modified.copy()
+        copy.pluginData.clear()
+        copy.pluginData.putAll(source.pluginData)
     }
 
     fun alignAndDistribute(operation: AlignmentOperation) {
@@ -6257,6 +6346,7 @@ private class NodeTextEditor(
                     editor.setTechnology(technology.copy(languageId = effectiveLanguage))
                     editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
                     editor.setSemanticIdentifierColors(semanticIdentifierColors())
+                    editor.setPinnedHeader(generatedFunctionHeader(node, spec.section))
                 }
             }
             editorsBySection[NodeTextSection.Tests]?.setText(node.text.tests)
@@ -6298,6 +6388,14 @@ private class NodeTextEditor(
         return colors
     }
 
+    private fun generatedFunctionHeader(node: Node, section: NodeTextSection): String {
+        if (section !in setOf(NodeTextSection.Declaration, NodeTextSection.Instantiation)) return ""
+        val document = repository.getDocument()
+        return compilerCapabilityResolver.compilerFor(document, node.id)
+            ?.generatedFunctionHeader(document, node, section)
+            .orEmpty()
+    }
+
     private fun addTextTab(spec: TextTabSpec) {
         val editor = GridCodeEditorAdapter()
         editor.setEditorFont(ThreadworkFonts.codeFont(14f))
@@ -6322,6 +6420,7 @@ private class NodeTextEditor(
         editor.setTechnology(effectiveTechnology().copy(languageId = effectiveTextLanguage(spec.section)))
         editor.setCompletionContext(EditorCompletionContext(node.id.value, spec.section))
         editor.setSemanticIdentifierColors(semanticIdentifierColors())
+        editor.setPinnedHeader(generatedFunctionHeader(node, spec.section))
         editor.onCompletionRequested = completionService::getSuggestions
         editor.onDeclarationSymbolsRequested = completionService::getDeclarationSymbols
         editor.onHoverInfoRequested = ::typeHoverInfo

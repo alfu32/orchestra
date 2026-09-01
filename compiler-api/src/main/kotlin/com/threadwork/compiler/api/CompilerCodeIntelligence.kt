@@ -21,6 +21,7 @@ enum class CompilerCodeSymbolKind {
     InputBuffer,
     OutputBuffer,
     ServiceInstance,
+    LibraryFunction,
     Type,
     TypeMember,
     BufferMember,

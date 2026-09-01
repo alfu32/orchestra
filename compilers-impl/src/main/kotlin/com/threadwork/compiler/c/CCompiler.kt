@@ -2,8 +2,13 @@ package com.threadwork.compiler.c
 
 import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.CompilerTechnology
+import com.threadwork.compiler.api.CompilerCodeIntelligence
+import com.threadwork.compiler.api.CompilerCodeSymbol
+import com.threadwork.compiler.api.CompilerCodeSymbolKind
 import com.threadwork.compiler.api.NodeCompilerContext
 import com.threadwork.compiler.api.SingleFileLayoutStrategy
+import com.threadwork.compiler.api.compilerArgumentName
+import com.threadwork.compiler.api.defaultCodeIntelligence
 import com.threadwork.compiler.generic.CompilerTemplateSet
 import com.threadwork.compiler.generic.CompilerTemplateSetLoader
 import com.threadwork.compiler.generic.TemplateSetCompiler
@@ -16,6 +21,7 @@ import com.threadwork.core.diagnostics.DiagnosticSeverity
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
+import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.threadwork.core.model.effectiveLayoutStrategyId
@@ -60,6 +66,63 @@ class CCompiler : TemplateSetCompiler() {
     override fun shouldSkipNode(context: NodeCompilerContext): Boolean =
         super.shouldSkipNode(context) || context.node.stereotype(context.document) == NodeStereotype.StaticFile
 
+    override fun codeIntelligence(document: ThreadworkDocument, node: Node): CompilerCodeIntelligence {
+        val libraryLinkIds = node.incomingLinks.filter { linkId ->
+            document.nodes[linkId]?.let { LinkClassifier.classify(document, it) } in LIBRARY_LINK_STEREOTYPES
+        }.toSet()
+        val defaults = defaultCodeIntelligence(document, node)
+        val functions = libraryLinkIds.flatMap { linkId ->
+            val linkNode = document.nodes[linkId] ?: return@flatMap emptyList()
+            val sourceNode = linkNode.link?.sourceNodeId?.let(document.nodes::get) ?: return@flatMap emptyList()
+            val prefix = compilerArgumentName(linkNode.name)
+            CServiceFunctionDiscovery.discover(sourceNode.text.declaration).map { function ->
+                CompilerCodeSymbol(
+                    name = "${prefix}__${function.name}",
+                    kind = CompilerCodeSymbolKind.LibraryFunction,
+                    typeName = function.returnType,
+                    detail = function.signature,
+                    documentation = "Function '${function.name}' supplied by C service link '${linkNode.name}'.",
+                    originNodeId = linkNode.id,
+                )
+            }
+        }
+        return defaults.copy(
+            symbols = (
+                defaults.symbols.filterNot { it.originNodeId in libraryLinkIds } + functions
+                ).distinctBy { it.name to it.kind },
+        )
+    }
+
+    override fun generatedFunctionHeader(
+        document: ThreadworkDocument,
+        node: Node,
+        section: NodeTextSection,
+    ): String {
+        if (node.isLink || node.stereotype(document) == NodeStereotype.ServiceLibrary) return ""
+        val functionPrefix = when (section) {
+            NodeTextSection.Declaration -> "run"
+            NodeTextSection.Instantiation -> "init"
+            else -> return ""
+        }
+        val arguments = mutableListOf("threadwork_context *context")
+        node.incomingLinks.mapNotNull(document.nodes::get).forEach { linkNode ->
+            when (LinkClassifier.classify(document, linkNode)) {
+                LinkStereotype.UsageImport,
+                LinkStereotype.DependencyInjection -> Unit
+                LinkStereotype.SourceCapability -> {
+                    val dependency = dependencySymbol(document, linkNode)
+                    arguments += "${dependency.replaceFirstChar(Char::uppercase)}Capability *${compilerArgumentName(linkNode.name)}"
+                }
+                LinkStereotype.RunnableCapability -> Unit
+                else -> arguments += "threadwork_buffer *${compilerArgumentName(linkNode.name)}"
+            }
+        }
+        node.outgoingLinks.mapNotNull(document.nodes::get)
+            .filterNot { LinkClassifier.isCapability(document, it) }
+            .forEach { arguments += "threadwork_buffer *${compilerArgumentName(it.name)}" }
+        return "static int tw_${functionPrefix}_${indexedNodeSymbol(document, node)}(${arguments.joinToString(", ")}) {"
+    }
+
     override fun hoistedDeclarationFor(context: NodeCompilerContext): String {
         val node = context.node
         if (node.kind == NodeKind.Type) return super.hoistedDeclarationFor(context)
@@ -77,10 +140,10 @@ class CCompiler : TemplateSetCompiler() {
             }
             .mapNotNull { it.link?.payloadDefinition?.trim()?.takeIf(String::isNotBlank) }
             .distinct()
-        val librarySource = super.hoistedDeclarationFor(context)
-            .takeIf { node.stereotype(context.document) == NodeStereotype.ServiceLibrary }
-            .orEmpty()
-        return (wireTypes + librarySource)
+        val isLibrary = node.stereotype(context.document) == NodeStereotype.ServiceLibrary
+        val librarySource = super.hoistedDeclarationFor(context).takeIf { isLibrary }.orEmpty()
+        val libraryAliases = if (isLibrary) libraryAliasesFor(context.document, node) else ""
+        return (wireTypes + librarySource + libraryAliases)
             .filter(String::isNotBlank)
             .distinct()
             .joinToString("\n\n")
@@ -202,6 +265,42 @@ class CCompiler : TemplateSetCompiler() {
                 .minByOrNull { it.id.value }
                 ?.id
 
+    private fun libraryAliasesFor(document: ThreadworkDocument, libraryNode: Node): String {
+        val functions = CServiceFunctionDiscovery.discover(libraryNode.text.declaration)
+        if (functions.isEmpty()) return ""
+        return libraryNode.outgoingLinks
+            .mapNotNull(document.nodes::get)
+            .filter { LinkClassifier.classify(document, it) in LIBRARY_LINK_STEREOTYPES }
+            .flatMap { linkNode ->
+                val prefix = compilerArgumentName(linkNode.name)
+                functions.map { function -> function.pointerDeclaration("${prefix}__${function.name}") }
+            }
+            .distinct()
+            .joinToString("\n")
+    }
+
+    private fun indexedNodeSymbol(document: ThreadworkDocument, node: Node): String {
+        val nodes = document.nodes.values.filterNot(Node::isLink).sortedBy { it.id.value }
+        val index = nodes.indexOfFirst { it.id == node.id }.takeIf { it >= 0 }?.plus(1) ?: 1
+        val modelName = node.name.trim()
+        val sanitized = if (C_IDENTIFIER.matches(modelName)) {
+            modelName
+        } else {
+            modelName.replace(Regex("[^A-Za-z0-9_]+"), "_").trim('_')
+        }.ifBlank { "node" }.lowercase()
+        val symbol = if (sanitized.first().isDigit()) "_$sanitized" else sanitized
+        return "${symbol}_$index"
+    }
+
+    private fun dependencySymbol(document: ThreadworkDocument, linkNode: Node): String {
+        val source = linkNode.link?.sourceNodeId?.let(document.nodes::get)
+        val dependencies = source?.outgoingLinks.orEmpty().mapNotNull(document.nodes::get).filter {
+            LinkClassifier.isCapability(document, it)
+        }
+        val index = dependencies.indexOfFirst { it.id == linkNode.id }.takeIf { it >= 0 }?.plus(1) ?: 1
+        return "${compilerArgumentName(linkNode.name)}$index"
+    }
+
     private fun compilationScope(document: ThreadworkDocument, options: CompilerOptions): Set<NodeId> {
         if (options.scopeNodeIds.isEmpty()) return document.nodes.keys
         val result = linkedSetOf<NodeId>()
@@ -238,6 +337,7 @@ class CCompiler : TemplateSetCompiler() {
 
     private companion object {
         const val C_TECHNOLOGY_ID = "c-native"
+        val LIBRARY_LINK_STEREOTYPES = setOf(LinkStereotype.UsageImport, LinkStereotype.DependencyInjection)
         val C_IDENTIFIER = Regex("[A-Za-z_][A-Za-z0-9_]*")
         val TEMPLATES = CompilerTemplateSetLoader.load("/compiler-templates/c/compiler.properties")
         val activeTypeDeclarations = ThreadLocal<Map<String, NodeId>?>()

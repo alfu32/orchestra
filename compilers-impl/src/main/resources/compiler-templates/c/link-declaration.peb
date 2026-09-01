@@ -1,5 +1,5 @@
 {# Each C data link owns two buffers and a dedicated transport function. #}
-{% if link.isLibraryCapability %}{% if link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.dependencySymbol }} = {% if link.libraryInstantiation is not empty %}{{ link.libraryInstantiation }}{% else %}NULL{% endif %};
+{% if link.isLibraryCapability %}{# C library links are exposed as compiler-generated prefixed function pointers. #}
 {% elseif link.isSourceCapability %}typedef struct {{ link.capabilityTypeSymbol }} {
     const char *template_source;
     char *(*getSource)(

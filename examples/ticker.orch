@@ -174,7 +174,7 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "if (ipUuid == NULL) {\nreturn;\n}\n\nuuid_t uuid_value;\nchar *uuid_string = malloc(37);\n\nif (uuid_string == NULL) {\n    ip_time.isok = false;\n    ipUuid(ip_time);\n    return;\n}\n\nuuid_generate_random(uuid_value);\nuuid_unparse_lower(uuid_value, uuid_string);\n\nipTime.uuid = uuid_string;\nipTime.random_word_length = 5 + (uuid_value[0] % 21);\n\nip_uuid(ipTime);",
+                "source": "if (ipUuid == NULL) {\n    return;\n}\n\nuuid_t uuid_value;\nchar *uuid_string = malloc(37);\n\nif (uuid_string == NULL) {\n    ip_time.isok = false;\n    ipUuid(ip_time);\n    return;\n}\n\nuuid_generate_random(uuid_value);\nuuid_unparse_lower(uuid_value, uuid_string);\n\nipTime.uuid = uuid_string;\nipTime.random_word_length = 5 + (uuid_value[0] % 21);\n\nip_uuid(ipTime);",
                 "sourceLanguageId": "",
                 "specification": "takes the ipTime and fills in the random_uuid field and also fills in the ip_time.random_word_length with a random number between 5 and 25\n\nfinally it pushes the ip_time packet to the output ipUuid",
                 "specificationLanguageId": "markdown",
@@ -196,7 +196,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-31T00:14:47.892147112Z",
+                "date": "2026-08-31T08:38:15.503391668Z",
                 "user": "devlin"
             },
             "ports": [
@@ -867,7 +867,7 @@
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
-                "source": "#ifndef UUID_LIB_H\n#define UUID_LIB_H\n\n#include <uuid/uuid.h>\n#include <stdbool.h>\nvoid gen_uuid(Packet ip_time, ip_uuid_output ip_uuid);\n#endif /* UUID_LIB_H */\n#endif /* UUID_LIB_H */",
+                "source": "#ifndef UUID_LIB_H\n#define UUID_LIB_H\n\n#include <uuid/uuid.h>\n#include <stdbool.h>\n#endif /* UUID_LIB_H */",
                 "sourceLanguageId": "",
                 "specification": "includes the necessary headers to generate uuids is gona be used by various functions",
                 "specificationLanguageId": "markdown",
@@ -889,7 +889,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-08-30T21:39:08.432883080Z",
+                "date": "2026-08-31T08:38:05.095870816Z",
                 "user": "devlin"
             },
             "ports": [

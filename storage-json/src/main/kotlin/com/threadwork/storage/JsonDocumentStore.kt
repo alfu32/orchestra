@@ -48,7 +48,11 @@ class KotlinxJsonDocumentStore(
     }
 
     override fun load(filePath: Path): ThreadworkDocument {
-        val document = decodeDocument(Files.readString(filePath))
+        return loadText(Files.readString(filePath))
+    }
+
+    fun loadText(text: String): ThreadworkDocument {
+        val document = decodeDocument(text)
         repairDocument(document)
         document.name = document.projectName()
         val errors = DocumentValidator.validate(document).filter { it.severity.name == "Error" }

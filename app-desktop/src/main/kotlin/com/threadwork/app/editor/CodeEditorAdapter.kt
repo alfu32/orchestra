@@ -41,6 +41,7 @@ interface CodeEditorAdapter {
     fun setDiagnostics(diagnostics: List<Diagnostic>)
     fun setCompletionContext(context: EditorCompletionContext)
     fun setSemanticIdentifierColors(colors: Map<String, Color>)
+    fun setPinnedHeader(text: String?)
     fun focus()
 
     var onTextChanged: ((String) -> Unit)?
@@ -65,6 +66,7 @@ class CodeMirrorWebViewAdapterUnsupported : CodeEditorAdapter {
     override fun setDiagnostics(diagnostics: List<Diagnostic>) = unsupported()
     override fun setCompletionContext(context: EditorCompletionContext) = unsupported()
     override fun setSemanticIdentifierColors(colors: Map<String, Color>) = unsupported()
+    override fun setPinnedHeader(text: String?) = unsupported()
     override fun focus() = unsupported()
 
     private fun unsupported(): Nothing = error(

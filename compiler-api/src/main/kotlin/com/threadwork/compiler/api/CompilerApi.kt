@@ -10,6 +10,7 @@ import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeKind
+import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.threadwork.core.model.effectiveLanguageId
 import com.threadwork.core.model.effectiveLayoutStrategyId
@@ -66,6 +67,13 @@ interface CompilerPlugin : FsStorage {
      */
     fun codeIntelligence(document: ThreadworkDocument, node: Node): CompilerCodeIntelligence =
         defaultCodeIntelligence(document, node)
+
+    /** Exact generated function header enclosing an editable source section, when applicable. */
+    fun generatedFunctionHeader(
+        document: ThreadworkDocument,
+        node: Node,
+        section: NodeTextSection,
+    ): String = ""
 
     /** Detailed generated representation of a type for editor hover help. */
     fun typeInformation(
