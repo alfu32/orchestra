@@ -125,7 +125,7 @@ class ModelAwareCompletionServiceTest {
     }
 
     @Test
-    fun `offers processing scope completion in every executable editor`() {
+    fun `offers processing scope completion in every text editor`() {
         val repository = InMemoryDocumentRepository(newDocument("completion"))
         val root = repository.getDocument().rootNodeId
         repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "nodejs"))
@@ -137,7 +137,7 @@ class ModelAwareCompletionServiceTest {
             documentProvider = repository::getDocument,
             compilerProvider = { _, _ -> CodeIntelligenceCompiler },
         )
-        listOf(NodeTextSection.Declaration, NodeTextSection.Instantiation, NodeTextSection.Tests).forEach { section ->
+        NodeTextSection.entries.forEach { section ->
             val labels = service.getSuggestions(requestFor(worker.id, section)).map { it.label }
             assertTrue("incoming_packet" in labels, "Expected input completion in $section editor")
             assertTrue("incoming_packet.push(item)" in labels, "Expected buffer method completion in $section editor")

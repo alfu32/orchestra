@@ -105,8 +105,6 @@ class ModelAwareCompletionService(
         request: CompletionRequest,
         suggestions: MutableList<CompletionSuggestion>,
     ) {
-        if (request.textSection !in executableTextSections) return
-
         compilerProvider(document, node)?.let { compiler ->
             addCompilerSymbols(suggestions, compiler, compiler.codeIntelligence(document, node).symbols)
 
@@ -144,14 +142,6 @@ class ModelAwareCompletionService(
                 documentation = symbol.header,
             )
         }
-    }
-
-    private companion object {
-        val executableTextSections = setOf(
-            NodeTextSection.Declaration,
-            NodeTextSection.Instantiation,
-            NodeTextSection.Tests,
-        )
     }
 
     private fun addCompilerSymbols(
@@ -232,7 +222,6 @@ class FlowTemplateCompletionProvider : TechnologyCompletionProvider {
     override fun supports(languageId: String, technologyId: String): Boolean = true
 
     override fun getSuggestions(node: Node, document: ThreadworkDocument, request: CompletionRequest): List<CompletionSuggestion> {
-        if (request.textSection !in setOf(NodeTextSection.Instantiation, NodeTextSection.Declaration)) return emptyList()
         if (node.stereotype(document) != NodeStereotype.CompilerTemplate) return emptyList()
 
         val suggestions = mutableListOf<CompletionSuggestion>()
