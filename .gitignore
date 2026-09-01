@@ -8,3 +8,4 @@ core/src/main/kotlin/com/threadwork/Version.kt
 assets/fonts/**/*.zip
 generated
 test-compilers
+examples

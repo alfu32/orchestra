@@ -437,10 +437,10 @@ class ThreadworkDesktopApp(
         }
 
         projectPanels = JTabbedPane().apply {
-            addTab("Flow Designer", flowDesigner)
-            addTab("Entities Edit(IDE)", detailsEditor)
+            addTab("Designer", flowDesigner)
+            addTab("Editor", detailsEditor)
             addTab(
-                "Workflow Archetypes",
+                "Archetypes",
                 WorkflowArchetypesPanel(store) { archetype ->
                     canvas.insertArchetype(archetype)
                     checkpointHistory()
