@@ -12,6 +12,7 @@ import com.threadwork.compiler.api.defaultCodeIntelligence
 import com.threadwork.compiler.generic.CompilerTemplateSet
 import com.threadwork.compiler.generic.CompilerTemplateSetLoader
 import com.threadwork.compiler.generic.TemplateSetCompiler
+import com.threadwork.compiler.generic.compilerTemplateOverrides
 import com.threadwork.core.classification.NodeStereotype
 import com.threadwork.core.classification.LinkClassifier
 import com.threadwork.core.classification.LinkStereotype
@@ -43,8 +44,15 @@ class CCompiler : TemplateSetCompiler() {
     override fun validate(document: ThreadworkDocument): List<Diagnostic> =
         DocumentValidator.validate(document) + validateCModel(document)
 
-    override fun templatesFor(document: ThreadworkDocument, options: CompilerOptions): CompilerTemplateSet =
-        TEMPLATES
+    override fun templatesFor(document: ThreadworkDocument, options: CompilerOptions): CompilerTemplateSet {
+        val overrides = compilerTemplateOverrides(document)
+        return TEMPLATES.overlay(
+            CompilerTemplateSet(
+                templates = overrides.templates,
+                projectFiles = overrides.projectFiles,
+            ),
+        )
+    }
 
     override fun beforeTemplateCompile(document: ThreadworkDocument, options: CompilerOptions) {
         val scope = compilationScope(document, options)

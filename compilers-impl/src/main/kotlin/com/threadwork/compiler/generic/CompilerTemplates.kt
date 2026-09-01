@@ -202,7 +202,7 @@ data class CompilerTemplateSet(
             fileExtension = overrides.fileExtension.ifBlank { fileExtension },
             defaultLayoutStrategy = overrides.defaultLayoutStrategy,
             emitLinkFiles = overrides.emitLinkFiles,
-            skipCompilerTemplates = overrides.skipCompilerTemplates,
+            skipCompilerTemplates = skipCompilerTemplates || overrides.skipCompilerTemplates,
         )
 }
 

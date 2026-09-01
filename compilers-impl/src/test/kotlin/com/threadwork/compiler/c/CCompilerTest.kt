@@ -25,6 +25,41 @@ import kotlin.test.assertTrue
 
 class CCompilerTest {
     @Test
+    fun `C compiler accepts model runtime and transport template overrides`() {
+        val repository = cProject()
+        val root = repository.getDocument().rootNodeId
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val target = repository.createNode(root, "target", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "out", PortDirection.Output))
+        repository.addPort(target.id, NodePort("in", "in", PortDirection.Input))
+        repository.createLink(root, "packet", source.id, "out", target.id, "in")
+        val runtime = repository.createNode(root, "@RuntimeSupport", NodeKind.Processor)
+        repository.updateNodeText(
+            runtime.id,
+            runtime.text.copy(declaration = "unsigned long long threadwork_transit = 0ULL;"),
+        )
+        val transport = repository.createNode(root, "@LinkInstantiation", NodeKind.Processor)
+        repository.updateNodeText(
+            transport.id,
+            transport.text.copy(
+                declaration = """
+                    {% if not link.isCapability %}
+                        threadwork_transit++;
+                    {% endif %}
+                """.trimIndent(),
+            ),
+        )
+
+        val result = CCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val output = assertNotNull(result.generatedProject).files.single().content
+        assertTrue(output.contains("unsigned long long threadwork_transit = 0ULL;"))
+        assertTrue(output.contains("threadwork_transit++;"))
+        assertFalse(output.contains("threadwork_buffer_transport(&packet_a, &packet_b)"))
+    }
+
+    @Test
     fun `built in boolean fields use C bool`() {
         val repository = cProject()
         val root = repository.getDocument().rootNodeId

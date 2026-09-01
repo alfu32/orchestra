@@ -49,7 +49,7 @@ open class GenericCompiler : TemplateSetCompiler() {
         emptyList()
 
     override fun templatesFor(document: ThreadworkDocument, options: CompilerOptions): CompilerTemplateSet {
-        val graphOverrides = TemplateOverrides.from(document)
+        val graphOverrides = compilerTemplateOverrides(document)
         val graphTemplates = graphOverrides.templates
         val generatedTemplates = CompilerTemplateRoles.all
             .associateWith { role -> templateOverrideFor(role).orEmpty() }
@@ -218,28 +218,27 @@ $templateWhen
         )
 }
 
-private class TemplateOverrides(
+internal data class CompilerTemplateOverrides(
     val templates: Map<String, String>,
     val projectFiles: List<TemplateGeneratedFile>,
-) {
-    companion object {
-        fun from(document: ThreadworkDocument): TemplateOverrides {
-            val compilerTemplates = document.nodes.values
-                .filter { it.stereotype(document) == NodeStereotype.CompilerTemplate }
-            return TemplateOverrides(
-                templates = compilerTemplates
-                    .filterNot(Node::isProjectFileTemplate)
-                    .associate { overrideKey(it) to templateText(it) },
-                projectFiles = compilerTemplates
-                    .filter(Node::isProjectFileTemplate)
-                    .mapNotNull { node ->
-                        staticFilePath(node)?.let { path ->
-                            TemplateGeneratedFile(path, templateText(node), "Project file template '${node.name}'")
-                        }
-                    },
-            )
-        }
-    }
+)
+
+/** Model-provided compiler templates shared by built-in and generated compilers. */
+internal fun compilerTemplateOverrides(document: ThreadworkDocument): CompilerTemplateOverrides {
+    val compilerTemplates = document.nodes.values
+        .filter { it.stereotype(document) == NodeStereotype.CompilerTemplate }
+    return CompilerTemplateOverrides(
+        templates = compilerTemplates
+            .filterNot(Node::isProjectFileTemplate)
+            .associate { overrideKey(it) to templateText(it) },
+        projectFiles = compilerTemplates
+            .filter(Node::isProjectFileTemplate)
+            .mapNotNull { node ->
+                staticFilePath(node)?.let { path ->
+                    TemplateGeneratedFile(path, templateText(node), "Project file template '${node.name}'")
+                }
+            },
+    )
 }
 
 private fun Node.isTemplateDefinition(document: ThreadworkDocument): Boolean =
