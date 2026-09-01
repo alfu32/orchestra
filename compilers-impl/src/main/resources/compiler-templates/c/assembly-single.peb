@@ -24,15 +24,6 @@
 {{ ownDeclaration }}
 {% if isCompilationRoot %}
 
-
-static volatile sig_atomic_t running = 1;
-
-static void handle_signal(int sig)
-{
-    (void)sig;
-    running = 0;
-}
-
 int main(void)
 {
     threadwork_context context;
