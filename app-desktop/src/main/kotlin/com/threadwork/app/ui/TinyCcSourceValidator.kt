@@ -14,33 +14,77 @@ internal object TinyCcSourceValidator : EmbeddedSourceValidator {
         """:\s*(\d+)(?::\s*(\d+))?:\s*(?:(warning|error|fatal error):\s*)?(.*)$""",
         RegexOption.IGNORE_CASE,
     )
+    private const val maximumRecoveryPasses = 32
+
+    private data class ValidationPass(
+        val exitCode: Int,
+        val messages: List<String>,
+    )
 
     override fun validate(file: GeneratedFile): List<Diagnostic> {
         return validateDetailed(file).map(EmbeddedDiagnostic::diagnostic)
     }
 
     override fun validateDetailed(file: GeneratedFile): List<EmbeddedDiagnostic> {
-        if (file.sourceMap.entries.isEmpty()) return emptyList()
-        val messages = mutableListOf<String>()
         val output = Files.createTempFile("threadwork-tinycc-", sharedLibrarySuffix())
         return try {
-            val exitCode = runCatching {
-                TinyCC.compile(
-                    file.content,
-                    TinyCC.OutputType.DYNAMIC_LIBRARY,
-                    output,
-                    "",
-                ) { message -> messages += message }
-            }.getOrElse { error ->
-                messages += (error.message ?: "TinyCC could not validate generated C source.")
-                -1
+            val diagnostics = linkedMapOf<String, EmbeddedDiagnostic>()
+            var validationContent = file.content
+            val suppressedLines = linkedSetOf<Int>()
+
+            repeat(maximumRecoveryPasses) {
+                val pass = compilePass(validationContent, output)
+                val passDiagnostics = pass.messages.flatMap { message -> mapDiagnostic(file, message) }
+                passDiagnostics.forEach { diagnostic ->
+                    diagnostics.putIfAbsent(diagnosticKey(diagnostic), diagnostic)
+                }
+                if (pass.exitCode == 0) return diagnostics.values.toList()
+
+                val newlySuppressed = passDiagnostics
+                    .filter { it.diagnostic.severity == DiagnosticSeverity.Error }
+                    .mapNotNull(EmbeddedDiagnostic::generatedLine)
+                    .filter(suppressedLines::add)
+                if (newlySuppressed.isEmpty()) {
+                    if (diagnostics.isEmpty()) diagnostics["fallback"] = fallbackDiagnostic(file, pass.messages)
+                    return diagnostics.values.toList()
+                }
+                validationContent = suppressGeneratedLines(validationContent, newlySuppressed)
             }
-            val diagnostics = messages.flatMap { message -> mapDiagnostic(file, message) }
-            if (exitCode == 0 || diagnostics.isNotEmpty()) diagnostics else listOf(fallbackDiagnostic(file, messages))
+            if (diagnostics.isEmpty()) listOf(fallbackDiagnostic(file, emptyList())) else diagnostics.values.toList()
         } finally {
             Files.deleteIfExists(output)
         }
     }
+
+    private fun compilePass(content: String, output: java.nio.file.Path): ValidationPass {
+        val messages = mutableListOf<String>()
+        val exitCode = runCatching {
+            TinyCC.compile(
+                content,
+                TinyCC.OutputType.DYNAMIC_LIBRARY,
+                output,
+                "",
+            ) { message -> messages += message }
+        }.getOrElse { error ->
+            messages += (error.message ?: "TinyCC could not validate generated C source.")
+            -1
+        }
+        return ValidationPass(exitCode, messages)
+    }
+
+    private fun suppressGeneratedLines(content: String, generatedLines: List<Int>): String {
+        val suppressed = generatedLines.toSet()
+        return content.lines().mapIndexed { index, line ->
+            if (index + 1 in suppressed) "; /* Threadwork validator recovery */" else line
+        }.joinToString("\n")
+    }
+
+    private fun diagnosticKey(diagnostic: EmbeddedDiagnostic): String = listOf(
+        diagnostic.generatedPath,
+        diagnostic.generatedLine,
+        diagnostic.generatedColumn,
+        diagnostic.diagnostic.message,
+    ).joinToString("|")
 
     private fun mapDiagnostic(file: GeneratedFile, message: String): List<EmbeddedDiagnostic> =
         message.lineSequence().mapNotNull { line ->
@@ -69,18 +113,18 @@ internal object TinyCcSourceValidator : EmbeddedSourceValidator {
         }.toList()
 
     private fun fallbackDiagnostic(file: GeneratedFile, messages: List<String>): EmbeddedDiagnostic {
-        val location = file.sourceMap.entries.first()
+        val location = file.sourceMap.entries.firstOrNull()
         return EmbeddedDiagnostic(
             diagnostic = Diagnostic(
                 severity = DiagnosticSeverity.Error,
                 message = messages.joinToString(" ").ifBlank { "TinyCC could not validate generated C source." },
-                nodeId = location.nodeId,
-                textSection = location.textSection,
-                line = location.sourceLine,
+                nodeId = location?.nodeId,
+                textSection = location?.textSection,
+                line = location?.sourceLine,
                 sourcePluginId = "tinycc",
             ),
             generatedPath = file.path,
-            generatedLine = location.generatedLine,
+            generatedLine = location?.generatedLine,
             generatedColumn = null,
         )
     }
