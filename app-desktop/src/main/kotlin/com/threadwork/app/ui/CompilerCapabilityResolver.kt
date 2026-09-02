@@ -3,10 +3,13 @@ package com.threadwork.app.ui
 import com.threadwork.compiler.api.ANY_LANGUAGE_ID
 import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.CompilerPlugin
+import com.threadwork.compiler.api.SingleFileLayoutStrategy
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.effectiveLanguageId
 import com.threadwork.core.model.effectiveTechnologyId
+import com.threadwork.core.model.effectiveLayoutStrategyId
+import com.threadwork.core.model.getElementById
 import com.threadwork.core.model.rootNode
 
 internal class CompilerCapabilityResolver(
@@ -30,17 +33,20 @@ internal class CompilerCapabilityResolver(
         val technologyId = document.effectiveTechnologyId(nodeId).trim()
         val languageId = document.effectiveLanguageId(nodeId).trim()
         if (technologyId.isBlank() || compilerSupports(rootCompiler, technologyId, languageId)) {
-            return rootCompiler
+            return literalFileCompiler(document, nodeId, supporting) ?: rootCompiler
         }
 
         return compilerForTechnology(
             supporting.filterNot { it.id == rootCompiler.id },
             technologyId,
             languageId,
-        ) ?: rootCompiler
+        ) ?: literalFileCompiler(document, nodeId, supporting) ?: rootCompiler
     }
 
     fun supportedLayoutStrategyIds(document: ThreadworkDocument, nodeId: NodeId): Set<String> {
+        if (literalFileCompiler(document, nodeId, compilers) != null) {
+            return setOf(SingleFileLayoutStrategy.id)
+        }
         val compiler = compilerFor(document, nodeId) ?: return emptySet()
         return compiler.supportedLayoutStrategyIds.ifEmpty {
             setOf(compiler.layoutStrategy(CompilerOptions()).id)
@@ -65,6 +71,25 @@ internal class CompilerCapabilityResolver(
                 }.thenBy { it.id },
             )
             .firstOrNull()
+    }
+
+    /** A source leaf with no technology compiler is a literal single-file artifact. */
+    private fun literalFileCompiler(
+        document: ThreadworkDocument,
+        nodeId: NodeId,
+        candidates: List<CompilerPlugin>,
+    ): CompilerPlugin? {
+        val node = document.getElementById(nodeId) ?: return null
+        if (node.isLink || node.children.isNotEmpty()) return null
+        if (document.effectiveLayoutStrategyId(nodeId) != SingleFileLayoutStrategy.id) return null
+        val technologyId = document.effectiveTechnologyId(nodeId).trim()
+        val languageId = document.effectiveLanguageId(nodeId).trim()
+        val hasDedicatedCompiler = compilerForTechnology(
+            candidates.filterNot { it.id == "filesystem" },
+            technologyId,
+            languageId,
+        ) != null
+        return if (hasDedicatedCompiler) null else candidates.firstOrNull { it.id == "filesystem" }
     }
 
     private fun compilerSupports(

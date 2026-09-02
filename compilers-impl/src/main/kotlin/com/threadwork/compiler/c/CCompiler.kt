@@ -26,6 +26,7 @@ import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.threadwork.core.model.effectiveLayoutStrategyId
+import com.threadwork.core.model.effectiveLanguageId
 import com.threadwork.core.model.effectiveTechnologyId
 import com.threadwork.core.model.getElementById
 import com.threadwork.core.validation.DocumentValidator
@@ -72,7 +73,22 @@ class CCompiler : TemplateSetCompiler() {
     }
 
     override fun shouldSkipNode(context: NodeCompilerContext): Boolean =
-        super.shouldSkipNode(context) || context.node.stereotype(context.document) == NodeStereotype.StaticFile
+        super.shouldSkipNode(context) ||
+            context.node.stereotype(context.document) == NodeStereotype.StaticFile ||
+            isForeignStandaloneFile(context)
+
+    private fun isForeignStandaloneFile(context: NodeCompilerContext): Boolean =
+        isForeignStandaloneFile(context.document, context.node, context.layoutStrategy.id)
+
+    private fun isForeignStandaloneFile(
+        document: ThreadworkDocument,
+        node: Node,
+        layoutId: String = document.effectiveLayoutStrategyId(node.id),
+    ): Boolean =
+        !node.isLink &&
+            node.children.isEmpty() &&
+            layoutId == SingleFileLayoutStrategy.id &&
+            document.effectiveLanguageId(node.id).trim().lowercase() !in setOf("", "c")
 
     override fun codeIntelligence(document: ThreadworkDocument, node: Node): CompilerCodeIntelligence {
         val libraryLinkIds = node.incomingLinks.filter { linkId ->
@@ -248,7 +264,7 @@ class CCompiler : TemplateSetCompiler() {
         cNodes.filterNot(Node::isLink).forEach { parent ->
             parent.children.mapNotNull(document.nodes::get).filterNot(Node::isLink).forEach { child ->
                 val childTechnology = document.effectiveTechnologyId(child.id)
-                if (childTechnology != C_TECHNOLOGY_ID) {
+                if (childTechnology != C_TECHNOLOGY_ID && !isForeignStandaloneFile(document, child)) {
                     diagnostics += error(
                         child.id,
                         "C composite '${parent.name}' directly contains '${child.name}' from technology " +

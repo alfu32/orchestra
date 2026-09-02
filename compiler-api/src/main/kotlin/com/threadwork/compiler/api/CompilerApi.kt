@@ -563,7 +563,16 @@ abstract class StructuredCompiler : CompilerPlugin {
             )
             diagnostics += result.diagnostics
             stack.remove(node.id)
-            val files = result.generatedProject?.files.orEmpty()
+            val files = result.generatedProject?.files.orEmpty().let { generatedFiles ->
+                // A delegated single-file compiler owns its file at project scope,
+                // so there is no origin node to retain. Associate that artifact with
+                // the requested node so enclosing filesystem compilers can place it.
+                if (generatedFiles.size == 1 && generatedFiles.single().originNodeId == null) {
+                    generatedFiles.map { file -> file.copy(originNodeId = node.id) }
+                } else {
+                    generatedFiles
+                }
+            }
             return if (result.success && result.generatedProject != null) {
                 val providerFiles = files.filter { it.originNodeId == node.id }.ifEmpty { files }
                 CompiledNodeArtifact(

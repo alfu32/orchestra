@@ -6,6 +6,7 @@ import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.CompilerPlugin
 import com.threadwork.compiler.api.CompilerTechnology
 import com.threadwork.compiler.api.SingleFileLayoutStrategy
+import com.threadwork.compiler.filesystem.FilesystemCompiler
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.TechnologyMetadata
@@ -55,6 +56,29 @@ class CompilerCapabilityResolverTest {
             setOf(ClassifiedFilesystemLayoutStrategy.id),
             resolver.supportedLayoutStrategyIds(document, document.rootNodeId),
         )
+    }
+
+    @Test
+    fun `resolves an unsupported single-file leaf as a filesystem file`() {
+        val repository = InMemoryDocumentRepository(newDocument("Mixed project"))
+        val document = repository.getDocument()
+        repository.updateNodeTechnology(
+            document.rootNodeId,
+            TechnologyMetadata(languageId = "c", technologyId = "c-native", compilerId = "c"),
+        )
+        val script = repository.createNode(document.rootNodeId, "run.sh", NodeKind.Processor)
+        repository.updateNodeTechnology(script.id, TechnologyMetadata(languageId = "shellscript", technologyId = "bash"))
+        repository.updateNodeFileLayoutStrategy(script.id, SingleFileLayoutStrategy.id)
+
+        val resolver = CompilerCapabilityResolver(
+            listOf(
+                StubCompiler("c", "c-native", setOf(SingleFileLayoutStrategy.id)),
+                FilesystemCompiler(),
+            ),
+        )
+
+        assertEquals("filesystem", resolver.compilerFor(document, script.id)?.id)
+        assertEquals(setOf(SingleFileLayoutStrategy.id), resolver.supportedLayoutStrategyIds(document, script.id))
     }
 
     private class StubCompiler(

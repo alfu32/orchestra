@@ -22,6 +22,7 @@ import com.threadwork.compiler.documentation.DocumentationCompiler
 import com.threadwork.compiler.api.CompilerTechnology
 import com.threadwork.compiler.api.ClassifiedFilesystemLayoutStrategy
 import com.threadwork.compiler.api.DirectFileSystemHomorphismLayoutStrategy
+import com.threadwork.compiler.filesystem.FilesystemCompiler
 import com.threadwork.compiler.api.LayoutStrategy
 import com.threadwork.compiler.api.SingleFileLayoutStrategy
 import com.threadwork.compiler.api.SourceSetLayoutStrategy
@@ -253,7 +254,7 @@ class ThreadworkDesktopApp(
     private val markdownOptions = MutableDataSet().set(Parser.EXTENSIONS, listOf(TablesExtension.create()))
     private val markdownParser = Parser.builder(markdownOptions).build()
     private val markdownHtmlRenderer = HtmlRenderer.builder(markdownOptions).build()
-    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + JSCompiler() + PhpCompiler() + CCompiler() + GenericCompiler() + NaiveKotlinCompiler()
+    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + FilesystemCompiler() + JSCompiler() + PhpCompiler() + CCompiler() + GenericCompiler() + NaiveKotlinCompiler()
     private val compilerTechnologies = availableCompilerTechnologies()
     private val languageIds = availableLanguageIds(compilerTechnologies)
     private val technologyIds = availableTechnologyIds(compilerTechnologies)
@@ -1299,7 +1300,7 @@ class ThreadworkDesktopApp(
         val output = if (singleFile) {
             chooseCompileOutputFile(generatedProject.files.single().path) ?: return
         } else {
-            chooseOutputDirectory(outputName) ?: return
+            chooseCompileOutputRoot(outputName) ?: return
         }
         runCatching {
             if (singleFile) {
@@ -1727,7 +1728,8 @@ class ThreadworkDesktopApp(
         val requestedCompilerId = root.technology.compilerId.trim()
         val requestedTechnologyId = document.effectiveTechnologyId(root.id)
         val supporting = compilerPlugins.filter { compiler -> runCatching { compiler.supports(document) }.getOrDefault(false) }
-        return supporting.firstOrNull { it.id == requestedCompilerId } ?:
+        return supporting.filterIsInstance<FilesystemCompiler>().firstOrNull { FilesystemCompiler.shouldAggregate(document) } ?:
+            supporting.firstOrNull { it.id == requestedCompilerId } ?:
             supporting.firstOrNull { requestedTechnologyId.isNotBlank() && requestedTechnologyId in it.supportedTechnologyIds } ?:
             supporting.firstOrNull { requestedTechnologyId.isNotBlank() && it.providedTechnologies.any { tech -> tech.technologyId == requestedTechnologyId } } ?:
             supporting.firstOrNull()
@@ -1742,6 +1744,21 @@ class ThreadworkDesktopApp(
         val directory = dialog.directory?.takeIf { it.isNotBlank() } ?: return null
         val file = dialog.file?.takeIf { it.isNotBlank() }
         return if (file == null) Path.of(directory) else Path.of(directory).resolve(file)
+    }
+
+    /**
+     * Multi-file project compilation uses the directory selected by the user as
+     * its layout root. The suggested name remains visible in the native dialog
+     * without becoming an extra generated directory.
+     */
+    private fun chooseCompileOutputRoot(suggestedName: String): Path? {
+        val dialog = FileDialog(frame, "Choose project output folder", FileDialog.SAVE).apply {
+            directory = currentFile?.parent?.toString() ?: Path.of(".").toAbsolutePath().toString()
+            file = suggestedName
+        }
+        dialog.isVisible = true
+        val directory = dialog.directory?.takeIf { it.isNotBlank() } ?: return null
+        return Path.of(directory)
     }
 
     private fun chooseCompileOutputFile(suggestedName: String): Path? {

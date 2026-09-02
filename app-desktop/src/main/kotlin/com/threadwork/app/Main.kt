@@ -3,6 +3,7 @@ package com.threadwork.app
 import com.threadwork.compiler.api.CompilerOptions
 import com.threadwork.compiler.api.CompilerPlugin
 import com.threadwork.compiler.c.CCompiler
+import com.threadwork.compiler.filesystem.FilesystemCompiler
 import com.threadwork.compiler.generated.nodejs.JSCompiler
 import com.threadwork.compiler.generic.CompilerCompiler
 import com.threadwork.compiler.generic.GenericCompiler
@@ -125,14 +126,15 @@ private fun compile(args: Array<String>) {
 }
 
 private fun compilersFrom(pluginsFolder: Path): List<CompilerPlugin> =
-    loadCompilerPlugins(pluginsFolder) + CompilerCompiler() + GenericCompiler() + NaiveKotlinCompiler() + JSCompiler() + PhpCompiler() + CCompiler()
+    loadCompilerPlugins(pluginsFolder) + CompilerCompiler() + FilesystemCompiler() + GenericCompiler() + NaiveKotlinCompiler() + JSCompiler() + PhpCompiler() + CCompiler()
 
 private fun selectCompiler(document: com.threadwork.core.model.ThreadworkDocument, compilers: List<CompilerPlugin>): CompilerPlugin? {
     val root = document.rootNode()
     val requestedCompilerId = root.technology.compilerId.trim()
     val requestedTechnologyId = document.effectiveTechnologyId(root.id)
     val supporting = compilers.filter { compiler -> runCatching { compiler.supports(document) }.getOrDefault(false) }
-    return supporting.firstOrNull { it.id == requestedCompilerId } ?:
+    return supporting.filterIsInstance<FilesystemCompiler>().firstOrNull { FilesystemCompiler.shouldAggregate(document) } ?:
+        supporting.firstOrNull { it.id == requestedCompilerId } ?:
         supporting.firstOrNull { requestedTechnologyId.isNotBlank() && requestedTechnologyId in it.supportedTechnologyIds } ?:
         supporting.firstOrNull { requestedTechnologyId.isNotBlank() && it.providedTechnologies.any { tech -> tech.technologyId == requestedTechnologyId } } ?:
         supporting.firstOrNull()

@@ -8,6 +8,7 @@ import com.threadwork.compiler.api.CompilerPlugin
 import com.threadwork.compiler.api.CompilerTechnology
 import com.threadwork.compiler.api.GeneratedElementKind
 import com.threadwork.compiler.api.GeneratedFile
+import com.threadwork.compiler.api.LayoutStrategy
 import com.threadwork.compiler.api.NodeCompilerContext
 import com.threadwork.core.classification.NodeStereotype
 import com.threadwork.core.classification.stereotype
@@ -48,6 +49,13 @@ open class GenericCompiler : TemplateSetCompiler() {
     protected open fun projectFileOverrides(): List<TemplateGeneratedFile> =
         emptyList()
 
+    /**
+     * Generic compiler variants may choose a different project layout while
+     * retaining the same template and literal-file behavior.
+     */
+    protected open val genericDefaultLayoutStrategy: LayoutStrategy =
+        ClassifiedFilesystemLayoutStrategy
+
     override fun templatesFor(document: ThreadworkDocument, options: CompilerOptions): CompilerTemplateSet {
         val graphOverrides = compilerTemplateOverrides(document)
         val graphTemplates = graphOverrides.templates
@@ -63,7 +71,7 @@ open class GenericCompiler : TemplateSetCompiler() {
             projectFiles = projectFileOverrides() + graphOverrides.projectFiles,
             staticFileNames = getStaticFiles(document, options).toSet(),
             fileExtension = extension,
-            defaultLayoutStrategy = ClassifiedFilesystemLayoutStrategy,
+            defaultLayoutStrategy = genericDefaultLayoutStrategy,
         )
     }
 
