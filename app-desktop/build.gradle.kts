@@ -14,6 +14,7 @@ dependencies {
     implementation("com.vladsch.flexmark:flexmark:0.64.8")
     implementation("com.vladsch.flexmark:flexmark-ext-tables:0.64.8")
     implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
+    implementation(files(rootProject.file("lib/tinycc-embed.jar")))
     testImplementation(kotlin("test"))
 }
 

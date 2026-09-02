@@ -148,12 +148,44 @@ data class GeneratedProject(
     }
 }
 
+/**
+ * A location in generated output that can be traced back to editable model text.
+ * Line and column values are one-based, matching compiler diagnostics.
+ */
+data class GeneratedSourceMapEntry(
+    val generatedLine: Int,
+    val nodeId: NodeId,
+    val textSection: NodeTextSection,
+    val sourceLine: Int,
+    val generatedColumnOffset: Int = 0,
+)
+
+data class GeneratedSourceLocation(
+    val nodeId: NodeId,
+    val textSection: NodeTextSection,
+    val line: Int,
+    val column: Int?,
+)
+
+data class GeneratedSourceMap(
+    val entries: List<GeneratedSourceMapEntry> = emptyList(),
+) {
+    fun locate(generatedLine: Int, generatedColumn: Int? = null): GeneratedSourceLocation? {
+        val entry = entries.firstOrNull { it.generatedLine == generatedLine } ?: return null
+        val sourceColumn = generatedColumn?.let { column ->
+            (column - entry.generatedColumnOffset).coerceAtLeast(1)
+        }
+        return GeneratedSourceLocation(entry.nodeId, entry.textSection, entry.sourceLine, sourceColumn)
+    }
+}
+
 data class GeneratedFile(
     val path: String,
     val content: String,
     val originNodeId: NodeId?,
     val reason: String,
     val elementKind: GeneratedElementKind = GeneratedElementKind.TerminalEntity,
+    val sourceMap: GeneratedSourceMap = GeneratedSourceMap(),
 )
 
 data class CompiledNodeArtifact(
@@ -362,8 +394,9 @@ abstract class StructuredCompiler : CompilerPlugin {
         if (diagnostics.any { it.severity == DiagnosticSeverity.Error }) {
             return CompilationResult(null, diagnostics, success = false)
         }
+        val generatedProject = finalizeProject(document, projectName, files.distinctBy { it.path }, options)
         return CompilationResult(
-            generatedProject = finalizeProject(document, projectName, files.distinctBy { it.path }, options),
+            generatedProject = generatedProject.withSourceMaps(document),
             diagnostics = diagnostics,
             success = true,
         )
@@ -706,6 +739,75 @@ abstract class StructuredCompiler : CompilerPlugin {
                     (languageId.isBlank() || technology.languageId == languageId || technology.languageId == ANY_LANGUAGE_ID)
             }
 }
+
+private fun GeneratedProject.withSourceMaps(document: ThreadworkDocument): GeneratedProject =
+    copy(files = files.map { file ->
+        if (file.sourceMap.entries.isNotEmpty()) file else file.copy(sourceMap = sourceMapFor(document, file.content))
+    })
+
+private data class SourceTextBlock(
+    val nodeId: NodeId,
+    val section: NodeTextSection,
+    val lines: List<String>,
+    val firstSourceLine: Int,
+)
+
+private fun sourceMapFor(document: ThreadworkDocument, generatedContent: String): GeneratedSourceMap {
+    val generatedLines = generatedContent.lines()
+    val usedGeneratedLines = mutableSetOf<Int>()
+    val entries = mutableListOf<GeneratedSourceMapEntry>()
+    sourceTextBlocks(document).forEach { block ->
+        val start = findSourceBlock(generatedLines, block.lines, usedGeneratedLines) ?: return@forEach
+        block.lines.forEachIndexed { index, sourceLine ->
+            if (sourceLine.isBlank()) return@forEachIndexed
+            val generatedIndex = start + index
+            usedGeneratedLines += generatedIndex
+            entries += GeneratedSourceMapEntry(
+                generatedLine = generatedIndex + 1,
+                nodeId = block.nodeId,
+                textSection = block.section,
+                sourceLine = block.firstSourceLine + index,
+                generatedColumnOffset = generatedLines[generatedIndex].leadingWhitespaceCount() - sourceLine.leadingWhitespaceCount(),
+            )
+        }
+    }
+    return GeneratedSourceMap(entries)
+}
+
+private fun sourceTextBlocks(document: ThreadworkDocument): List<SourceTextBlock> =
+    document.nodes.values.flatMap { node ->
+        listOf(
+            NodeTextSection.Declaration to node.text.declaration,
+            NodeTextSection.Instantiation to node.text.instantiation,
+        ).mapNotNull { (section, text) ->
+            val allLines = text.lines()
+            val first = allLines.indexOfFirst { it.isNotBlank() }
+            val last = allLines.indexOfLast { it.isNotBlank() }
+            if (first < 0 || last < first) null else SourceTextBlock(
+                nodeId = node.id,
+                section = section,
+                lines = allLines.subList(first, last + 1),
+                firstSourceLine = first + 1,
+            )
+        }
+    }
+
+private fun findSourceBlock(
+    generatedLines: List<String>,
+    sourceLines: List<String>,
+    usedGeneratedLines: Set<Int>,
+): Int? {
+    if (sourceLines.isEmpty()) return null
+    return generatedLines.indices.firstOrNull { start ->
+        start + sourceLines.size <= generatedLines.size &&
+            (start until start + sourceLines.size).none { it in usedGeneratedLines } &&
+            sourceLines.indices.all { index ->
+                generatedLines[start + index].trim() == sourceLines[index].trim()
+            }
+    }
+}
+
+private fun String.leadingWhitespaceCount(): Int = takeWhile(Char::isWhitespace).length
 
 interface LayoutStrategy {
     val id: String

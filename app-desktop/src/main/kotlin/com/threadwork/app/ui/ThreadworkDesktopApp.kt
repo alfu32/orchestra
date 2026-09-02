@@ -32,6 +32,7 @@ import com.threadwork.compiler.generic.GenericCompiler
 import com.threadwork.compiler.naivekotlin.NaiveKotlinCompiler
 import com.threadwork.compiler.php.PhpCompiler
 import com.threadwork.core.diagnostics.DiagnosticSeverity
+import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.completion.ModelAwareCompletionService
 import com.threadwork.core.classification.LinkClassifier
 import com.threadwork.core.classification.LinkStereotype
@@ -126,6 +127,7 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.LinkedHashMap
 import java.util.ServiceLoader
+import java.util.concurrent.Executors
 import org.apache.pdfbox.io.MemoryUsageSetting
 import org.apache.pdfbox.multipdf.PDFMergerUtility
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -273,7 +275,15 @@ class ThreadworkDesktopApp(
         ::redoDocument,
         languageIds,
         compilerCapabilityResolver,
+        ::scheduleNativeCValidation,
     )
+    private val nativeValidationExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "threadwork-tinycc-validation").apply { isDaemon = true }
+    }
+    private var nativeValidationGeneration = 0L
+    private val nativeValidationTimer = Timer(700) { runNativeCValidation() }.apply {
+        isRepeats = false
+    }
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
     }
@@ -1180,6 +1190,53 @@ class ThreadworkDesktopApp(
             status.text = "Autosaved ${path.fileName}"
         }.onFailure {
             status.text = "Autosave failed: ${it.message}"
+        }
+    }
+
+    /**
+     * Native C diagnostics are intentionally delayed until the source has been
+     * idle.  The actual compiler run is isolated from Swing and stale results
+     * are ignored when a newer edit has since been made.
+     */
+    private fun scheduleNativeCValidation() {
+        nativeValidationGeneration++
+        nativeValidationTimer.restart()
+    }
+
+    private fun runNativeCValidation() {
+        val generation = nativeValidationGeneration
+        val snapshot = documentSnapshot()
+        val document = documentFromSnapshot(snapshot)
+        val compiler = selectCompiler(document)
+        if (compiler !is CCompiler) {
+            editorTabs.applyNativeDiagnostics(emptyMap())
+            return
+        }
+        status.text = "Validating C source..."
+        nativeValidationExecutor.submit {
+            val diagnostics = runCatching {
+                val compilation = compiler.compile(
+                    document,
+                    CompilerOptions(
+                        projectName = document.projectName(),
+                        compilerPlugins = compilerPlugins,
+                    ),
+                )
+                compilation.generatedProject
+                    ?.files
+                    ?.filter { file -> file.path.endsWith(".c", ignoreCase = true) }
+                    ?.flatMap(TinyCcSourceValidator::validate)
+                    .orEmpty()
+            }.getOrElse { emptyList() }
+            SwingUtilities.invokeLater {
+                if (generation != nativeValidationGeneration) return@invokeLater
+                editorTabs.applyNativeDiagnostics(diagnostics.groupBy { it.nodeId })
+                status.text = if (diagnostics.isEmpty()) {
+                    "C source validated"
+                } else {
+                    "C source validation found ${diagnostics.size} issue${if (diagnostics.size == 1) "" else "s"}"
+                }
+            }
         }
     }
 
@@ -6267,9 +6324,11 @@ private class NodeEditorTabs(
     private val redoDocument: () -> Unit,
     private val languageIds: List<String>,
     private val compilerCapabilityResolver: CompilerCapabilityResolver,
+    private val requestNativeValidation: () -> Unit,
 ) : JTabbedPane() {
     private var boundIds: List<NodeId> = emptyList()
     private var activePalette: DesignerPalette = ThreadworkAppearance.palette()
+    private var nativeDiagnosticsByNode: Map<NodeId?, List<Diagnostic>> = emptyMap()
 
     fun bind(ids: List<NodeId>, activeSection: NodeTextSection? = null) {
         if (ids != boundIds) {
@@ -6287,6 +6346,7 @@ private class NodeEditorTabs(
                         languageIds,
                         compilerCapabilityResolver,
                         activePalette,
+                        requestNativeValidation,
                     ),
                 )
             }
@@ -6294,6 +6354,7 @@ private class NodeEditorTabs(
         } else {
             refreshTitlesAndMetadata()
         }
+        applyNativeDiagnosticsToBoundEditors()
         activeSection?.let { section ->
             ids.firstOrNull()?.let { selectSection(it, section) }
         }
@@ -6330,6 +6391,18 @@ private class NodeEditorTabs(
             (getComponentAt(index) as? NodeTextEditor)?.applyPalette(palette)
         }
     }
+
+    fun applyNativeDiagnostics(diagnosticsByNode: Map<NodeId?, List<Diagnostic>>) {
+        nativeDiagnosticsByNode = diagnosticsByNode
+        applyNativeDiagnosticsToBoundEditors()
+    }
+
+    private fun applyNativeDiagnosticsToBoundEditors() {
+        for (index in 0 until tabCount) {
+            val editor = getComponentAt(index) as? NodeTextEditor ?: continue
+            editor.setNativeDiagnostics(nativeDiagnosticsByNode[editor.nodeId].orEmpty())
+        }
+    }
 }
 
 private class NodeTextEditor(
@@ -6342,6 +6415,7 @@ private class NodeTextEditor(
     languageIds: List<String>,
     private val compilerCapabilityResolver: CompilerCapabilityResolver,
     initialPalette: DesignerPalette,
+    private val requestNativeValidation: () -> Unit,
 ) : JTabbedPane() {
     private val completionService = ModelAwareCompletionService(
         documentProvider = repository::getDocument,
@@ -6456,6 +6530,12 @@ private class NodeTextEditor(
         editorsBySection.values.forEach(::applySemanticIdentifierPresentation)
     }
 
+    fun setNativeDiagnostics(diagnostics: List<Diagnostic>) {
+        editorsBySection.forEach { (section, editor) ->
+            editor.setDiagnostics(diagnostics.filter { it.textSection == section })
+        }
+    }
+
     private data class SemanticIdentifierPresentation(
         val colors: Map<String, Color>,
     )
@@ -6547,16 +6627,21 @@ private class NodeTextEditor(
             saveNow()
         }
         timer.isRepeats = false
-        editor.onTextChanged = { timer.restart() }
+        editor.onTextChanged = {
+            timer.restart()
+            if (effectiveTextLanguage(spec.section) == "c") requestNativeValidation()
+        }
         editor.onUndoRequested = {
             timer.stop()
             saveNow()
             undoDocument()
+            if (effectiveTextLanguage(spec.section) == "c") requestNativeValidation()
         }
         editor.onRedoRequested = {
             timer.stop()
             saveNow()
             redoDocument()
+            if (effectiveTextLanguage(spec.section) == "c") requestNativeValidation()
         }
         languageSelector.addActionListener {
             if (binding) return@addActionListener

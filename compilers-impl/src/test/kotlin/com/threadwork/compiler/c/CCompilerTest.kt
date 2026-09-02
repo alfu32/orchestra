@@ -26,6 +26,29 @@ import kotlin.test.assertTrue
 
 class CCompilerTest {
     @Test
+    fun `C single-file generation maps editable source lines back to their node`() {
+        val repository = cProject()
+        val root = repository.getDocument().rootNodeId
+        val processor = repository.createNode(root, "worker", NodeKind.Processor)
+        repository.updateNodeText(
+            processor.id,
+            processor.text.copy(
+                declaration = """
+                    int value = 1;
+                    value += 1;
+                """.trimIndent(),
+            ),
+        )
+
+        val result = CCompiler().compile(repository.getDocument())
+        val sourceMap = assertNotNull(result.generatedProject).files.single().sourceMap
+        val entry = assertNotNull(sourceMap.entries.firstOrNull { it.nodeId == processor.id && it.sourceLine == 2 })
+
+        assertEquals(NodeTextSection.Declaration, entry.textSection)
+        assertEquals(2, sourceMap.locate(entry.generatedLine)?.line)
+    }
+
+    @Test
     fun `C generator shutdown is owned by the generated runtime and main`() {
         val repository = cProject()
         val root = repository.getDocument().rootNodeId
