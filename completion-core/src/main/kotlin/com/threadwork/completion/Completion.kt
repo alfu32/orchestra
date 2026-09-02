@@ -239,8 +239,15 @@ class FlowTemplateCompletionProvider : TechnologyCompletionProvider {
         suggestions += objectSuggestion("incomingLinks", "incoming links")
         suggestions += objectSuggestion("outgoingLinks", "outgoing links")
 
-        suggestions += snippetSuggestion("node: \${node.name}", "node name line")
-        suggestions += snippetSuggestion("options.projectName:\${options.projectName}", "project name line")
+        suggestions += snippetSuggestion("{{ node.name }}", "render the current node name")
+        suggestions += snippetSuggestion("{{ options.projectName }}", "render the compile project name")
+        suggestions += snippetSuggestion("{{ node.symbol }}", "render the compiler-safe node symbol")
+        suggestions += snippetSuggestion("{{ technology.languageId }}", "render the effective language id")
+        suggestions += snippetSuggestion("{# template comment #}", "Pebble template comment")
+        suggestions += snippetSuggestion("{% set name = node.name %}", "assign a Pebble template variable")
+        suggestions += snippetSuggestion("{% if node.isComposite %}\n{% endif %}", "conditional composite block")
+        suggestions += snippetSuggestion("{% for child in children %}\n{{ child.name }}\n{% endfor %}", "iterate over direct child nodes")
+        suggestions += snippetSuggestion("{% for link in incomingLinks %}\n{{ link.variableName }}\n{% endfor %}", "iterate over incoming links")
         suggestions += fieldSuggestion("options.projectName", "compile project name")
         suggestions += fieldSuggestion("node.id", "node identifier")
         suggestions += fieldSuggestion("node.name", "node name")
@@ -328,8 +335,7 @@ class FlowTemplateCompletionProvider : TechnologyCompletionProvider {
         suggestions += fieldSuggestion("linkInstantiations", "all link instantiations")
         suggestions += fieldSuggestion("layoutStrategy.id", "effective layout strategy id")
         suggestions += fieldSuggestion("primaryPath", "default generated file path")
-        suggestions += snippetSuggestion("{% for child in children %}\n{{ child.name }}\n{% endfor %}", "iterate over child nodes")
-        suggestions += snippetSuggestion("{% if node.isComposite %}\n{% endif %}", "conditional composite block")
+        suggestions += snippetSuggestion("{% for field in typeFields %}\n{{ field.name }}: {{ field.typeName }}\n{% endfor %}", "iterate over type fields")
 
         if (node.isLink) {
             suggestions += objectSuggestion("link", "current link data")

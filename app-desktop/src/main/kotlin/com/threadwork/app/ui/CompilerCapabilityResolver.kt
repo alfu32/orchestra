@@ -81,8 +81,9 @@ internal class CompilerCapabilityResolver(
     ): CompilerPlugin? {
         val node = document.getElementById(nodeId) ?: return null
         if (node.isLink || node.children.isNotEmpty()) return null
-        if (document.effectiveLayoutStrategyId(nodeId) != SingleFileLayoutStrategy.id) return null
         val technologyId = document.effectiveTechnologyId(nodeId).trim()
+        if (technologyId == "file") return candidates.firstOrNull { it.id == "filesystem" }
+        if (document.effectiveLayoutStrategyId(nodeId) != SingleFileLayoutStrategy.id) return null
         val languageId = document.effectiveLanguageId(nodeId).trim()
         val hasDedicatedCompiler = compilerForTechnology(
             candidates.filterNot { it.id == "filesystem" },

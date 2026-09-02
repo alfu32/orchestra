@@ -714,7 +714,7 @@ open class StringTemplateCompiler(
     override val displayName: String,
     private val templateSet: CompilerTemplateSet,
     override val supportedLanguageIds: Set<String> = setOf(ANY_LANGUAGE_ID),
-    override val supportedTechnologyIds: Set<String> = setOf("generic"),
+    override val supportedTechnologyIds: Set<String> = setOf("compiler-template-set"),
     override val providedTechnologies: List<CompilerTechnology> =
         supportedLanguageIds.flatMap { language -> supportedTechnologyIds.map { CompilerTechnology(language, it) } },
 ) : TemplateSetCompiler() {

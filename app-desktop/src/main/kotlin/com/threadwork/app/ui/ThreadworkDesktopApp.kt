@@ -1097,7 +1097,7 @@ class ThreadworkDesktopApp(
     private fun availableTechnologyIds(technologies: List<CompilerTechnology>): List<String> =
         (compilerPlugins.flatMap { it.supportedTechnologyIds } + technologies.map { it.technologyId })
             .map { it.trim() }
-            .filter { it.isNotBlank() && it != VOID_TECHNOLOGY_ID }
+            .filter { it.isNotBlank() && it != VOID_TECHNOLOGY_ID && it != "generic" }
             .distinct()
             .sorted()
 
@@ -5689,7 +5689,8 @@ private class InspectorPanel(
         .filter { it.isNotBlank() && !it.equals(NoneTechnologyChoice, ignoreCase = true) && !it.equals(OtherTechnologyChoice, ignoreCase = true) }
         .distinct()
         .sorted()
-    private val technologyOptions = listOf(NoneTechnologyChoice) + knownTechnologyIds + OtherTechnologyChoice
+    private val technologyDisplayById = knownTechnologyIds.associateWith(::technologyDisplay)
+    private val technologyIdByDisplay = technologyDisplayById.entries.associate { (id, display) -> display to id }
     private val knownTransportKindIds = LinkTransportKinds.catalog.map { it.id }
     private val transportDisplayById = LinkTransportKinds.catalog.associate { it.id to "${it.label} (${it.id})" }
     private val transportIdByDisplay = transportDisplayById.entries.associate { (id, display) -> display to id }
@@ -5732,7 +5733,7 @@ private class InspectorPanel(
         add(customLanguage, BorderLayout.CENTER)
         isVisible = false
     }
-    private val technology = JComboBox(technologyOptions.toTypedArray()).apply { isEditable = false }
+    private val technology = JComboBox(arrayOf(NoneTechnologyChoice, OtherTechnologyChoice)).apply { isEditable = false }
     private val customTechnology = JTextField()
     private val customTechnologyPanel = JPanel(BorderLayout(0, 4)).apply {
         add(JLabel("Custom technology identifier"), BorderLayout.NORTH)
@@ -5893,6 +5894,7 @@ private class InspectorPanel(
         compilerTechnologyProposal = proposedCompilerTechnologyId()
         nameField.text = node?.name.orEmpty()
         bindLanguage(node?.technology?.languageId.orEmpty())
+        refreshTechnologyOptions()
         bindTechnology(node?.technology?.technologyId.orEmpty(), forceCustom = boundNodeIsCompiler)
         bindLayoutStrategy(node?.fileLayoutStrategyId.orEmpty())
         state.text = node?.metadata?.get("state").orEmpty()
@@ -6056,7 +6058,14 @@ private class InspectorPanel(
         if (!isLink) {
             repository.updateNodeTechnology(id, node.technology.copy(languageId = selectedLanguage(), technologyId = selectedTechnology()))
         }
-        repository.updateNodeFileLayoutStrategy(id, selectedLayoutStrategy())
+        val requestedLayout = selectedLayoutStrategy()
+        val supportedLayouts = compilerCapabilityResolver.supportedLayoutStrategyIds(repository.getDocument(), id)
+        val normalizedLayout = when {
+            requestedLayout in supportedLayouts -> requestedLayout
+            requestedLayout == VOID_LAYOUT_STRATEGY_ID && supportedLayouts.size == 1 -> supportedLayouts.single()
+            else -> VOID_LAYOUT_STRATEGY_ID
+        }
+        repository.updateNodeFileLayoutStrategy(id, normalizedLayout)
         repository.updateNodeMetadata(id, parseMetadata(includeState = !isLink))
         repository.updateNodeResponsible(id, responsible.text)
         if (node.isType) repository.updateNodeTypeDefinition(id, typeDefinitionFromTable())
@@ -6087,9 +6096,39 @@ private class InspectorPanel(
             when (val selected = technology.selectedItem?.toString().orEmpty()) {
                 NoneTechnologyChoice -> ""
                 OtherTechnologyChoice -> customTechnology.text.trim()
-                else -> selected.trim()
+                else -> technologyIdByDisplay[selected] ?: selected.trim()
             }
         }
+
+    private fun refreshTechnologyOptions() {
+        val values = buildList {
+            add(NoneTechnologyChoice)
+            addAll(
+                knownTechnologyIds
+                    .filter { id -> id != CompilerTemplateSetTechnologyId || isCompilerTemplateContext() }
+                    .map(technologyDisplayById::getValue),
+            )
+            add(OtherTechnologyChoice)
+        }
+        val previousBinding = binding
+        binding = true
+        technology.model = DefaultComboBoxModel(values.toTypedArray())
+        binding = previousBinding
+    }
+
+    private fun isCompilerTemplateContext(): Boolean {
+        val document = repository.getDocument()
+        val node = nodeId?.let(document::getElementById) ?: return false
+        if (boundNodeIsCompiler || node.stereotype(document) == NodeStereotype.CompilerTemplate) return true
+        if (boundNodeIsRoot && document.nodes.values.any { it.name.equals("@Compiler", ignoreCase = true) }) return true
+        var parentId = node.parentId
+        while (parentId != null) {
+            val parent = document.getElementById(parentId) ?: break
+            if (parent.name.equals("@Compiler", ignoreCase = true)) return true
+            parentId = parent.parentId
+        }
+        return false
+    }
 
     private fun selectedTransportKind(): String =
         when (val selected = linkTransportKind.selectedItem?.toString().orEmpty()) {
@@ -6168,8 +6207,8 @@ private class InspectorPanel(
                 technology.selectedItem = NoneTechnologyChoice
                 customTechnology.text = ""
             }
-            value in knownTechnologyIds -> {
-                technology.selectedItem = value
+            value in knownTechnologyIds && (value != CompilerTemplateSetTechnologyId || isCompilerTemplateContext()) -> {
+                technology.selectedItem = technologyDisplayById.getValue(value)
                 customTechnology.text = ""
             }
             else -> {
@@ -6325,6 +6364,14 @@ private class InspectorPanel(
             .trim('-', '.', '_')
             .ifBlank { "generated" }
 
+    private fun technologyDisplay(id: String): String =
+        when (id) {
+            "filesystem" -> "Filesystem Project"
+            "file" -> "Plain File"
+            CompilerTemplateSetTechnologyId -> "Pebble Template Set"
+            else -> id
+        }
+
     private fun fieldRow(label: String, component: JComponent): JPanel =
         JPanel(BorderLayout(0, 4)).apply {
             alignmentX = Component.LEFT_ALIGNMENT
@@ -6337,6 +6384,7 @@ private class InspectorPanel(
         private const val OtherLanguageChoice = "Other"
         private const val NoneTechnologyChoice = "None"
         private const val OtherTechnologyChoice = "Other"
+        private const val CompilerTemplateSetTechnologyId = "compiler-template-set"
         private const val OtherTransportChoice = "Other"
         private const val NoneLayoutChoice = "None"
         private const val NoneTypeChoice = "None"

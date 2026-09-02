@@ -25,10 +25,13 @@ import com.threadwork.core.validation.DocumentValidator
 
 open class GenericCompiler : TemplateSetCompiler() {
     override val id: String = "generic-flow-design"
-    override val displayName: String = "Generic Flow-Design Compiler"
+    override val displayName: String = "Pebble Template Set Compiler"
     override val supportedLanguageIds: Set<String> = setOf(ANY_LANGUAGE_ID)
-    override val supportedTechnologyIds: Set<String> = setOf("generic")
-    override val providedTechnologies: List<CompilerTechnology> = listOf(CompilerTechnology(ANY_LANGUAGE_ID, "generic"))
+    // "generic" remains accepted so saved template-set projects continue to load.
+    override val supportedTechnologyIds: Set<String> = setOf("compiler-template-set", "generic")
+    override val providedTechnologies: List<CompilerTechnology> = listOf(
+        CompilerTechnology(ANY_LANGUAGE_ID, "compiler-template-set"),
+    )
 
     override fun supports(document: ThreadworkDocument): Boolean =
         document.nodes.values.any { node ->

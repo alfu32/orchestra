@@ -167,8 +167,9 @@ class ModelAwareCompletionServiceTest {
         ).map { it.label }.toSet()
 
         assertTrue("node" in labels)
-        assertTrue("node: ${'$'}{node.name}" in labels)
-        assertTrue("options.projectName:${'$'}{options.projectName}" in labels)
+        assertTrue("{{ node.name }}" in labels)
+        assertTrue("{{ options.projectName }}" in labels)
+        assertTrue("{% for child in children %}\n{{ child.name }}\n{% endfor %}" in labels)
         assertTrue("options.projectName" in labels)
         assertTrue("node.name" in labels)
         assertTrue("node.kind.name" in labels)

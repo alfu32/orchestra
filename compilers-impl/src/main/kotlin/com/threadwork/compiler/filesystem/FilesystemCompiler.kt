@@ -30,11 +30,11 @@ class FilesystemCompiler : GenericCompiler() {
     override val id: String = "filesystem"
     override val displayName: String = "Filesystem Compiler"
     override val supportedLanguageIds: Set<String> = setOf(ANY_LANGUAGE_ID)
-    override val supportedTechnologyIds: Set<String> = setOf("filesystem", "file", "generic")
+    override val supportedTechnologyIds: Set<String> = setOf("filesystem", "file")
+    override val supportedLayoutStrategyIds: Set<String> = setOf(DirectFileSystemHomorphismLayoutStrategy.id)
     override val providedTechnologies: List<CompilerTechnology> = listOf(
         CompilerTechnology(ANY_LANGUAGE_ID, "filesystem"),
         CompilerTechnology(ANY_LANGUAGE_ID, "file"),
-        CompilerTechnology(ANY_LANGUAGE_ID, "generic"),
     )
     override val genericDefaultLayoutStrategy = DirectFileSystemHomorphismLayoutStrategy
 
@@ -69,7 +69,9 @@ class FilesystemCompiler : GenericCompiler() {
         val node = context.node
         val genericLeaf = !node.isLink && node.children.isEmpty()
         val source = node.text.declaration.ifBlank { node.text.specification }
-        if (!genericLeaf || source.isBlank()) return null
+        val technologyId = context.document.effectiveTechnologyId(node.id).trim()
+        val explicitLiteral = technologyId in setOf("filesystem", "file")
+        if (!genericLeaf || source.isBlank() && !explicitLiteral) return null
 
         return GeneratedFile(
             path = literalFilePath(context.document, node),
@@ -113,10 +115,9 @@ class FilesystemCompiler : GenericCompiler() {
             val isForeignStandaloneFile =
                 !node.isLink &&
                     node.children.isEmpty() &&
-                    source.isNotBlank() &&
                     (
-                        technologyId in setOf("filesystem", "file", "generic") ||
-                            document.effectiveLayoutStrategyId(node.id) == SingleFileLayoutStrategy.id &&
+                        technologyId in setOf("filesystem", "file") ||
+                            source.isNotBlank() && document.effectiveLayoutStrategyId(node.id) == SingleFileLayoutStrategy.id &&
                                 technologyId !in setOf("c-native", "kotlin-jvm", "nodejs", "php")
                     )
             if (!isForeignStandaloneFile) return@mapNotNull null

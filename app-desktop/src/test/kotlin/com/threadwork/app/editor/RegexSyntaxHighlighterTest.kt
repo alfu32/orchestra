@@ -54,4 +54,18 @@ class RegexSyntaxHighlighterTest {
         assertEquals("incomingPacket".length + 2, tokens.last().endExclusive - tokens.last().start)
         assertNotEquals(linkedColor, tokens.last().color)
     }
+
+    @Test
+    fun `highlights Pebble syntax inside a target language`() {
+        val line = "const title = '{{ node.name }}';"
+
+        val tokens = RegexSyntaxHighlighter.highlightLine("javascript", line)
+
+        assertEquals("{{ node.name }}".length, tokens.single { it.start == line.indexOf("{{") }.endExclusive - line.indexOf("{{"))
+    }
+
+    @Test
+    fun `registers Pebble as a selectable editor language`() {
+        assertEquals("pebble", RegexSyntaxHighlighter.normalizeLanguage("peb"))
+    }
 }

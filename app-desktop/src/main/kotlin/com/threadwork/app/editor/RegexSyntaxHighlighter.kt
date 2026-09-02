@@ -24,6 +24,7 @@ object RegexSyntaxHighlighter {
     private val Comment = Color(0x6a9955)
     private val StringLiteral = Color(0xce9178)
     private val NumberLiteral = Color(0xb5cea8)
+    private val PebbleExpression = Color(0xc586c0)
     private val FunctionSymbol = Color(0xdcdcaa)
     private val TypeSymbol = Color(0x4ec9b0)
     private val ValueSymbol = Color(0x9cdcfe)
@@ -32,6 +33,7 @@ object RegexSyntaxHighlighter {
     private val blockCommentPattern = Regex("""/\*.*?\*/""")
     private val lineCommentPattern = Regex("""(//|#|--).*$""")
     private val numberPattern = Regex("""\b\d+(?:\.\d+)?\b""")
+    private val pebblePattern = Regex("""\{\{[-~]?\s*.*?\s*[-~]?\}\}|\{%[-~]?\s*.*?\s*[-~]?%\}|\{#.*?#\}""")
     private val languages = linkedMapOf<String, RegexLanguageSyntax>()
     private val aliasIndex = linkedMapOf<String, String>()
 
@@ -69,6 +71,9 @@ object RegexSyntaxHighlighter {
             for (index in start until end) occupied[index] = true
         }
 
+        // Pebble delimiters may appear inside any target language, so reserve
+        // them before language-specific strings, comments, and keywords.
+        pebblePattern.findAll(line).forEach { add(it.range.first, it.range.last + 1, PebbleExpression) }
         stringPattern.findAll(line).forEach { add(it.range.first, it.range.last + 1, StringLiteral) }
         blockCommentPattern.findAll(line).forEach { add(it.range.first, it.range.last + 1, Comment) }
         lineCommentPattern.find(line)?.let { add(it.range.first, it.range.last + 1, Comment) }
@@ -131,6 +136,7 @@ object RegexSyntaxHighlighter {
         register("json", """\{\s*"(?:[^"\\]|\\.)*"\s*:""", setOf("json5", "jsonc", "jsonl"))
         register("kotlin", """(@[a-zA-Z0-9_]+)|(^|\b)(override|operator|public|private|protected|companion|package|import|class|interface|object|data|sealed|enum|fun|val|var|if|else|for|while|when|return|this|super|is|in|as|break|continue|null)($|\b)""", setOf("kt", "kts", "kotlin-jvm", "kotlin-script"))
         register("markdown", """^#{1,6}\s+.+$|^\s*[-*+]|\*\*[^*]+\*\*|\b__[^_]+__($|\b)""", setOf("md", "mdx"))
+        register("pebble", """\{\{[-~]?\s*.*?\s*[-~]?\}\}|\{%[-~]?\s*.*?\s*[-~]?%\}|\{#.*?#\}""", setOf("peb", "pebble-template"))
         register("python", """(@[a-zA-Z0-9_]+)|(^|\b)(import|from|as|class|def|async|await|if|elif|else|for|while|try|except|finally|with|return|yield|lambda|nonlocal|global|pass|break|continue|raise)($|\b)""", setOf("py"))
         register("rust", """(^|\b)(crate|mod|use|pub|fn|struct|enum|trait|impl|type|const|static|let|mut|if|else|match|loop|while|for|in|move|async|await|unsafe|return)($|\b)""", setOf("rs"))
         register("shellscript", """(^|\b)(if|then|elif|else|fi|for|while|until|case|esac|function|select|in|do|done)\b|^\s*#!/bin/(ba|z|k)?sh""", setOf("sh", "bash", "zsh"))

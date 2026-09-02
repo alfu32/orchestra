@@ -58,6 +58,11 @@ class FilesystemCompilerTest {
         repository.addPort(script.id, NodePort("out", "out", PortDirection.Output))
         repository.addPort(cleanup.id, NodePort("in", "in", PortDirection.Input))
         repository.createLink(rootId, "after_run", script.id, "out", cleanup.id, "in")
+        val readme = repository.createNode(rootId, "README.md", NodeKind.Processor)
+        repository.updateNodeTechnology(
+            readme.id,
+            TechnologyMetadata(languageId = "markdown", technologyId = "file", fileExtension = "md"),
+        )
 
         val result = FilesystemCompiler().compile(
             repository.getDocument(),
@@ -71,6 +76,8 @@ class FilesystemCompilerTest {
         val paths = project.files.map { it.path }.toSet()
         assertTrue("ticker.c" in paths)
         assertTrue("run.sh" in paths)
+        assertTrue("README.md" in paths)
+        assertTrue(project.files.first { it.path == "README.md" }.content.isEmpty())
         assertTrue("links.mmd" in paths)
         assertTrue(project.files.first { it.path == "links.mmd" }.content.contains("after_run"))
         assertFalse(paths.any { path -> path.startsWith("sample_c/") })
@@ -110,5 +117,12 @@ class FilesystemCompilerTest {
         assertTrue("ticker.c" in files)
         assertTrue(files.getValue("run.sh").content.startsWith("#!/usr/bin/env sh"))
         assertFalse(files.getValue("ticker.c").content.contains("#!/usr/bin/env sh"))
+    }
+
+    @Test
+    fun `filesystem compiler exposes direct filesystem layout only`() {
+        assertTrue(
+            FilesystemCompiler().supportedLayoutStrategyIds == setOf(DirectFileSystemHomorphismLayoutStrategy.id),
+        )
     }
 }
