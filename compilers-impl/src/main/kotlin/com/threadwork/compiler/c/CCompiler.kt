@@ -260,7 +260,12 @@ class CCompiler : TemplateSetCompiler() {
 
         cNodes
             .filter { it.kind in setOf(NodeKind.Node, NodeKind.Processor, NodeKind.Group) }
-            .filter { it.stereotype(document) != NodeStereotype.ServiceLibrary }
+            .filter {
+                it.stereotype(document) !in setOf(
+                    NodeStereotype.ServiceLibrary,
+                    NodeStereotype.CompilerTemplate,
+                )
+            }
             .filter { node -> node.text.declaration.lineSequence().any(::isIncludeDirective) }
             .forEach { node ->
                 diagnostics += error(

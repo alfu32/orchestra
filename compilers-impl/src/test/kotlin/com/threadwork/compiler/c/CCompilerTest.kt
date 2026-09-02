@@ -435,6 +435,18 @@ class CCompilerTest {
         assertTrue(result.diagnostics.any { it.message.contains("only valid in service-library declarations") })
     }
 
+    @Test
+    fun `C compiler templates may include runtime headers`() {
+        val repository = cProject()
+        val root = repository.getDocument().rootNodeId
+        val template = repository.createNode(root, "@CompositeSingleFile", NodeKind.Processor)
+        repository.updateNodeText(template.id, template.text.copy(declaration = "#include <signal.h>"))
+
+        val diagnostics = CCompiler().validate(repository.getDocument())
+
+        assertFalse(diagnostics.any { it.nodeId == template.id && it.message.contains("include directives") })
+    }
+
     private fun cProject(): InMemoryDocumentRepository {
         val repository = InMemoryDocumentRepository(newDocument("C Project"))
         val root = repository.getDocument().rootNodeId
