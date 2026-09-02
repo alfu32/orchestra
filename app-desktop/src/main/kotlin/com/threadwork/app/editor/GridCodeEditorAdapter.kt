@@ -182,6 +182,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
 
             override fun mouseMoved(e: MouseEvent) {
                 if (completionItems.isNotEmpty()) return
+                updateDiagnosticTooltip(e.point)
                 val position = positionAt(e.point)
                 if (position == hoverPosition && hoverPoint == e.point) return
                 hoverPosition = position
@@ -192,7 +193,10 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
             }
         })
         addMouseListener(object : MouseAdapter() {
-            override fun mouseExited(e: MouseEvent) = clearHover()
+            override fun mouseExited(e: MouseEvent) {
+                clearHover()
+                updateToolTip()
+            }
         })
         addMouseWheelListener { e: MouseWheelEvent ->
             if (completionItems.isNotEmpty()) {
@@ -801,10 +805,15 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         visualRows: List<VisualRow>,
     ) {
         diagnostics.firstOrNull { it.line == visualRow.lineIndex + 1 }?.let { diagnostic ->
-            val diagnosticColumn = (diagnostic.column ?: 1).coerceAtLeast(1) - 1
-            if (diagnosticColumn < visualRow.endColumn) {
+            val startX = if (diagnostic.column == null) {
+                gutterWidth
+            } else {
+                val diagnosticColumn = (diagnostic.column ?: return@let).coerceAtLeast(1) - 1
+                if (diagnosticColumn >= visualRow.endColumn) return@let
                 val startColumn = max(diagnosticColumn, visualRow.startColumn)
-                val startX = gutterWidth + (startColumn - visualRow.startColumn) * charWidth
+                gutterWidth + (startColumn - visualRow.startColumn) * charWidth
+            }
+            if (startX < width) {
                 g2.color = when (diagnostic.severity) {
                     DiagnosticSeverity.Error -> Color(0x24ff5555, true)
                     DiagnosticSeverity.Warning -> Color(0x24d7ba7d, true)
@@ -1278,6 +1287,37 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         val language = languageId.ifBlank { "plain text" }
         val diagnosticText = diagnostics.joinToString("\n") { "${it.severity}: ${it.message}" }
         toolTipText = if (diagnosticText.isBlank()) language else "$language\n$diagnosticText"
+    }
+
+    private fun updateDiagnosticTooltip(point: Point) {
+        val metrics = getFontMetrics(editorFont)
+        val lineHeight = metrics.height
+        val bodyY = point.y - pinnedHeaderHeight(metrics)
+        if (bodyY < 0) {
+            updateToolTip()
+            return
+        }
+        val charWidth = max(1, metrics.charWidth('M'))
+        val gutterWidth = gutterWidth(metrics, charWidth)
+        if (point.x >= gutterWidth) {
+            updateToolTip()
+            return
+        }
+        val rows = visualRows(metrics, charWidth, gutterWidth)
+        val row = bodyY / lineHeight
+        val visualRow = rows.getOrNull(scrollVisualRow + row)
+        val rowDiagnostics = visualRow?.let { visibleRow ->
+            if (visibleRow.startColumn == 0) {
+                diagnostics.filter { it.line == visibleRow.lineIndex + 1 }
+            } else {
+                emptyList()
+            }
+        }.orEmpty()
+        if (rowDiagnostics.isEmpty()) {
+            updateToolTip()
+        } else {
+            toolTipText = rowDiagnostics.joinToString("\n") { "${it.severity}: ${it.message}" }
+        }
     }
 
     private fun splitLines(text: String): List<String> {

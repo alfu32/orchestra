@@ -6660,7 +6660,9 @@ private class NodeTextEditor(
 
     fun setNativeDiagnostics(diagnostics: List<Diagnostic>) {
         editorsBySection.forEach { (section, editor) ->
-            editor.setDiagnostics(diagnostics.filter { it.textSection == section })
+            editor.setDiagnostics(
+                diagnostics.filter { it.textSection == section || (it.textSection == null && section == NodeTextSection.Declaration) },
+            )
         }
     }
 
