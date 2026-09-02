@@ -1360,32 +1360,25 @@ class ThreadworkDesktopApp(
     }
 
     /**
-     * Native validation needs the edited node's executable neighborhood, not
-     * every unrelated branch in the document. The compiler expands this seed
-     * with composite ancestry, child declarations, transport links, and types.
+     * Native validation must compile the same enclosing unit as a normal build.
+     * Walk upwards while compiler and layout stay identical, then submit that
+     * compilation root to the compiler so line offsets and source maps match
+     * the generated artifact users actually receive.
      */
     private fun nativeValidationScope(document: ThreadworkDocument, editedNodeId: NodeId): Set<NodeId> {
-        val scope = linkedSetOf<NodeId>()
-        val pending = ArrayDeque<NodeId>()
+        val compilerId = compilerCapabilityResolver.compilerFor(document, editedNodeId)?.id
+        val layoutStrategyId = document.effectiveLayoutStrategyId(editedNodeId)
+        var rootId = editedNodeId
+        val visited = mutableSetOf<NodeId>()
 
-        fun include(nodeId: NodeId) {
-            if (nodeId !in scope) pending += nodeId
+        while (visited.add(rootId)) {
+            val parentId = document.getElementById(rootId)?.parentId ?: break
+            val parentCompilerId = compilerCapabilityResolver.compilerFor(document, parentId)?.id
+            val parentLayoutStrategyId = document.effectiveLayoutStrategyId(parentId)
+            if (parentCompilerId != compilerId || parentLayoutStrategyId != layoutStrategyId) break
+            rootId = parentId
         }
-
-        include(editedNodeId)
-        while (pending.isNotEmpty()) {
-            val node = document.getElementById(pending.removeFirst()) ?: continue
-            if (!scope.add(node.id)) continue
-            if (node.isLink) {
-                node.link?.let { link ->
-                    include(link.sourceNodeId)
-                    include(link.targetNodeId)
-                }
-            } else {
-                (node.incomingLinks + node.outgoingLinks).forEach(::include)
-            }
-        }
-        return scope
+        return setOf(rootId)
     }
 
     private fun compileProject() {

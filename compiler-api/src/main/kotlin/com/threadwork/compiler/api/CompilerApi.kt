@@ -757,8 +757,13 @@ private fun GeneratedProject.withSourceMaps(document: ThreadworkDocument): Gener
 private data class SourceTextBlock(
     val nodeId: NodeId,
     val section: NodeTextSection,
-    val lines: List<String>,
-    val firstSourceLine: Int,
+    val lines: List<SourceTextLine>,
+)
+
+/** A nonblank editable source line and its one-based editor line number. */
+private data class SourceTextLine(
+    val sourceLine: Int,
+    val content: String,
 )
 
 private fun sourceMapFor(document: ThreadworkDocument, generatedContent: String): GeneratedSourceMap {
@@ -766,17 +771,16 @@ private fun sourceMapFor(document: ThreadworkDocument, generatedContent: String)
     val usedGeneratedLines = mutableSetOf<Int>()
     val entries = mutableListOf<GeneratedSourceMapEntry>()
     sourceTextBlocks(document).forEach { block ->
-        val start = findSourceBlock(generatedLines, block.lines, usedGeneratedLines) ?: return@forEach
+        val start = findSourceBlock(generatedLines, block.lines.map(SourceTextLine::content), usedGeneratedLines) ?: return@forEach
         block.lines.forEachIndexed { index, sourceLine ->
-            if (sourceLine.isBlank()) return@forEachIndexed
             val generatedIndex = start + index
             usedGeneratedLines += generatedIndex
             entries += GeneratedSourceMapEntry(
                 generatedLine = generatedIndex + 1,
                 nodeId = block.nodeId,
                 textSection = block.section,
-                sourceLine = block.firstSourceLine + index,
-                generatedColumnOffset = generatedLines[generatedIndex].leadingWhitespaceCount() - sourceLine.leadingWhitespaceCount(),
+                sourceLine = sourceLine.sourceLine,
+                generatedColumnOffset = generatedLines[generatedIndex].leadingWhitespaceCount() - sourceLine.content.leadingWhitespaceCount(),
             )
         }
     }
@@ -790,13 +794,13 @@ private fun sourceTextBlocks(document: ThreadworkDocument): List<SourceTextBlock
             NodeTextSection.Instantiation to node.text.instantiation,
         ).mapNotNull { (section, text) ->
             val allLines = text.lines()
-            val first = allLines.indexOfFirst { it.isNotBlank() }
-            val last = allLines.indexOfLast { it.isNotBlank() }
-            if (first < 0 || last < first) null else SourceTextBlock(
+            val nonBlankLines = allLines.mapIndexedNotNull { index, line ->
+                line.takeIf(String::isNotBlank)?.let { SourceTextLine(index + 1, it) }
+            }
+            if (nonBlankLines.isEmpty()) null else SourceTextBlock(
                 nodeId = node.id,
                 section = section,
-                lines = allLines.subList(first, last + 1),
-                firstSourceLine = first + 1,
+                lines = nonBlankLines,
             )
         }
     }
