@@ -1,5 +1,6 @@
 package com.threadwork.core.model
 
+import com.threadwork.core.diagnostics.Diagnostic
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -153,6 +154,8 @@ data class Node(
     val ports: MutableList<NodePort> = mutableListOf(),
     var link: LinkData? = null,
     var typeDefinition: TypeDefinition? = null,
+    /** Last compiler diagnostics mapped to this node; cleared when a new validation starts. */
+    val diagnostics: MutableList<Diagnostic> = mutableListOf(),
     var metadata: MutableMap<String, String> = mutableMapOf(),
     var pluginData: MutableMap<String, JsonObject> = mutableMapOf(),
 ) {

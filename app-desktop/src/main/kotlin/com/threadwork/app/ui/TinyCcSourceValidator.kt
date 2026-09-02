@@ -16,6 +16,10 @@ internal object TinyCcSourceValidator : EmbeddedSourceValidator {
     )
 
     override fun validate(file: GeneratedFile): List<Diagnostic> {
+        return validateDetailed(file).map(EmbeddedDiagnostic::diagnostic)
+    }
+
+    override fun validateDetailed(file: GeneratedFile): List<EmbeddedDiagnostic> {
         if (file.sourceMap.entries.isEmpty()) return emptyList()
         val messages = mutableListOf<String>()
         val output = Files.createTempFile("threadwork-tinycc-", sharedLibrarySuffix())
@@ -38,36 +42,46 @@ internal object TinyCcSourceValidator : EmbeddedSourceValidator {
         }
     }
 
-    private fun mapDiagnostic(file: GeneratedFile, message: String): List<Diagnostic> =
+    private fun mapDiagnostic(file: GeneratedFile, message: String): List<EmbeddedDiagnostic> =
         message.lineSequence().mapNotNull { line ->
             val match = diagnosticPattern.find(line.trim()) ?: return@mapNotNull null
             val generatedLine = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
             val generatedColumn = match.groupValues[2].toIntOrNull()
-            val location = file.sourceMap.locate(generatedLine, generatedColumn) ?: return@mapNotNull null
+            val location = file.sourceMap.locate(generatedLine, generatedColumn)
             val severity = when (match.groupValues[3].lowercase()) {
                 "warning" -> DiagnosticSeverity.Warning
                 else -> DiagnosticSeverity.Error
             }
-            Diagnostic(
-                severity = severity,
-                message = match.groupValues[4].ifBlank { line.trim() },
-                nodeId = location.nodeId,
-                textSection = location.textSection,
-                line = location.line,
-                column = location.column,
-                sourcePluginId = "tinycc",
+            EmbeddedDiagnostic(
+                diagnostic = Diagnostic(
+                    severity = severity,
+                    message = match.groupValues[4].ifBlank { line.trim() },
+                    nodeId = location?.nodeId,
+                    textSection = location?.textSection,
+                    line = location?.line,
+                    column = location?.column,
+                    sourcePluginId = "tinycc",
+                ),
+                generatedPath = file.path,
+                generatedLine = generatedLine,
+                generatedColumn = generatedColumn,
             )
         }.toList()
 
-    private fun fallbackDiagnostic(file: GeneratedFile, messages: List<String>): Diagnostic {
+    private fun fallbackDiagnostic(file: GeneratedFile, messages: List<String>): EmbeddedDiagnostic {
         val location = file.sourceMap.entries.first()
-        return Diagnostic(
-            severity = DiagnosticSeverity.Error,
-            message = messages.joinToString(" ").ifBlank { "TinyCC could not validate generated C source." },
-            nodeId = location.nodeId,
-            textSection = location.textSection,
-            line = location.sourceLine,
-            sourcePluginId = "tinycc",
+        return EmbeddedDiagnostic(
+            diagnostic = Diagnostic(
+                severity = DiagnosticSeverity.Error,
+                message = messages.joinToString(" ").ifBlank { "TinyCC could not validate generated C source." },
+                nodeId = location.nodeId,
+                textSection = location.textSection,
+                line = location.sourceLine,
+                sourcePluginId = "tinycc",
+            ),
+            generatedPath = file.path,
+            generatedLine = location.generatedLine,
+            generatedColumn = null,
         )
     }
 

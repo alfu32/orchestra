@@ -2,6 +2,7 @@ package com.threadwork.storage
 
 import com.threadwork.core.classification.NodeStereotype
 import com.threadwork.core.classification.stereotype
+import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.LinkData
 import com.threadwork.core.model.LinkInteractionKinds
@@ -50,6 +51,7 @@ interface DocumentRepository {
     fun updateNodeMetadata(id: NodeId, metadata: Map<String, String>)
     fun updateNodeResponsible(id: NodeId, responsible: String?)
     fun updateNodeTypeDefinition(id: NodeId, definition: TypeDefinition)
+    fun updateNodeDiagnostics(id: NodeId, diagnostics: List<Diagnostic>)
     fun updateLinkData(id: NodeId, linkData: LinkData)
     fun updateMasterRevision(revision: Revision)
     fun touchNode(id: NodeId)
@@ -193,6 +195,14 @@ class InMemoryDocumentRepository(
         if (node.typeDefinition == definition) return
         node.typeDefinition = definition.copy(fields = definition.fields.map { it.copy() }.toMutableList())
         touchNodes(listOf(id))
+        markDirty()
+    }
+
+    override fun updateNodeDiagnostics(id: NodeId, diagnostics: List<Diagnostic>) {
+        val node = requireNode(id)
+        if (node.diagnostics == diagnostics) return
+        node.diagnostics.clear()
+        node.diagnostics.addAll(diagnostics)
         markDirty()
     }
 

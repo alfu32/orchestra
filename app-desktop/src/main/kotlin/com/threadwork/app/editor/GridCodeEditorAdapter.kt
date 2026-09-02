@@ -280,6 +280,19 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         requestFocusInWindow()
     }
 
+    /** Bring a diagnostic line into view without changing the caret or selection. */
+    fun revealDiagnostic(line: Int?) {
+        val targetLine = line?.minus(1) ?: return
+        if (targetLine !in lines.indices) return
+        val metrics = getFontMetrics(editorFont)
+        val charWidth = max(1, metrics.charWidth('M'))
+        val rows = visualRows(metrics, charWidth, gutterWidth(metrics, charWidth))
+        val visualIndex = rows.indexOfFirst { it.lineIndex == targetLine }
+        if (visualIndex < 0) return
+        scrollVisualRow = visualIndex.coerceIn(0, maxScrollVisualRow(rows))
+        repaint()
+    }
+
     fun commandUndo() = undo()
 
     fun commandRedo() = redo()

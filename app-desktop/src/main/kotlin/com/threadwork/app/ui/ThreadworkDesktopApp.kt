@@ -286,11 +286,23 @@ class ThreadworkDesktopApp(
     private var nativeValidationGeneration = 0L
     private var pendingValidationNodeId: NodeId? = null
     private var pendingValidationLanguageId: String? = null
+    private var nativeDiagnosticDetails: List<EmbeddedDiagnostic> = emptyList()
     private val nativeValidationTimer = Timer(700) { runEmbeddedValidation() }.apply {
         isRepeats = false
     }
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
+    }
+    private val nativeDiagnosticStatus = JLabel().apply {
+        border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
+        font = Font(Font.MONOSPACED, Font.PLAIN, 11)
+        foreground = Color(0xff7777)
+        toolTipText = "Click to inspect mapped compiler diagnostics"
+        addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                showNativeDiagnosticDetails()
+            }
+        })
     }
     private val tileProgress = JProgressBar().apply {
         preferredSize = Dimension(190, 18)
@@ -310,6 +322,7 @@ class ThreadworkDesktopApp(
         maximumSize = preferredSize
     }
     private val statusRight = JPanel(FlowLayout(FlowLayout.RIGHT, 6, 2)).apply {
+        add(nativeDiagnosticStatus)
         add(tileProgress)
         add(resourceStatus)
     }
@@ -1212,6 +1225,54 @@ class ThreadworkDesktopApp(
         nativeValidationTimer.restart()
     }
 
+    private fun clearNativeDiagnostics() {
+        var changed = false
+        repository.getDocument().nodes.values.forEach { node ->
+            if (node.diagnostics.isNotEmpty()) {
+                node.diagnostics.clear()
+                changed = true
+            }
+        }
+        if (changed) repository.markDirty()
+        nativeDiagnosticDetails = emptyList()
+        editorTabs.applyNativeDiagnostics(emptyMap())
+        nativeDiagnosticStatus.text = ""
+        nativeDiagnosticStatus.toolTipText = "Click to inspect mapped compiler diagnostics"
+        canvas.repaint()
+    }
+
+    private fun persistNativeDiagnostics(details: List<EmbeddedDiagnostic>) {
+        clearNativeDiagnostics()
+        details.groupBy { it.diagnostic.nodeId }
+            .filterKeys { it != null }
+            .forEach { (nodeId, nodeDetails) ->
+                repository.updateNodeDiagnostics(nodeId!!, nodeDetails.map(EmbeddedDiagnostic::diagnostic))
+            }
+        nativeDiagnosticDetails = details
+        canvas.repaint()
+    }
+
+    private fun showNativeDiagnosticDetails() {
+        if (nativeDiagnosticDetails.isEmpty()) return
+        val text = nativeDiagnosticDetails.joinToString("\n\n") { detail ->
+            val diagnostic = detail.diagnostic
+            val generated = listOfNotNull(detail.generatedLine, detail.generatedColumn).joinToString(":")
+                .ifBlank { "unknown" }
+            val source = listOfNotNull(diagnostic.line, diagnostic.column).joinToString(":")
+                .ifBlank { "unknown" }
+            val nodeName = diagnostic.nodeId?.let(repository.getDocument()::getElementById)?.name ?: "unmapped"
+            "${diagnostic.severity}: ${diagnostic.message}\n" +
+                "${detail.generatedPath}:$generated -> $nodeName ${diagnostic.textSection ?: "unknown"} $source"
+        }
+        val area = JTextArea(text, 12, 100).apply {
+            isEditable = false
+            lineWrap = true
+            wrapStyleWord = true
+            border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        }
+        JOptionPane.showMessageDialog(frame, JScrollPane(area), "Compilation Diagnostics", JOptionPane.WARNING_MESSAGE)
+    }
+
     private fun runEmbeddedValidation() {
         val generation = nativeValidationGeneration
         val nodeId = pendingValidationNodeId ?: return
@@ -1221,12 +1282,13 @@ class ThreadworkDesktopApp(
         val document = documentFromSnapshot(snapshot)
         val compiler = selectCompiler(document)
         if (compiler == null) {
-            editorTabs.applyNativeDiagnostics(emptyMap())
+            clearNativeDiagnostics()
             return
         }
+        clearNativeDiagnostics()
         status.text = "Validating ${languageId.uppercase()} source..."
         nativeValidationExecutor.submit {
-            val diagnostics = runCatching {
+            val validationResults = runCatching {
                 val compilation = compiler.compile(
                     document,
                     CompilerOptions(
@@ -1242,23 +1304,52 @@ class ThreadworkDesktopApp(
                             file.path.endsWith(".$extension", ignoreCase = true)
                         }
                     }
-                    ?.flatMap(validator::validate)
+                    ?.flatMap(validator::validateDetailed)
                     .orEmpty()
             }.getOrElse { error ->
                 listOf(
-                    Diagnostic(
-                        severity = DiagnosticSeverity.Error,
-                        message = error.message ?: "Could not generate ${languageId.uppercase()} source for embedded validation.",
-                        nodeId = nodeId,
-                        textSection = NodeTextSection.Declaration,
-                        line = 1,
-                        sourcePluginId = "embedded-validator",
+                    EmbeddedDiagnostic(
+                        diagnostic = Diagnostic(
+                            severity = DiagnosticSeverity.Error,
+                            message = error.message ?: "Could not generate ${languageId.uppercase()} source for embedded validation.",
+                            nodeId = nodeId,
+                            textSection = NodeTextSection.Declaration,
+                            line = 1,
+                            sourcePluginId = "embedded-validator",
+                        ),
+                        generatedPath = "generated source",
+                        generatedLine = null,
+                        generatedColumn = null,
                     ),
                 )
             }
             SwingUtilities.invokeLater {
                 if (generation != nativeValidationGeneration) return@invokeLater
+                val diagnostics = validationResults.map(EmbeddedDiagnostic::diagnostic)
+                persistNativeDiagnostics(validationResults)
                 editorTabs.applyNativeDiagnostics(diagnostics.groupBy { it.nodeId })
+                val first = validationResults.firstOrNull()
+                if (first == null) {
+                    nativeDiagnosticStatus.text = ""
+                    nativeDiagnosticStatus.toolTipText = null
+                } else {
+                    val diagnostic = first.diagnostic
+                    editorTabs.revealNativeDiagnostic(diagnostic.nodeId, diagnostic.textSection)
+                    val generatedLocation = listOfNotNull(
+                        first.generatedLine,
+                        first.generatedColumn,
+                    ).joinToString(":")
+                    val sourceLocation = listOfNotNull(diagnostic.line, diagnostic.column).joinToString(":")
+                    val nodeName = diagnostic.nodeId?.let(document::getElementById)?.name ?: "unmapped"
+                    val binding = if (diagnostic.nodeId != null && editorTabs.hasBoundNode(diagnostic.nodeId)) {
+                        "bound"
+                    } else {
+                        "not-bound"
+                    }
+                    val mapping = "${first.generatedPath}:$generatedLocation -> $nodeName ${diagnostic.textSection ?: "unknown"} $sourceLocation ($binding)"
+                    nativeDiagnosticStatus.text = "${diagnostic.severity}: ${mapping.take(180)}"
+                    nativeDiagnosticStatus.toolTipText = "$mapping\n${diagnostic.message}"
+                }
                 status.text = if (diagnostics.isEmpty()) {
                     "${languageId.uppercase()} source validated"
                 } else {
@@ -1298,6 +1389,7 @@ class ThreadworkDesktopApp(
     }
 
     private fun compileProject() {
+        clearNativeDiagnostics()
         autosave()
         val document = repository.getDocument()
         val compiler = selectCompiler(document)
@@ -4358,7 +4450,26 @@ class GraphCanvas(
             }
         }
         drawCompositeToggle(g2, node)
+        drawDiagnosticBadge(g2, node)
         g2.stroke = previousStroke
+        g2.font = previousFont
+    }
+
+    private fun drawDiagnosticBadge(g2: Graphics2D, node: Node) {
+        if (node.diagnostics.isEmpty()) return
+        val bounds = node.layout.rect()
+        val size = 16
+        val x = bounds.x + bounds.width - size - 6
+        val y = bounds.y + 6
+        val previousColor = g2.color
+        val previousFont = g2.font
+        g2.color = Color(0xd94b4b)
+        g2.fillOval(x, y, size, size)
+        g2.color = Color.WHITE
+        g2.font = designerFont.deriveFont(Font.BOLD, 11f)
+        val metrics = g2.fontMetrics
+        g2.drawString("!", x + (size - metrics.stringWidth("!")) / 2, y + (size - metrics.height) / 2 + metrics.ascent)
+        g2.color = previousColor
         g2.font = previousFont
     }
 
@@ -6525,10 +6636,27 @@ private class NodeEditorTabs(
         applyNativeDiagnosticsToBoundEditors()
     }
 
+    fun hasBoundNode(nodeId: NodeId?): Boolean = nodeId != null && boundIds.contains(nodeId)
+
+    fun revealNativeDiagnostic(nodeId: NodeId?, section: NodeTextSection?) {
+        if (nodeId == null || section == null) return
+        selectSection(nodeId, section)
+        for (index in 0 until tabCount) {
+            val editor = getComponentAt(index) as? NodeTextEditor ?: continue
+            if (editor.nodeId == nodeId) {
+                editor.revealNativeDiagnostic(section)
+                return
+            }
+        }
+    }
+
     private fun applyNativeDiagnosticsToBoundEditors() {
         for (index in 0 until tabCount) {
             val editor = getComponentAt(index) as? NodeTextEditor ?: continue
-            editor.setNativeDiagnostics(nativeDiagnosticsByNode[editor.nodeId].orEmpty())
+            editor.setNativeDiagnostics(
+                nativeDiagnosticsByNode[editor.nodeId]
+                    ?: repository.getNode(editor.nodeId)?.diagnostics.orEmpty(),
+            )
         }
     }
 }
@@ -6664,6 +6792,12 @@ private class NodeTextEditor(
                 diagnostics.filter { it.textSection == section || (it.textSection == null && section == NodeTextSection.Declaration) },
             )
         }
+    }
+
+    fun revealNativeDiagnostic(section: NodeTextSection) {
+        editorsBySection[section]?.revealDiagnostic(
+            repository.getNode(nodeId)?.diagnostics?.firstOrNull { it.textSection == section }?.line,
+        )
     }
 
     private data class SemanticIdentifierPresentation(
