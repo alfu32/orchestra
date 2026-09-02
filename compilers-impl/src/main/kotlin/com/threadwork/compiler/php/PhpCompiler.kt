@@ -11,6 +11,7 @@ import com.threadwork.compiler.api.defaultCodeIntelligence
 import com.threadwork.compiler.generic.CompilerTemplateSet
 import com.threadwork.compiler.generic.CompilerTemplateSetLoader
 import com.threadwork.compiler.generic.TemplateSetCompiler
+import com.threadwork.compiler.generic.compilerTemplateOverrides
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.diagnostics.DiagnosticSeverity
 import com.threadwork.core.classification.LinkClassifier
@@ -46,8 +47,15 @@ class PhpCompiler : TemplateSetCompiler() {
                 )
             }
 
-    override fun templatesFor(document: ThreadworkDocument, options: CompilerOptions): CompilerTemplateSet =
-        TEMPLATES
+    override fun templatesFor(document: ThreadworkDocument, options: CompilerOptions): CompilerTemplateSet {
+        val overrides = compilerTemplateOverrides(document)
+        return TEMPLATES.overlay(
+            CompilerTemplateSet(
+                templates = overrides.templates,
+                projectFiles = overrides.projectFiles,
+            ),
+        )
+    }
 
     override fun declarationFor(context: NodeCompilerContext): String {
         val declaration = super.declarationFor(context)

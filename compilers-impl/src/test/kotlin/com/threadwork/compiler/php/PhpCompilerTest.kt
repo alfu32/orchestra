@@ -118,6 +118,34 @@ class PhpCompilerTest {
     }
 
     @Test
+    fun `PHP compiler applies composite single-file template overrides`() {
+        val repository = InMemoryDocumentRepository(newDocument("PHP loop override"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "php", technologyId = "php"))
+        repository.requireNode(root).fileLayoutStrategyId = SingleFileLayoutStrategy.id
+        repository.createNode(root, "worker", NodeKind.Processor)
+        val override = repository.createNode(root, "@CompositeSingleFile", NodeKind.Processor)
+        repository.updateNodeText(
+            override.id,
+            override.text.copy(
+                declaration = """
+                    <?php
+                    /* custom PHP continuous runner */
+                    {{ runtimeSupport }}
+                    {{ inlineChildDeclarationsWithoutPhpTag }}
+                    {{ ownDeclaration }}
+                """.trimIndent(),
+            ),
+        )
+
+        val result = PhpCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val source = requireNotNull(result.generatedProject).files.joinToString("\n") { it.content }
+        assertTrue(source.contains("custom PHP continuous runner"))
+    }
+
+    @Test
     fun `link compilation generates named double buffered transport`() {
         val repository = InMemoryDocumentRepository(newDocument("Transport Project"))
         val root = repository.getDocument().rootNodeId
