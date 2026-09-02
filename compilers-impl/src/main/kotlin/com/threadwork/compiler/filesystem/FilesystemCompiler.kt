@@ -27,14 +27,14 @@ import com.threadwork.core.model.rootNode
  * generic leaf files remain literal files beside those generated artifacts.
  */
 class FilesystemCompiler : GenericCompiler() {
-    override val id: String = "filesystem"
-    override val displayName: String = "Filesystem Compiler"
+    override val id: String = "multi-tech"
+    override val displayName: String = "multi-tech"
     override val supportedLanguageIds: Set<String> = setOf(ANY_LANGUAGE_ID)
-    override val supportedTechnologyIds: Set<String> = setOf("filesystem", "file")
+    override val supportedTechnologyIds: Set<String> = setOf("multi-tech", "file-export")
     override val supportedLayoutStrategyIds: Set<String> = setOf(DirectFileSystemHomorphismLayoutStrategy.id)
     override val providedTechnologies: List<CompilerTechnology> = listOf(
-        CompilerTechnology(ANY_LANGUAGE_ID, "filesystem"),
-        CompilerTechnology(ANY_LANGUAGE_ID, "file"),
+        CompilerTechnology(ANY_LANGUAGE_ID, "multi-tech"),
+        CompilerTechnology(ANY_LANGUAGE_ID, "file-export"),
     )
     override val genericDefaultLayoutStrategy = DirectFileSystemHomorphismLayoutStrategy
 
@@ -47,7 +47,8 @@ class FilesystemCompiler : GenericCompiler() {
          */
         fun shouldAggregate(document: ThreadworkDocument): Boolean {
             val root = document.rootNode()
-            if (root.technology.compilerId.trim() == "filesystem") return true
+            if (root.technology.compilerId.trim() == "multi-tech") return true
+            if (document.effectiveTechnologyId(root.id).trim() == "multi-tech") return true
             if (document.effectiveLayoutStrategyId(root.id) == DirectFileSystemHomorphismLayoutStrategy.id) return true
             val rootLanguage = document.effectiveLanguageId(root.id).trim()
             return document.nodes.values.any { node ->
@@ -55,7 +56,7 @@ class FilesystemCompiler : GenericCompiler() {
                 !node.isLink &&
                     node.children.isEmpty() &&
                     (
-                        technologyId in setOf("filesystem", "file", "generic") ||
+                        technologyId in setOf("multi-tech", "file-export") ||
                             document.effectiveLayoutStrategyId(node.id) == SingleFileLayoutStrategy.id &&
                                 document.effectiveLanguageId(node.id).trim().isNotBlank() &&
                                 document.effectiveLanguageId(node.id).trim() != rootLanguage
@@ -70,7 +71,7 @@ class FilesystemCompiler : GenericCompiler() {
         val genericLeaf = !node.isLink && node.children.isEmpty()
         val source = node.text.declaration.ifBlank { node.text.specification }
         val technologyId = context.document.effectiveTechnologyId(node.id).trim()
-        val explicitLiteral = technologyId in setOf("filesystem", "file")
+        val explicitLiteral = technologyId == "file-export"
         if (!genericLeaf || source.isBlank() && !explicitLiteral) return null
 
         return GeneratedFile(
@@ -116,7 +117,7 @@ class FilesystemCompiler : GenericCompiler() {
                 !node.isLink &&
                     node.children.isEmpty() &&
                     (
-                        technologyId in setOf("filesystem", "file") ||
+                        technologyId == "file-export" ||
                             source.isNotBlank() && document.effectiveLayoutStrategyId(node.id) == SingleFileLayoutStrategy.id &&
                                 technologyId !in setOf("c-native", "kotlin-jvm", "nodejs", "php")
                     )

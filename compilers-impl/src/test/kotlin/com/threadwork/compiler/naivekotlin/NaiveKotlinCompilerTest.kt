@@ -166,7 +166,7 @@ class NaiveKotlinCompilerTest {
     fun `generic compiler applies override templates to nodes and links`() {
         val repository = InMemoryDocumentRepository(newDocument("Generic Sample"))
         val root = repository.getDocument().rootNodeId
-        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "generic"))
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "compiler-template-set"))
         val generatorTemplate = repository.createNode(root, "@Generator", NodeKind.Processor)
         repository.updateNodeText(generatorTemplate.id, generatorTemplate.text.copy(declaration = "generate ${'$'}{node.name} -> ${'$'}{outgoingArguments}\n${'$'}{outgoingTypeDefinitions}"))
         val sinkTemplate = repository.createNode(root, "@Sink", NodeKind.Processor)
@@ -223,7 +223,7 @@ class NaiveKotlinCompilerTest {
     fun `compiler compiler does not inherit generated technology id from project root`() {
         val repository = InMemoryDocumentRepository(newDocument("Compiler Design"))
         val root = repository.getDocument().rootNodeId
-        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "generic"))
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "compiler-template-set"))
         val compiler = repository.createNode(root, "@Compiler", NodeKind.Processor)
         repository.updateNodeTechnology(compiler.id, TechnologyMetadata(languageId = "kotlin"))
 

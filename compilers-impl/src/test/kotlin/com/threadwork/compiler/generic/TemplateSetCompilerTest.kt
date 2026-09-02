@@ -62,7 +62,7 @@ class TemplateSetCompilerTest {
     fun `generic compiler accepts descriptive override node names`() {
         val repository = InMemoryDocumentRepository(newDocument("Graph Templates"))
         val root = repository.getDocument().rootNodeId
-        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "generic"))
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "compiler-template-set"))
         val declarationTemplate = repository.createNode(root, "@ProcessorDeclaration", NodeKind.Processor)
         repository.updateNodeText(
             declarationTemplate.id,
@@ -81,7 +81,7 @@ class TemplateSetCompilerTest {
     fun `generic compiler assembles composites from graphical layout roles`() {
         val repository = InMemoryDocumentRepository(newDocument("Graph Assembly"))
         val root = repository.getDocument().rootNodeId
-        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "plain", technologyId = "generic", fileExtension = "txt"))
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "plain", technologyId = "compiler-template-set", fileExtension = "txt"))
         repository.requireNode(root).fileLayoutStrategyId = SingleFileLayoutStrategy.id
         fun override(name: String, template: String) {
             val node = repository.createNode(root, name, NodeKind.Processor)
@@ -106,7 +106,7 @@ class TemplateSetCompilerTest {
     fun `generic compiler renders project file templates from the graph`() {
         val repository = InMemoryDocumentRepository(newDocument("Graph Templates"))
         val root = repository.getDocument().rootNodeId
-        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "generic"))
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "javascript", technologyId = "compiler-template-set"))
         val projectFile = repository.createNode(root, "@ProjectFile", NodeKind.Processor)
         projectFile.metadata["path"] = "{{ projectName }}/package.json"
         repository.updateNodeText(
@@ -128,7 +128,7 @@ class TemplateSetCompilerTest {
     fun `generated style compiler applies embedded roles without graph overrides`() {
         val repository = InMemoryDocumentRepository(newDocument("Embedded Templates"))
         val root = repository.getDocument().rootNodeId
-        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "generic"))
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "markdown", technologyId = "compiler-template-set"))
         repository.createNode(root, "worker", NodeKind.Processor)
         val compiler = object : GenericCompiler() {
             override fun templateOverrideFor(key: String): String? =

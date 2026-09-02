@@ -87,7 +87,7 @@ class CCompiler : TemplateSetCompiler() {
     ): Boolean {
         if (node.isLink || node.children.isNotEmpty()) return false
         val technologyId = document.effectiveTechnologyId(node.id).trim()
-        if (technologyId in setOf("filesystem", "file", "generic")) return true
+        if (technologyId == "file-export") return true
         return layoutId == SingleFileLayoutStrategy.id &&
             document.effectiveLanguageId(node.id).trim().lowercase() !in setOf("", "c")
     }

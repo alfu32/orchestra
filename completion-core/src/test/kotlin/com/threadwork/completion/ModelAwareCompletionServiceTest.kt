@@ -158,7 +158,7 @@ class ModelAwareCompletionServiceTest {
                 nodeId = template.id,
                 textSection = NodeTextSection.Declaration,
                 languageId = "kotlin",
-                technologyId = "generic",
+                technologyId = "compiler-template-set",
                 cursorOffset = 0,
                 fullText = "",
                 currentLine = "",

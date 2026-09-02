@@ -82,15 +82,15 @@ internal class CompilerCapabilityResolver(
         val node = document.getElementById(nodeId) ?: return null
         if (node.isLink || node.children.isNotEmpty()) return null
         val technologyId = document.effectiveTechnologyId(nodeId).trim()
-        if (technologyId == "file") return candidates.firstOrNull { it.id == "filesystem" }
+        if (technologyId == "file-export") return candidates.firstOrNull { it.id == "multi-tech" }
         if (document.effectiveLayoutStrategyId(nodeId) != SingleFileLayoutStrategy.id) return null
         val languageId = document.effectiveLanguageId(nodeId).trim()
         val hasDedicatedCompiler = compilerForTechnology(
-            candidates.filterNot { it.id == "filesystem" },
+            candidates.filterNot { it.id == "multi-tech" },
             technologyId,
             languageId,
         ) != null
-        return if (hasDedicatedCompiler) null else candidates.firstOrNull { it.id == "filesystem" }
+        return if (hasDedicatedCompiler) null else candidates.firstOrNull { it.id == "multi-tech" }
     }
 
     private fun compilerSupports(

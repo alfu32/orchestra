@@ -1097,7 +1097,7 @@ class ThreadworkDesktopApp(
     private fun availableTechnologyIds(technologies: List<CompilerTechnology>): List<String> =
         (compilerPlugins.flatMap { it.supportedTechnologyIds } + technologies.map { it.technologyId })
             .map { it.trim() }
-            .filter { it.isNotBlank() && it != VOID_TECHNOLOGY_ID && it != "generic" }
+            .filter { it.isNotBlank() && it != VOID_TECHNOLOGY_ID && it != "compiler-template-set" }
             .distinct()
             .sorted()
 
@@ -6366,8 +6366,8 @@ private class InspectorPanel(
 
     private fun technologyDisplay(id: String): String =
         when (id) {
-            "filesystem" -> "Filesystem Project"
-            "file" -> "Plain File"
+            "multi-tech" -> "multi-tech"
+            "file-export" -> "filesystem-layout"
             CompilerTemplateSetTechnologyId -> "Pebble Template Set"
             else -> id
         }

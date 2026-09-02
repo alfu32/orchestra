@@ -24,8 +24,8 @@ class FilesystemCompilerTest {
             rootId,
             TechnologyMetadata(
                 languageId = "plain",
-                technologyId = "generic",
-                compilerId = "filesystem",
+                technologyId = "multi-tech",
+                compilerId = "multi-tech",
             ),
         )
         repository.updateNodeFileLayoutStrategy(rootId, DirectFileSystemHomorphismLayoutStrategy.id)
@@ -61,7 +61,7 @@ class FilesystemCompilerTest {
         val readme = repository.createNode(rootId, "README.md", NodeKind.Processor)
         repository.updateNodeTechnology(
             readme.id,
-            TechnologyMetadata(languageId = "markdown", technologyId = "file", fileExtension = "md"),
+            TechnologyMetadata(languageId = "markdown", technologyId = "file-export", fileExtension = "md"),
         )
 
         val result = FilesystemCompiler().compile(
@@ -102,7 +102,7 @@ class FilesystemCompilerTest {
         val script = repository.createNode(rootId, "run.sh", NodeKind.Processor)
         repository.updateNodeTechnology(
             script.id,
-            TechnologyMetadata(languageId = "shellscript", technologyId = "filesystem", fileExtension = "sh"),
+            TechnologyMetadata(languageId = "shellscript", technologyId = "file-export", fileExtension = "sh"),
         )
         repository.updateNodeText(script.id, script.text.copy(declaration = "#!/usr/bin/env sh\n./ticker"))
 

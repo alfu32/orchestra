@@ -48,7 +48,7 @@
             },
             "technology": {
                 "languageId": "c",
-                "technologyId": "generic",
+                "technologyId": "compiler-template-set",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""

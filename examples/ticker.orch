@@ -120,7 +120,7 @@
             },
             "technology": {
                 "languageId": "shellscript",
-                "technologyId": "file",
+                "technologyId": "file-export",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -233,11 +233,11 @@
             "layout": {
                 "x": 1277.0,
                 "y": 700.0,
-                "width": 214.0,
+                "width": 314.0,
                 "height": 70.0,
-                "closedWidth": 214.0,
+                "closedWidth": 314.0,
                 "closedHeight": 70.0,
-                "openWidth": 214.0,
+                "openWidth": 314.0,
                 "openHeight": 70.0,
                 "isExpanded": true
             },
@@ -255,8 +255,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "",
-                "technologyId": "",
+                "languageId": "pebble",
+                "technologyId": "compiler-template-set",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -267,7 +267,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-09-02T10:44:24.829515507Z",
+                "date": "2026-09-02T10:54:59.116276974Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -1807,7 +1807,7 @@
             },
             "technology": {
                 "languageId": "shellscript",
-                "technologyId": "file",
+                "technologyId": "file-export",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""

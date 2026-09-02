@@ -77,7 +77,7 @@ class CompilerCapabilityResolverTest {
             ),
         )
 
-        assertEquals("filesystem", resolver.compilerFor(document, script.id)?.id)
+        assertEquals("multi-tech", resolver.compilerFor(document, script.id)?.id)
         assertEquals(setOf(SingleFileLayoutStrategy.id), resolver.supportedLayoutStrategyIds(document, script.id))
     }
 

@@ -27,8 +27,7 @@ open class GenericCompiler : TemplateSetCompiler() {
     override val id: String = "generic-flow-design"
     override val displayName: String = "Pebble Template Set Compiler"
     override val supportedLanguageIds: Set<String> = setOf(ANY_LANGUAGE_ID)
-    // "generic" remains accepted so saved template-set projects continue to load.
-    override val supportedTechnologyIds: Set<String> = setOf("compiler-template-set", "generic")
+    override val supportedTechnologyIds: Set<String> = setOf("compiler-template-set")
     override val providedTechnologies: List<CompilerTechnology> = listOf(
         CompilerTechnology(ANY_LANGUAGE_ID, "compiler-template-set"),
     )
@@ -185,7 +184,7 @@ class $className : GenericCompiler() {
     override val id: String = "${safeCompilerId(root.name)}"
     override val displayName: String = "${root.name.removePrefix("@").ifBlank { className }}"
     override val supportedLanguageIds: Set<String> = setOf("${technology.languageId.ifBlank { ANY_LANGUAGE_ID }}")
-    override val supportedTechnologyIds: Set<String> = setOf("${technology.technologyId.ifBlank { "generic" }}")
+    override val supportedTechnologyIds: Set<String> = setOf("${technology.technologyId.ifBlank { "compiler-template-set" }}")
     override val providedTechnologies: List<CompilerTechnology> = listOf(CompilerTechnology(supportedLanguageIds.first(), supportedTechnologyIds.first()))
 
     override fun supports(document: ThreadworkDocument): Boolean = true
