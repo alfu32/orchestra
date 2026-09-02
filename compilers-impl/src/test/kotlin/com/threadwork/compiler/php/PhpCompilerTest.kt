@@ -5,6 +5,7 @@ import com.threadwork.compiler.api.SingleFileLayoutStrategy
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.NodePort
 import com.threadwork.core.model.PortDirection
+import com.threadwork.core.model.LinkInteractionKinds
 import com.threadwork.core.model.TechnologyMetadata
 import com.threadwork.core.model.TypeDefinition
 import com.threadwork.core.model.TypeFieldDefinition
@@ -22,7 +23,12 @@ class PhpCompilerTest {
         val type = repository.createNode(root, "WorkOrder", NodeKind.Type)
         repository.updateNodeTypeDefinition(
             type.id,
-            TypeDefinition(mutableListOf(TypeFieldDefinition("id", "number"))),
+            TypeDefinition(
+                mutableListOf(
+                    TypeFieldDefinition("id", "number"),
+                    TypeFieldDefinition("enabled", "boolean"),
+                ),
+            ),
         )
         val source = repository.createNode(root, "source", NodeKind.Processor)
         val target = repository.createNode(root, "target", NodeKind.Processor)
@@ -37,7 +43,31 @@ class PhpCompilerTest {
         val generated = requireNotNull(result.generatedProject).files.joinToString("\n") { it.content }
         assertTrue(generated.contains("final class WorkOrder"))
         assertTrue(generated.contains("public float \$id"))
+        assertTrue(generated.contains("public bool \$enabled"))
         assertTrue(generated.contains("transport_orders1(\$orders1_a_port, \$orders1_b_port)"))
+    }
+
+    @Test
+    fun `composite scopes dependency variables globally`() {
+        val repository = InMemoryDocumentRepository(newDocument("Dependency PHP"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "php", technologyId = "php"))
+        val library = repository.createNode(root, "lib_clock", NodeKind.Processor)
+        val worker = repository.createNode(root, "worker", NodeKind.Processor)
+        repository.addPort(library.id, NodePort("service", "service", PortDirection.Output))
+        repository.addPort(worker.id, NodePort("service", "service", PortDirection.Input))
+        val dependency = repository.createLink(root, "clock_service", library.id, "service", worker.id, "service")
+        repository.updateLinkData(
+            dependency.id,
+            requireNotNull(dependency.link).copy(interactionKind = LinkInteractionKinds.Library),
+        )
+
+        val result = PhpCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val generated = requireNotNull(result.generatedProject).files.joinToString("\n") { it.content }
+        assertTrue(generated.contains("\$clock_service1 ="))
+        assertTrue(generated.contains("global \$clock_service1;"))
     }
 
     @Test
