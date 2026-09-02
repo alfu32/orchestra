@@ -84,11 +84,13 @@ class CCompiler : TemplateSetCompiler() {
         document: ThreadworkDocument,
         node: Node,
         layoutId: String = document.effectiveLayoutStrategyId(node.id),
-    ): Boolean =
-        !node.isLink &&
-            node.children.isEmpty() &&
-            layoutId == SingleFileLayoutStrategy.id &&
+    ): Boolean {
+        if (node.isLink || node.children.isNotEmpty()) return false
+        val technologyId = document.effectiveTechnologyId(node.id).trim()
+        if (technologyId in setOf("filesystem", "file", "generic")) return true
+        return layoutId == SingleFileLayoutStrategy.id &&
             document.effectiveLanguageId(node.id).trim().lowercase() !in setOf("", "c")
+    }
 
     override fun codeIntelligence(document: ThreadworkDocument, node: Node): CompilerCodeIntelligence {
         val libraryLinkIds = node.incomingLinks.filter { linkId ->

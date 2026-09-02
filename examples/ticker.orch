@@ -49,7 +49,7 @@
                 "openHeight": 100.0,
                 "isExpanded": true
             },
-            "fileLayoutStrategyId": "none",
+            "fileLayoutStrategyId": "single-file",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -63,8 +63,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "",
-                "technologyId": "",
+                "languageId": "c",
+                "technologyId": "c-native",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -75,7 +75,7 @@
             },
             "responsible": "devlin",
             "modified": {
-                "date": "2026-09-02T09:34:23.254468490Z",
+                "date": "2026-09-02T09:45:54.513193789Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -97,11 +97,11 @@
             "layout": {
                 "x": 551.0,
                 "y": 699.0,
-                "width": 260.0,
+                "width": 274.0,
                 "height": 70.0,
-                "closedWidth": 260.0,
+                "closedWidth": 274.0,
                 "closedHeight": 70.0,
-                "openWidth": 260.0,
+                "openWidth": 274.0,
                 "openHeight": 70.0,
                 "isExpanded": true
             },
@@ -120,7 +120,7 @@
             },
             "technology": {
                 "languageId": "shellscript",
-                "technologyId": "generic",
+                "technologyId": "file",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -131,7 +131,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-09-02T09:07:39.655427310Z",
+                "date": "2026-09-02T09:50:03.685658594Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -231,8 +231,8 @@
             "incomingLinks": [],
             "outgoingLinks": [],
             "layout": {
-                "x": 1172.0,
-                "y": 701.0,
+                "x": 1277.0,
+                "y": 700.0,
                 "width": 214.0,
                 "height": 70.0,
                 "closedWidth": 214.0,
@@ -1097,8 +1097,8 @@
             "children": [],
             "incomingLinks": [],
             "outgoingLinks": [
-                "link_cb8f1b19-7f21-432b-8055-3340b5513424",
                 "link_1db11e5a-fdb1-4f8b-9109-738451e3584a",
+                "link_cb8f1b19-7f21-432b-8055-3340b5513424",
                 "link_d067e588-863d-4938-9881-dc2f07850ecd",
                 "link_6d0edf8c-7c32-452a-ab0d-dd384f8cfffc",
                 "link_2f93c7bf-0dcc-4589-8e80-ad66d57b3862"
@@ -1784,15 +1784,15 @@
             "layout": {
                 "x": 906.0,
                 "y": 700.0,
-                "width": 200.0,
+                "width": 253.0,
                 "height": 70.0,
-                "closedWidth": 200.0,
+                "closedWidth": 253.0,
                 "closedHeight": 70.0,
-                "openWidth": 200.0,
+                "openWidth": 253.0,
                 "openHeight": 70.0,
                 "isExpanded": true
             },
-            "fileLayoutStrategyId": "none",
+            "fileLayoutStrategyId": "single-file",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -1806,8 +1806,8 @@
                 "aiInstructionsLanguageId": "markdown"
             },
             "technology": {
-                "languageId": "",
-                "technologyId": "",
+                "languageId": "markdown",
+                "technologyId": "filesystem",
                 "compilerId": "",
                 "fileExtension": "",
                 "contentType": ""
@@ -1818,7 +1818,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-09-02T09:34:33.648096551Z",
+                "date": "2026-09-02T09:48:19.158533955Z",
                 "user": "devlin"
             },
             "ports": [],

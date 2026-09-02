@@ -95,9 +95,8 @@ class FilesystemCompilerTest {
         val script = repository.createNode(rootId, "run.sh", NodeKind.Processor)
         repository.updateNodeTechnology(
             script.id,
-            TechnologyMetadata(languageId = "shellscript", technologyId = "bash", fileExtension = "sh"),
+            TechnologyMetadata(languageId = "shellscript", technologyId = "filesystem", fileExtension = "sh"),
         )
-        repository.updateNodeFileLayoutStrategy(script.id, SingleFileLayoutStrategy.id)
         repository.updateNodeText(script.id, script.text.copy(declaration = "#!/usr/bin/env sh\n./ticker"))
 
         assertTrue(FilesystemCompiler.shouldAggregate(repository.getDocument()))

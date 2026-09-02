@@ -51,11 +51,15 @@ class FilesystemCompiler : GenericCompiler() {
             if (document.effectiveLayoutStrategyId(root.id) == DirectFileSystemHomorphismLayoutStrategy.id) return true
             val rootLanguage = document.effectiveLanguageId(root.id).trim()
             return document.nodes.values.any { node ->
+                val technologyId = document.effectiveTechnologyId(node.id).trim()
                 !node.isLink &&
                     node.children.isEmpty() &&
-                    document.effectiveLayoutStrategyId(node.id) == SingleFileLayoutStrategy.id &&
-                    document.effectiveLanguageId(node.id).trim().isNotBlank() &&
-                    document.effectiveLanguageId(node.id).trim() != rootLanguage
+                    (
+                        technologyId in setOf("filesystem", "file", "generic") ||
+                            document.effectiveLayoutStrategyId(node.id) == SingleFileLayoutStrategy.id &&
+                                document.effectiveLanguageId(node.id).trim().isNotBlank() &&
+                                document.effectiveLanguageId(node.id).trim() != rootLanguage
+                    )
             }
         }
     }
@@ -105,18 +109,22 @@ class FilesystemCompiler : GenericCompiler() {
     private fun literalFallbackFiles(document: ThreadworkDocument): List<GeneratedFile> =
         document.nodes.values.mapNotNull { node ->
             val source = node.text.declaration.ifBlank { node.text.specification }
+            val technologyId = document.effectiveTechnologyId(node.id).trim()
             val isForeignStandaloneFile =
                 !node.isLink &&
                     node.children.isEmpty() &&
                     source.isNotBlank() &&
-                    document.effectiveLayoutStrategyId(node.id) == SingleFileLayoutStrategy.id &&
-                    document.effectiveTechnologyId(node.id) !in setOf("c-native", "kotlin-jvm", "nodejs", "php")
+                    (
+                        technologyId in setOf("filesystem", "file", "generic") ||
+                            document.effectiveLayoutStrategyId(node.id) == SingleFileLayoutStrategy.id &&
+                                technologyId !in setOf("c-native", "kotlin-jvm", "nodejs", "php")
+                    )
             if (!isForeignStandaloneFile) return@mapNotNull null
             GeneratedFile(
                 path = literalFilePath(document, node),
                 content = source,
                 originNodeId = node.id,
-                reason = "Literal fallback file for unsupported technology '${document.effectiveTechnologyId(node.id)}'",
+                reason = "Literal fallback file for technology '$technologyId'",
                 elementKind = GeneratedElementKind.StaticFile,
             )
         }
