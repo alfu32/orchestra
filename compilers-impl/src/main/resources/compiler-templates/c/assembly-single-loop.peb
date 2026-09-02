@@ -25,14 +25,6 @@
 {% if isCompilationRoot %}
 
 
-static volatile sig_atomic_t running = 1;
-
-static void handle_signal(int sig)
-{
-    (void)sig;
-    running = 0;
-}
-
 int main(void)
 {
     threadwork_context context;
@@ -41,20 +33,22 @@ int main(void)
     if (threadwork_context_init(&context) != THREADWORK_OK) {
         return EXIT_FAILURE;
     }
-    struct sigaction sa = {
-        .sa_handler = handle_signal,
-        .sa_flags = 0
-    };
-
-    sigemptyset(&sa.sa_mask);
-
-    sigaction(SIGINT,  &sa, NULL);   // Ctrl-C
-    sigaction(SIGTERM, &sa, NULL);   // kill / systemd stop
-
-    while (running) {
+    status = threadwork_install_shutdown_signal_handlers();
+    if (status == THREADWORK_OK) {
         status = tw_{{ initializerSymbol }}(&context);
-        if (status == THREADWORK_OK) {
+    }
+
+    while (status == THREADWORK_OK && threadwork_running) {
+        status = tw_{{ runSymbol }}(&context);
+    }
+
+    if (status == THREADWORK_OK) {
+        threadwork_network_shutdown_begin(10U);
+        while (threadwork_network_has_recent_transit()) {
             status = tw_{{ runSymbol }}(&context);
+            if (status != THREADWORK_OK) {
+                break;
+            }
         }
     }
 

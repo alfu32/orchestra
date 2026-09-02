@@ -78,6 +78,25 @@ class TemplateSetCompilerTest {
     }
 
     @Test
+    fun `compiler template overrides can come from the source editor`() {
+        val repository = InMemoryDocumentRepository(newDocument("Source Templates"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "plain", technologyId = "compiler-template-set"))
+        val declarationTemplate = repository.createNode(root, "@ProcessorDeclaration", NodeKind.Processor)
+        repository.updateNodeText(
+            declarationTemplate.id,
+            declarationTemplate.text.copy(declaration = "source-template {{ node.name }}"),
+        )
+        repository.createNode(root, "worker", NodeKind.Processor)
+
+        val result = GenericCompiler().compile(repository.getDocument())
+
+        assertTrue(result.success)
+        val project = assertNotNull(result.generatedProject)
+        assertTrue(project.files.any { it.content == "source-template worker" })
+    }
+
+    @Test
     fun `generic compiler assembles composites from graphical layout roles`() {
         val repository = InMemoryDocumentRepository(newDocument("Graph Assembly"))
         val root = repository.getDocument().rootNodeId

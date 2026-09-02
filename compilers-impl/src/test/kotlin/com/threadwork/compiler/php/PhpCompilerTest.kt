@@ -1,6 +1,7 @@
 package com.threadwork.compiler.php
 
 import com.threadwork.compiler.api.CompilerOptions
+import com.threadwork.compiler.api.CompilerCodeSymbolKind
 import com.threadwork.compiler.api.SingleFileLayoutStrategy
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.NodePort
@@ -116,5 +117,75 @@ class PhpCompilerTest {
         assertTrue(generated.contains("transport_input_record1(\$input_record1_a_port, \$input_record1_b_port);"))
         assertTrue(generated.contains("threadwork_record_transit()"))
         assertTrue(generated.contains("threadwork_network_has_recent_transit()"))
+    }
+
+    @Test
+    fun `PHP code intelligence exposes generated PHP scope and runtime names`() {
+        val repository = InMemoryDocumentRepository(newDocument("PHP completion"))
+        val root = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "php", technologyId = "php"))
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val worker = repository.createNode(root, "worker", NodeKind.Processor)
+        val sink = repository.createNode(root, "sink", NodeKind.Processor)
+        val library = repository.createNode(root, "library", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "packet", PortDirection.Output))
+        repository.addPort(source.id, NodePort("source", "artifact", PortDirection.Output))
+        repository.addPort(worker.id, NodePort("in", "packet", PortDirection.Input))
+        repository.addPort(worker.id, NodePort("out", "result", PortDirection.Output))
+        repository.addPort(worker.id, NodePort("source", "artifact", PortDirection.Input))
+        repository.addPort(sink.id, NodePort("in", "result", PortDirection.Input))
+        repository.addPort(library.id, NodePort("service", "service", PortDirection.Output))
+        repository.addPort(worker.id, NodePort("service", "service", PortDirection.Input))
+        repository.createLink(root, "incoming_packet", source.id, "packet", worker.id, "packet")
+        repository.createLink(root, "outgoing_result", worker.id, "result", sink.id, "result")
+        val sourceCapability = repository.createLink(root, "page_source", source.id, "artifact", worker.id, "artifact")
+        repository.updateLinkData(
+            sourceCapability.id,
+            requireNotNull(sourceCapability.link).copy(interactionKind = LinkInteractionKinds.Source),
+        )
+        val service = repository.createLink(root, "clock_service", library.id, "service", worker.id, "service")
+        repository.updateLinkData(
+            service.id,
+            requireNotNull(service.link).copy(interactionKind = LinkInteractionKinds.Library),
+        )
+
+        val compiler = PhpCompiler()
+        val intelligence = compiler.codeIntelligence(repository.getDocument(), worker)
+
+        assertTrue(intelligence.symbols.any {
+            it.name == "\$incoming_packet" && it.kind == CompilerCodeSymbolKind.InputBuffer
+        })
+        assertTrue(intelligence.symbols.any {
+            it.name == "\$outgoing_result" && it.kind == CompilerCodeSymbolKind.OutputBuffer
+        })
+        assertTrue(intelligence.symbols.any {
+            it.name == "\$clock_service" && it.kind == CompilerCodeSymbolKind.ServiceInstance
+        })
+        assertTrue(intelligence.symbols.any {
+            it.name == "\$page_source" &&
+                it.kind == CompilerCodeSymbolKind.SourceCapability &&
+                it.members.any { member -> member.name == "\$page_source->getSource(parameters)" }
+        })
+        assertTrue(intelligence.symbols.any {
+            it.name == "\$context" && it.kind == CompilerCodeSymbolKind.RuntimeSymbol
+        })
+        assertTrue(intelligence.symbols.any {
+            it.name == "\$GLOBALS['threadwork_running']" && it.kind == CompilerCodeSymbolKind.RuntimeSymbol
+        })
+        assertTrue(intelligence.symbols.any {
+            it.name == "threadwork_network_has_recent_transit" && it.kind == CompilerCodeSymbolKind.RuntimeSymbol
+        })
+        assertTrue(
+            compiler.generatedFunctionHeader(
+                repository.getDocument(),
+                worker,
+                com.threadwork.core.model.NodeTextSection.Declaration,
+            ).contains("array &\$incoming_packet") &&
+                compiler.generatedFunctionHeader(
+                    repository.getDocument(),
+                    worker,
+                    com.threadwork.core.model.NodeTextSection.Declaration,
+                ).contains("mixed \$clock_service"),
+        )
     }
 }

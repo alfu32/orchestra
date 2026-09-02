@@ -35,6 +35,11 @@ void threadwork_shutdown_request(void)
 
 void threadwork_network_shutdown_begin(unsigned int idle_ticks)
 {
+    printf(
+        "[threadwork_network_shutdown_begin] transit=%llu idle_ticks=%u\n",
+        threadwork_transit,
+        idle_ticks
+    );
     threadwork_shutdown_previous_transit = threadwork_transit;
     threadwork_shutdown_idle_ticks = idle_ticks;
     threadwork_shutdown_remaining_ticks = idle_ticks;
@@ -42,15 +47,31 @@ void threadwork_network_shutdown_begin(unsigned int idle_ticks)
 
 int threadwork_network_has_recent_transit(void)
 {
+    printf(
+        "[threadwork_network_has_recent_transit] transit=%llu previous=%llu remaining=%u\n",
+        threadwork_transit,
+        threadwork_shutdown_previous_transit,
+        threadwork_shutdown_remaining_ticks
+    );
     if (threadwork_transit != threadwork_shutdown_previous_transit) {
+        printf(
+            "[threadwork_network_has_recent_transit] transit detected, resetting drain window\n"
+        );
         threadwork_shutdown_previous_transit = threadwork_transit;
         threadwork_shutdown_remaining_ticks = threadwork_shutdown_idle_ticks;
         return 1;
     }
     if (threadwork_shutdown_remaining_ticks == 0U) {
+        printf(
+            "[threadwork_network_has_recent_transit] idle window complete\n"
+        );
         return 0;
     }
     threadwork_shutdown_remaining_ticks--;
+    printf(
+        "[threadwork_network_has_recent_transit] draining, remaining=%u\n",
+        threadwork_shutdown_remaining_ticks
+    );
     return 1;
 }
 
