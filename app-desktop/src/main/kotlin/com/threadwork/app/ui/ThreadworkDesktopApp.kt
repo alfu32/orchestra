@@ -1200,10 +1200,21 @@ class ThreadworkDesktopApp(
             scopeNodeIds = scopedSelection,
             compilerPlugins = compilerPlugins,
         )
-        val result = compiler.compile(
-            document,
-            options,
-        )
+        val result = runCatching {
+            compiler.compile(
+                document,
+                options,
+            )
+        }.getOrElse { error ->
+            JOptionPane.showMessageDialog(
+                frame,
+                error.message ?: "The compiler could not parse a project template.",
+                "Compile",
+                JOptionPane.ERROR_MESSAGE,
+            )
+            status.text = "Compilation failed with ${compiler.displayName}"
+            return
+        }
         val diagnostics = result.diagnostics.joinToString(separator = "\n") { "${it.severity}: ${it.message}" }
         val generatedProject = result.generatedProject
         if (!result.success || generatedProject == null || result.diagnostics.any { it.severity == DiagnosticSeverity.Error }) {
