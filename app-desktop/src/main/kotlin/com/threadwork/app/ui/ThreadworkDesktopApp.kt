@@ -14,6 +14,7 @@ import com.threadwork.app.ai.AiSupportProviders
 import com.threadwork.app.ai.AiSupportTask
 import com.threadwork.Version
 import com.threadwork.compiler.api.CompilerOptions
+import com.threadwork.compiler.api.writeSourceMapBeside
 import com.threadwork.compiler.api.CompilerPlugin
 import com.threadwork.compiler.api.CompilerCodeSymbolKind
 import com.threadwork.compiler.api.GeneratedFile
@@ -283,6 +284,7 @@ class ThreadworkDesktopApp(
     }
     private val embeddedSourceValidators: List<EmbeddedSourceValidator> = listOf(TinyCcSourceValidator)
     private var nativeValidationGeneration = 0L
+    private var pendingValidationNodeId: NodeId? = null
     private var pendingValidationLanguageId: String? = null
     private val nativeValidationTimer = Timer(700) { runEmbeddedValidation() }.apply {
         isRepeats = false
@@ -1201,15 +1203,18 @@ class ThreadworkDesktopApp(
      * idle.  The actual compiler run is isolated from Swing and stale results
      * are ignored when a newer edit has since been made.
      */
-    private fun scheduleEmbeddedValidation(languageId: String) {
-        if (embeddedSourceValidators.none { languageId in it.languageIds }) return
+    private fun scheduleEmbeddedValidation(nodeId: NodeId, languageId: String) {
+        val normalizedLanguageId = languageId.trim().lowercase()
+        if (embeddedSourceValidators.none { normalizedLanguageId in it.languageIds }) return
         nativeValidationGeneration++
-        pendingValidationLanguageId = languageId
+        pendingValidationNodeId = nodeId
+        pendingValidationLanguageId = normalizedLanguageId
         nativeValidationTimer.restart()
     }
 
     private fun runEmbeddedValidation() {
         val generation = nativeValidationGeneration
+        val nodeId = pendingValidationNodeId ?: return
         val languageId = pendingValidationLanguageId ?: return
         val validator = embeddedSourceValidators.firstOrNull { languageId in it.languageIds } ?: return
         val snapshot = documentSnapshot()
@@ -1226,6 +1231,7 @@ class ThreadworkDesktopApp(
                     document,
                     CompilerOptions(
                         projectName = document.projectName(),
+                        scopeNodeIds = nativeValidationScope(document, nodeId),
                         compilerPlugins = compilerPlugins,
                     ),
                 )
@@ -1238,7 +1244,18 @@ class ThreadworkDesktopApp(
                     }
                     ?.flatMap(validator::validate)
                     .orEmpty()
-            }.getOrElse { emptyList() }
+            }.getOrElse { error ->
+                listOf(
+                    Diagnostic(
+                        severity = DiagnosticSeverity.Error,
+                        message = error.message ?: "Could not generate ${languageId.uppercase()} source for embedded validation.",
+                        nodeId = nodeId,
+                        textSection = NodeTextSection.Declaration,
+                        line = 1,
+                        sourcePluginId = "embedded-validator",
+                    ),
+                )
+            }
             SwingUtilities.invokeLater {
                 if (generation != nativeValidationGeneration) return@invokeLater
                 editorTabs.applyNativeDiagnostics(diagnostics.groupBy { it.nodeId })
@@ -1249,6 +1266,35 @@ class ThreadworkDesktopApp(
                 }
             }
         }
+    }
+
+    /**
+     * Native validation needs the edited node's executable neighborhood, not
+     * every unrelated branch in the document. The compiler expands this seed
+     * with composite ancestry, child declarations, transport links, and types.
+     */
+    private fun nativeValidationScope(document: ThreadworkDocument, editedNodeId: NodeId): Set<NodeId> {
+        val scope = linkedSetOf<NodeId>()
+        val pending = ArrayDeque<NodeId>()
+
+        fun include(nodeId: NodeId) {
+            if (nodeId !in scope) pending += nodeId
+        }
+
+        include(editedNodeId)
+        while (pending.isNotEmpty()) {
+            val node = document.getElementById(pending.removeFirst()) ?: continue
+            if (!scope.add(node.id)) continue
+            if (node.isLink) {
+                node.link?.let { link ->
+                    include(link.sourceNodeId)
+                    include(link.targetNodeId)
+                }
+            } else {
+                (node.incomingLinks + node.outgoingLinks).forEach(::include)
+            }
+        }
+        return scope
     }
 
     private fun compileProject() {
@@ -1305,7 +1351,10 @@ class ThreadworkDesktopApp(
         runCatching {
             if (singleFile) {
                 output.parent?.let(Files::createDirectories)
-                Files.writeString(output, generatedProject.files.single().content)
+                generatedProject.files.single().let { file ->
+                    Files.writeString(output, file.content)
+                    file.writeSourceMapBeside(output)
+                }
             } else {
                 Files.createDirectories(output)
                 generatedProject.writeTo(output)
@@ -6403,7 +6452,7 @@ private class NodeEditorTabs(
     private val redoDocument: () -> Unit,
     private val languageIds: List<String>,
     private val compilerCapabilityResolver: CompilerCapabilityResolver,
-    private val requestNativeValidation: (String) -> Unit,
+    private val requestNativeValidation: (NodeId, String) -> Unit,
 ) : JTabbedPane() {
     private var boundIds: List<NodeId> = emptyList()
     private var activePalette: DesignerPalette = ThreadworkAppearance.palette()
@@ -6494,7 +6543,7 @@ private class NodeTextEditor(
     languageIds: List<String>,
     private val compilerCapabilityResolver: CompilerCapabilityResolver,
     initialPalette: DesignerPalette,
-    private val requestNativeValidation: (String) -> Unit,
+    private val requestNativeValidation: (NodeId, String) -> Unit,
 ) : JTabbedPane() {
     private val completionService = ModelAwareCompletionService(
         documentProvider = repository::getDocument,
@@ -6710,19 +6759,19 @@ private class NodeTextEditor(
         timer.isRepeats = false
         editor.onTextChanged = {
             timer.restart()
-            requestNativeValidation(effectiveTextLanguage(spec.section))
+            requestNativeValidation(nodeId, effectiveTextLanguage(spec.section))
         }
         editor.onUndoRequested = {
             timer.stop()
             saveNow()
             undoDocument()
-            requestNativeValidation(effectiveTextLanguage(spec.section))
+            requestNativeValidation(nodeId, effectiveTextLanguage(spec.section))
         }
         editor.onRedoRequested = {
             timer.stop()
             saveNow()
             redoDocument()
-            requestNativeValidation(effectiveTextLanguage(spec.section))
+            requestNativeValidation(nodeId, effectiveTextLanguage(spec.section))
         }
         languageSelector.addActionListener {
             if (binding) return@addActionListener

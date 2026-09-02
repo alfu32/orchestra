@@ -316,7 +316,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         for (row in 0 until visibleRows) {
             val visualRow = visualRows.getOrNull(scrollVisualRow + row) ?: break
             val baseline = row * lineHeight + metrics.ascent
-            drawLineBackground(bodyGraphics, visualRow, row, lineHeight, gutterWidth, visualRows)
+            drawLineBackground(bodyGraphics, visualRow, row, lineHeight, charWidth, gutterWidth, visualRows)
             drawSelection(bodyGraphics, visualRow, row, lineHeight, charWidth, gutterWidth)
             drawHighlightedLine(bodyGraphics, lines[visualRow.lineIndex], visualRow, gutterWidth, baseline, charWidth)
             drawDiagnostics(bodyGraphics, visualRow, row, lineHeight, gutterWidth, charWidth)
@@ -774,6 +774,16 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         for (row in 0 until visibleRows) {
             val visualRow = visualRows.getOrNull(scrollVisualRow + row) ?: break
             if (visualRow.startColumn != 0) continue
+            diagnostics.firstOrNull { it.line == visualRow.lineIndex + 1 }?.let { diagnostic ->
+                g2.color = when (diagnostic.severity) {
+                    DiagnosticSeverity.Error -> Color(0xff5555)
+                    DiagnosticSeverity.Warning -> Color(0xd7ba7d)
+                    DiagnosticSeverity.Info -> Color(0x75beff)
+                }
+                val markerSize = (lineHeight / 2).coerceAtLeast(6)
+                g2.fillOval(4, row * lineHeight + (lineHeight - markerSize) / 2, markerSize, markerSize)
+                g2.color = Color(0x858585)
+            }
             val label = (visualRow.lineIndex + 1).toString().padStart((lines.size + 1).toString().length)
             g2.drawString(label, charWidth, row * lineHeight + metrics.ascent)
         }
@@ -786,11 +796,25 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         visualRow: VisualRow,
         row: Int,
         lineHeight: Int,
+        charWidth: Int,
         gutterWidth: Int,
         visualRows: List<VisualRow>,
     ) {
+        diagnostics.firstOrNull { it.line == visualRow.lineIndex + 1 }?.let { diagnostic ->
+            val diagnosticColumn = (diagnostic.column ?: 1).coerceAtLeast(1) - 1
+            if (diagnosticColumn < visualRow.endColumn) {
+                val startColumn = max(diagnosticColumn, visualRow.startColumn)
+                val startX = gutterWidth + (startColumn - visualRow.startColumn) * charWidth
+                g2.color = when (diagnostic.severity) {
+                    DiagnosticSeverity.Error -> Color(0x24ff5555, true)
+                    DiagnosticSeverity.Warning -> Color(0x24d7ba7d, true)
+                    DiagnosticSeverity.Info -> Color(0x2475beff, true)
+                }
+                g2.fillRect(startX, row * lineHeight, width - startX, lineHeight)
+            }
+        }
         if (visualRows.indexOfCaret(caret) == scrollVisualRow + row) {
-            g2.color = Color(0x282828)
+            g2.color = Color(0x50282828, true)
             g2.fillRect(gutterWidth, row * lineHeight, width - gutterWidth, lineHeight)
         }
     }

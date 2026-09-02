@@ -14,6 +14,7 @@ import com.threadwork.core.model.getElementById
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 
 data class VirtualFile(
     var path: String,
@@ -30,7 +31,47 @@ fun GeneratedFile.toVirtualFile(): VirtualFile =
     VirtualFile(path, content)
 
 fun GeneratedProject.toVirtualFiles(): List<VirtualFile> =
-    files.map { it.toVirtualFile() }
+    files.flatMap { file ->
+        buildList {
+            add(file.toVirtualFile())
+            file.sourceMapVirtualFile()?.let(::add)
+        }
+    }
+
+/**
+ * Serializes the source locations attached to generated source as an explicit
+ * sidecar. Keeping it beside the source makes it usable by external build and
+ * analysis tools without changing the generated program itself.
+ */
+fun GeneratedFile.sourceMapVirtualFile(): VirtualFile? {
+    val map = sourceMap.takeIf { it.entries.isNotEmpty() } ?: return null
+    return VirtualFile("$path.map.json", map.toJson(path))
+}
+
+/** Writes this generated file's source map beside an explicitly selected source path. */
+fun GeneratedFile.writeSourceMapBeside(sourcePath: Path) {
+    val content = sourceMap.takeIf { it.entries.isNotEmpty() }?.toJson(sourcePath.fileName.toString()) ?: return
+    Files.writeString(sourcePath.resolveSibling("${sourcePath.fileName}.map.json"), content)
+}
+
+private fun GeneratedSourceMap.toJson(generatedPath: String): String = buildString {
+    appendLine("{")
+    appendLine("  \"format\": \"threadwork-source-map-v1\",")
+    appendLine("  \"generatedFile\": ${generatedPath.jsonString()},")
+    appendLine("  \"entries\": [")
+    entries.forEachIndexed { index, entry ->
+        append("    { \"generatedLine\": ${entry.generatedLine}, ")
+        append("\"nodeId\": ${entry.nodeId.value.jsonString()}, ")
+        append("\"textSection\": ${entry.textSection.name.jsonString()}, ")
+        append("\"sourceLine\": ${entry.sourceLine}, ")
+        append("\"generatedColumnOffset\": ${entry.generatedColumnOffset} }")
+        appendLine(if (index == entries.lastIndex) "" else ",")
+    }
+    appendLine("  ]")
+    appendLine("}")
+}
+
+private fun String.jsonString(): String = JsonPrimitive(this).toString()
 
 fun VirtualFile.toGeneratedFile(
     originNodeId: NodeId? = null,
