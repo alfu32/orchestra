@@ -3,8 +3,10 @@ package com.threadwork.app.ui
 import com.threadwork.compiler.api.GeneratedFile
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.diagnostics.DiagnosticSeverity
+import com.threadwork.core.model.NodeId
 import org.tinycc.TinyCC
 import java.nio.file.Files
+import kotlin.math.max
 
 /** Maps TinyCC's in-memory source diagnostics back through a generated-file source map. */
 internal object TinyCcSourceValidator : EmbeddedSourceValidator {
@@ -14,7 +16,8 @@ internal object TinyCcSourceValidator : EmbeddedSourceValidator {
         """:\s*(\d+)(?::\s*(\d+))?:\s*(?:(warning|error|fatal error):\s*)?(.*)$""",
         RegexOption.IGNORE_CASE,
     )
-    private const val maximumRecoveryPasses = 32
+    private const val diagnosticsPerNode = 2
+    private const val minimumRecoveryPasses = 16
 
     private data class ValidationPass(
         val exitCode: Int,
@@ -31,19 +34,40 @@ internal object TinyCcSourceValidator : EmbeddedSourceValidator {
             val diagnostics = linkedMapOf<String, EmbeddedDiagnostic>()
             var validationContent = file.content
             val suppressedLines = linkedSetOf<Int>()
+            val recordedErrorsByNode = mutableMapOf<NodeId?, Int>()
 
-            repeat(maximumRecoveryPasses) {
+            repeat(recoveryPassLimit(file)) {
                 val pass = compilePass(validationContent, output)
                 val passDiagnostics = pass.messages.flatMap { message -> mapDiagnostic(file, message) }
                 passDiagnostics.forEach { diagnostic ->
-                    diagnostics.putIfAbsent(diagnosticKey(diagnostic), diagnostic)
+                    if (diagnostic.diagnostic.severity != DiagnosticSeverity.Error) {
+                        diagnostics.putIfAbsent(diagnosticKey(diagnostic), diagnostic)
+                        return@forEach
+                    }
+                    val nodeId = diagnostic.diagnostic.nodeId
+                    val count = recordedErrorsByNode[nodeId] ?: 0
+                    if (count < diagnosticsPerNode && diagnostics.putIfAbsent(diagnosticKey(diagnostic), diagnostic) == null) {
+                        recordedErrorsByNode[nodeId] = count + 1
+                    }
                 }
                 if (pass.exitCode == 0) return diagnostics.values.toList()
 
                 val newlySuppressed = passDiagnostics
                     .filter { it.diagnostic.severity == DiagnosticSeverity.Error }
                     .mapNotNull(EmbeddedDiagnostic::generatedLine)
-                    .filter(suppressedLines::add)
+                    .toMutableSet()
+                recordedErrorsByNode
+                    .filterValues { it >= diagnosticsPerNode }
+                    .keys
+                    .filterNotNull()
+                    .forEach { exhaustedNodeId ->
+                        file.sourceMap.entries
+                            .asSequence()
+                            .filter { it.nodeId == exhaustedNodeId }
+                            .mapTo(newlySuppressed) { it.generatedLine }
+                    }
+                newlySuppressed.removeAll(suppressedLines)
+                suppressedLines += newlySuppressed
                 if (newlySuppressed.isEmpty()) {
                     if (diagnostics.isEmpty()) diagnostics["fallback"] = fallbackDiagnostic(file, pass.messages)
                     return diagnostics.values.toList()
@@ -72,11 +96,16 @@ internal object TinyCcSourceValidator : EmbeddedSourceValidator {
         return ValidationPass(exitCode, messages)
     }
 
-    private fun suppressGeneratedLines(content: String, generatedLines: List<Int>): String {
+    private fun suppressGeneratedLines(content: String, generatedLines: Iterable<Int>): String {
         val suppressed = generatedLines.toSet()
         return content.lines().mapIndexed { index, line ->
             if (index + 1 in suppressed) "; /* Threadwork validator recovery */" else line
         }.joinToString("\n")
+    }
+
+    private fun recoveryPassLimit(file: GeneratedFile): Int {
+        val mappedNodeCount = file.sourceMap.entries.map { it.nodeId }.toSet().size
+        return max(minimumRecoveryPasses, mappedNodeCount * diagnosticsPerNode * 2)
     }
 
     private fun diagnosticKey(diagnostic: EmbeddedDiagnostic): String = listOf(

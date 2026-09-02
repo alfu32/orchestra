@@ -70,7 +70,6 @@ additionally the body should be structured as folows:
 - summary of what was asked/demande
 - summary of the solution or answer
 - bulleted list of technical/functional modifications or planning steps ( what you print out by default in the summary )
-- 
 
 
 

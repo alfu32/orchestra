@@ -39,7 +39,7 @@ class TinyCcSourceValidatorTest {
     }
 
     @Test
-    fun `TinyCC validation recovers after its per-pass error limit`() {
+    fun `TinyCC validation reports errors across nodes after its per-pass error limit`() {
         val file = GeneratedFile(
             path = "generated.c",
             content = """
@@ -54,15 +54,17 @@ class TinyCcSourceValidatorTest {
             reason = "test",
             sourceMap = GeneratedSourceMap(
                 listOf(
-                    GeneratedSourceMapEntry(2, NodeId("worker"), NodeTextSection.Declaration, 2),
-                    GeneratedSourceMapEntry(3, NodeId("worker"), NodeTextSection.Declaration, 3),
-                    GeneratedSourceMapEntry(4, NodeId("worker"), NodeTextSection.Declaration, 4),
+                    GeneratedSourceMapEntry(2, NodeId("first"), NodeTextSection.Declaration, 2),
+                    GeneratedSourceMapEntry(3, NodeId("first"), NodeTextSection.Declaration, 3),
+                    GeneratedSourceMapEntry(4, NodeId("second"), NodeTextSection.Declaration, 2),
+                    GeneratedSourceMapEntry(5, NodeId("second"), NodeTextSection.Declaration, 3),
                 ),
             ),
         )
 
         val diagnostics = TinyCcSourceValidator.validate(file)
 
-        assertEquals(setOf(2, 3, 4), diagnostics.mapNotNull { it.line }.toSet())
+        assertEquals(setOf(NodeId("first"), NodeId("second")), diagnostics.mapNotNull { it.nodeId }.toSet())
+        assertTrue(diagnostics.groupBy { it.nodeId }.values.all { it.size <= 2 })
     }
 }
