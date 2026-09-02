@@ -66,7 +66,13 @@ All commits must follow the Commitizen / Conventional Commits standard using the
 * **`<subject>`**: A brief, imperative-mood summary of the change. Do not capitalize the first letter. Do not end with a period.
 * **`<body>`**: Optional. Separate from the subject with exactly one blank line. Provides the motivation for the change and contrasts it with previous behavior.
 
-additionally the body should be structured the way you usually do structure the response summary at the end of a work pass ( bulleted points usually) but id also put before in brief what exactly the demand (s) was(were)
+additionally the body should be structured as folows:
+- summary of what was asked/demande
+- summary of the solution or answer
+- bulleted list of technical/functional modifications or planning steps ( what you print out by default in the summary )
+- 
+
+
 
 ### Examples
 

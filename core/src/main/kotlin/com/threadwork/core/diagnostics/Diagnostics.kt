@@ -2,7 +2,9 @@ package com.threadwork.core.diagnostics
 
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.NodeTextSection
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class Diagnostic(
     val severity: DiagnosticSeverity,
     val message: String,
@@ -13,6 +15,7 @@ data class Diagnostic(
     val sourcePluginId: String? = null,
 )
 
+@Serializable
 enum class DiagnosticSeverity {
     Info,
     Warning,
