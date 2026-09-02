@@ -9,3 +9,19 @@
 {{ linkDeclarations }}
 {% endif %}
 {{ ownDeclaration }}
+{% if isCompilationRoot %}
+function threadwork_run(): void
+{
+    $context = createRuntimeContext();
+    threadwork_install_shutdown_handlers();
+    {{ initializerSymbol }}($context);
+    {{ runSymbol }}($context);
+    threadwork_network_shutdown_begin(10);
+    threadwork_shutdown_request();
+    while (threadwork_network_has_recent_transit()) {
+        {{ runSymbol }}($context);
+    }
+}
+
+if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) threadwork_run();
+{% endif %}

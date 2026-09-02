@@ -276,12 +276,15 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
                 )
             }
 
-            "javascript", "typescript", "php" -> listOf(
-                generatedFunction(
-                    safeIdentifier(node.name, preserveCase = true),
-                    "generated child execution function",
-                ),
-            )
+            "javascript", "typescript", "php" -> {
+                val symbol = safeIdentifier(node.name, preserveCase = true)
+                val indexedSymbol = indexedNodeSymbol(document, node)
+                listOf(
+                    generatedFunction("init_$indexedSymbol", "generated child initialization function"),
+                    generatedFunction("run_$indexedSymbol", "generated child execution function"),
+                    generatedFunction(symbol, "compatibility facade for generated child execution"),
+                )
+            }
 
             else -> emptyList()
         }
@@ -837,6 +840,7 @@ private fun artifactView(context: NodeCompilerContext, artifact: CompiledNodeArt
         "relativePath" to artifact.primaryFile?.let { relativePath(context.primaryPath(), it.path) }.orEmpty(),
         "relativeModulePath" to artifact.primaryFile?.let { relativeModulePath(context.primaryPath(), it.path, context.extension) }.orEmpty(),
         "isInline" to (artifact.layoutStrategy.id == SingleFileLayoutStrategy.id),
+        "isCapabilityOnlyProvider" to (outgoing.isNotEmpty() && outgoing.all(::isCapabilityDescriptor)),
         "incomingDataLinks" to incoming.filterNot(::isCapabilityDescriptor),
         "outgoingDataLinks" to outgoing.filterNot(::isCapabilityDescriptor),
         "capabilityLinks" to incoming.filter(::isCapabilityDescriptor),

@@ -4,13 +4,56 @@ class RuntimeContext {
     val imports: MutableMap<String, Any?> = mutableMapOf()
 }
 
+@Volatile
+var threadworkRunning = true
+
+var threadworkTransit = 0UL
+private var threadworkShutdownPreviousTransit = 0UL
+private var threadworkShutdownIdleTicks = 0U
+private var threadworkShutdownRemainingTicks = 0U
+
+fun threadworkInstallShutdownHook() {
+    Runtime.getRuntime().addShutdownHook(Thread { threadworkRunning = false })
+}
+
+fun threadworkShutdownRequest() {
+    threadworkRunning = false
+}
+
+fun threadworkRecordTransit() {
+    threadworkTransit++
+}
+
+fun threadworkNetworkShutdownBegin(idleTicks: UInt) {
+    threadworkShutdownPreviousTransit = threadworkTransit
+    threadworkShutdownIdleTicks = idleTicks
+    threadworkShutdownRemainingTicks = idleTicks
+}
+
+fun threadworkNetworkHasRecentTransit(): Boolean {
+    if (threadworkTransit != threadworkShutdownPreviousTransit) {
+        threadworkShutdownPreviousTransit = threadworkTransit
+        threadworkShutdownRemainingTicks = threadworkShutdownIdleTicks
+        return true
+    }
+    if (threadworkShutdownRemainingTicks == 0U) return false
+    threadworkShutdownRemainingTicks--
+    return true
+}
+
 {% endif %}{% if inlineChildDeclarations is not empty %}{{ inlineChildDeclarations }}
 
 {% endif %}{{ ownDeclaration }}
 {% if isCompilationRoot %}
 fun main() {
     val context = RuntimeContext()
+    threadworkInstallShutdownHook()
     {{ initializerSymbol }}(context)
     {{ runSymbol }}(context)
+    threadworkNetworkShutdownBegin(10U)
+    threadworkShutdownRequest()
+    while (threadworkNetworkHasRecentTransit()) {
+        {{ runSymbol }}(context)
+    }
 }
 {% endif %}

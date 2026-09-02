@@ -5,3 +5,19 @@
 {{ linkDeclarations }}
 {% endif %}
 {{ ownDeclaration }}
+{% if isCompilationRoot %}
+function threadworkRun() {
+  const context = createRuntimeContext();
+  threadworkInstallShutdownHandlers();
+  {{ initializerSymbol }}(context);
+  {{ runSymbol }}(context);
+  threadworkNetworkShutdownBegin(10);
+  threadworkShutdownRequest();
+  while (threadworkNetworkHasRecentTransit()) {
+    {{ runSymbol }}(context);
+  }
+}
+
+module.exports.threadworkRun = threadworkRun;
+if (require.main === module) threadworkRun();
+{% endif %}

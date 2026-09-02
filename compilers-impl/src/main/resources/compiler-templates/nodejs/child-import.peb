@@ -1,1 +1,1 @@
-{# child.import: receives one compiled child artifact and binds child.symbol from its relativeModulePath for parent invocation. #}const { {{ child.symbol }} } = require("{{ child.relativeModulePath }}");
+{# child.import: binds the child's explicit initialization/run functions and compatibility facade. #}const { {{ child.initializerSymbol }}, {{ child.runSymbol }}, {{ child.symbol }} } = require("{{ child.relativeModulePath }}");

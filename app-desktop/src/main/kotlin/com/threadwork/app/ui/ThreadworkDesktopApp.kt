@@ -275,13 +275,15 @@ class ThreadworkDesktopApp(
         ::redoDocument,
         languageIds,
         compilerCapabilityResolver,
-        ::scheduleNativeCValidation,
+        ::scheduleEmbeddedValidation,
     )
     private val nativeValidationExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "threadwork-tinycc-validation").apply { isDaemon = true }
     }
+    private val embeddedSourceValidators: List<EmbeddedSourceValidator> = listOf(TinyCcSourceValidator)
     private var nativeValidationGeneration = 0L
-    private val nativeValidationTimer = Timer(700) { runNativeCValidation() }.apply {
+    private var pendingValidationLanguageId: String? = null
+    private val nativeValidationTimer = Timer(700) { runEmbeddedValidation() }.apply {
         isRepeats = false
     }
     private val status = JLabel("Status and Messages").apply {
@@ -1194,25 +1196,29 @@ class ThreadworkDesktopApp(
     }
 
     /**
-     * Native C diagnostics are intentionally delayed until the source has been
+     * Embedded compiler diagnostics are intentionally delayed until the source has been
      * idle.  The actual compiler run is isolated from Swing and stale results
      * are ignored when a newer edit has since been made.
      */
-    private fun scheduleNativeCValidation() {
+    private fun scheduleEmbeddedValidation(languageId: String) {
+        if (embeddedSourceValidators.none { languageId in it.languageIds }) return
         nativeValidationGeneration++
+        pendingValidationLanguageId = languageId
         nativeValidationTimer.restart()
     }
 
-    private fun runNativeCValidation() {
+    private fun runEmbeddedValidation() {
         val generation = nativeValidationGeneration
+        val languageId = pendingValidationLanguageId ?: return
+        val validator = embeddedSourceValidators.firstOrNull { languageId in it.languageIds } ?: return
         val snapshot = documentSnapshot()
         val document = documentFromSnapshot(snapshot)
         val compiler = selectCompiler(document)
-        if (compiler !is CCompiler) {
+        if (compiler == null) {
             editorTabs.applyNativeDiagnostics(emptyMap())
             return
         }
-        status.text = "Validating C source..."
+        status.text = "Validating ${languageId.uppercase()} source..."
         nativeValidationExecutor.submit {
             val diagnostics = runCatching {
                 val compilation = compiler.compile(
@@ -1224,17 +1230,21 @@ class ThreadworkDesktopApp(
                 )
                 compilation.generatedProject
                     ?.files
-                    ?.filter { file -> file.path.endsWith(".c", ignoreCase = true) }
-                    ?.flatMap(TinyCcSourceValidator::validate)
+                    ?.filter { file ->
+                        validator.sourceFileExtensions.any { extension ->
+                            file.path.endsWith(".$extension", ignoreCase = true)
+                        }
+                    }
+                    ?.flatMap(validator::validate)
                     .orEmpty()
             }.getOrElse { emptyList() }
             SwingUtilities.invokeLater {
                 if (generation != nativeValidationGeneration) return@invokeLater
                 editorTabs.applyNativeDiagnostics(diagnostics.groupBy { it.nodeId })
                 status.text = if (diagnostics.isEmpty()) {
-                    "C source validated"
+                    "${languageId.uppercase()} source validated"
                 } else {
-                    "C source validation found ${diagnostics.size} issue${if (diagnostics.size == 1) "" else "s"}"
+                    "${languageId.uppercase()} source validation found ${diagnostics.size} issue${if (diagnostics.size == 1) "" else "s"}"
                 }
             }
         }
@@ -6324,7 +6334,7 @@ private class NodeEditorTabs(
     private val redoDocument: () -> Unit,
     private val languageIds: List<String>,
     private val compilerCapabilityResolver: CompilerCapabilityResolver,
-    private val requestNativeValidation: () -> Unit,
+    private val requestNativeValidation: (String) -> Unit,
 ) : JTabbedPane() {
     private var boundIds: List<NodeId> = emptyList()
     private var activePalette: DesignerPalette = ThreadworkAppearance.palette()
@@ -6415,7 +6425,7 @@ private class NodeTextEditor(
     languageIds: List<String>,
     private val compilerCapabilityResolver: CompilerCapabilityResolver,
     initialPalette: DesignerPalette,
-    private val requestNativeValidation: () -> Unit,
+    private val requestNativeValidation: (String) -> Unit,
 ) : JTabbedPane() {
     private val completionService = ModelAwareCompletionService(
         documentProvider = repository::getDocument,
@@ -6629,19 +6639,19 @@ private class NodeTextEditor(
         timer.isRepeats = false
         editor.onTextChanged = {
             timer.restart()
-            if (effectiveTextLanguage(spec.section) == "c") requestNativeValidation()
+            requestNativeValidation(effectiveTextLanguage(spec.section))
         }
         editor.onUndoRequested = {
             timer.stop()
             saveNow()
             undoDocument()
-            if (effectiveTextLanguage(spec.section) == "c") requestNativeValidation()
+            requestNativeValidation(effectiveTextLanguage(spec.section))
         }
         editor.onRedoRequested = {
             timer.stop()
             saveNow()
             redoDocument()
-            if (effectiveTextLanguage(spec.section) == "c") requestNativeValidation()
+            requestNativeValidation(effectiveTextLanguage(spec.section))
         }
         languageSelector.addActionListener {
             if (binding) return@addActionListener

@@ -176,9 +176,12 @@ class JSCompilerTest {
         assertTrue(generated.contains("function transport_record_pipe1(a, b)"))
         assertTrue(generated.contains("function reader(context = {}, record_pipe)"))
         assertTrue(generated.contains("function writer(context = {}, record_pipe)"))
-        assertTrue(generated.contains("reader(context, record_pipe1_a_port);"))
-        assertTrue(generated.contains("writer(context, record_pipe1_b_port);"))
+        assertTrue(generated.contains("init_reader_") && generated.contains("run_reader_"))
+        assertTrue(generated.contains("init_writer_") && generated.contains("run_writer_"))
         assertTrue(generated.contains("transport_record_pipe1(record_pipe1_a_port, record_pipe1_b_port);"))
+        assertTrue(generated.contains("threadworkRecordTransit()"))
+        assertTrue(generated.contains("if (!threadworkIsRunning()) return;"))
+        assertTrue(generated.contains("threadworkNetworkHasRecentTransit()"))
     }
 
     @Test
@@ -203,7 +206,7 @@ class JSCompilerTest {
         val generated = assertNotNull(result.generatedProject).files.joinToString("\n") { it.content }
         assertTrue(generated.contains("const config_service1 = createConfigLibrary();"))
         assertTrue(generated.contains("function worker(context = {}, config_service)"))
-        assertTrue(generated.contains("worker(context, config_service1);"))
+        assertTrue(generated.contains("init_worker_") && generated.contains("run_worker_"))
         assertFalse(generated.contains("transport_config_service"))
     }
 
@@ -258,7 +261,7 @@ class JSCompilerTest {
         assertTrue(generated.contains("function page(context = {})"))
         assertTrue(generated.contains("new Function("))
         assertTrue(generated.contains("function server(context = {}, page_source, page_runnable)"))
-        assertTrue(generated.contains("server(context, page_source1, page_runnable2);"))
+        assertTrue(generated.contains("init_server_") && generated.contains("run_server_"))
         assertFalse(generated.contains("page_source1_a_port"))
         assertFalse(generated.contains("transport_page_source"))
 

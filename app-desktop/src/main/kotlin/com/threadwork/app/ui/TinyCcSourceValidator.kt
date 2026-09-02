@@ -7,13 +7,15 @@ import org.tinycc.TinyCC
 import java.nio.file.Files
 
 /** Maps TinyCC's in-memory source diagnostics back through a generated-file source map. */
-internal object TinyCcSourceValidator {
+internal object TinyCcSourceValidator : EmbeddedSourceValidator {
+    override val languageIds: Set<String> = setOf("c")
+    override val sourceFileExtensions: Set<String> = setOf("c")
     private val diagnosticPattern = Regex(
         """.*?:(\d+)(?::(\d+))?:\s*(?:(warning|error):\s*)?(.*)""",
         RegexOption.IGNORE_CASE,
     )
 
-    fun validate(file: GeneratedFile): List<Diagnostic> {
+    override fun validate(file: GeneratedFile): List<Diagnostic> {
         if (file.sourceMap.entries.isEmpty()) return emptyList()
         val messages = mutableListOf<String>()
         val output = Files.createTempFile("threadwork-tinycc-", sharedLibrarySuffix())

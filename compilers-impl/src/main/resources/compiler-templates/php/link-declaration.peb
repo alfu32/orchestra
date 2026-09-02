@@ -31,6 +31,7 @@ function {{ link.transportSymbol }}(array &$a, array &$b): void
 {
     if (count($a) > 0) {
         $b[] = array_shift($a);
+        threadwork_record_transit();
     }
 }
 {% endif %}

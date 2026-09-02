@@ -33,6 +33,9 @@ const {{ link.aPortSymbol }} = [];
 const {{ link.bPortSymbol }} = [];
 
 function {{ link.transportSymbol }}(a, b) {
-  if (a.length > 0) b.push(a.shift());
+  if (a.length > 0) {
+    b.push(a.shift());
+    threadworkRecordTransit();
+  }
 }
 {% endif %}

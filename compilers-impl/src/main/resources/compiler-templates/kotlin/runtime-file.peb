@@ -1,5 +1,42 @@
-{# Project runtime context retains technology-specific dependency instances. Data buffers belong to links. #}package generated
+{# Project runtime context and shutdown-aware transport accounting. #}package generated
 
 class RuntimeContext {
     val imports: MutableMap<String, Any?> = mutableMapOf()
+}
+
+@Volatile
+var threadworkRunning = true
+
+var threadworkTransit = 0UL
+private var threadworkShutdownPreviousTransit = 0UL
+private var threadworkShutdownIdleTicks = 0U
+private var threadworkShutdownRemainingTicks = 0U
+
+fun threadworkInstallShutdownHook() {
+    Runtime.getRuntime().addShutdownHook(Thread { threadworkRunning = false })
+}
+
+fun threadworkShutdownRequest() {
+    threadworkRunning = false
+}
+
+fun threadworkRecordTransit() {
+    threadworkTransit++
+}
+
+fun threadworkNetworkShutdownBegin(idleTicks: UInt) {
+    threadworkShutdownPreviousTransit = threadworkTransit
+    threadworkShutdownIdleTicks = idleTicks
+    threadworkShutdownRemainingTicks = idleTicks
+}
+
+fun threadworkNetworkHasRecentTransit(): Boolean {
+    if (threadworkTransit != threadworkShutdownPreviousTransit) {
+        threadworkShutdownPreviousTransit = threadworkTransit
+        threadworkShutdownRemainingTicks = threadworkShutdownIdleTicks
+        return true
+    }
+    if (threadworkShutdownRemainingTicks == 0U) return false
+    threadworkShutdownRemainingTicks--
+    return true
 }

@@ -68,6 +68,8 @@ class NaiveKotlinCompilerTest {
         assertTrue(source.contains("fun run_producer_"))
         assertTrue(source.contains("fun run_consumer_"))
         assertTrue(source.contains("fun main()"))
+        assertTrue(source.contains("threadworkNetworkHasRecentTransit()"))
+        assertTrue(source.contains("threadworkRecordTransit()"))
     }
 
     @Test

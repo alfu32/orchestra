@@ -1,4 +1,48 @@
-{# Runtime context is reserved for dependency instances and technology-specific shared services. #}
+{# Shared execution state: ingress may stop while already queued packets drain. #}
+const threadworkRuntimeKey = Symbol.for("threadwork.runtime");
+const threadworkRuntime = globalThis[threadworkRuntimeKey] ??= {
+  running: true,
+  transit: 0,
+  shutdownPreviousTransit: 0,
+  shutdownIdleTicks: 0,
+  shutdownRemainingTicks: 0,
+};
+
 function createRuntimeContext() {
   return { imports: Object.create(null) };
+}
+
+function threadworkInstallShutdownHandlers() {
+  const requestShutdown = () => { threadworkRuntime.running = false; };
+  process.once("SIGINT", requestShutdown);
+  process.once("SIGTERM", requestShutdown);
+}
+
+function threadworkShutdownRequest() {
+  threadworkRuntime.running = false;
+}
+
+function threadworkIsRunning() {
+  return threadworkRuntime.running;
+}
+
+function threadworkRecordTransit() {
+  threadworkRuntime.transit += 1;
+}
+
+function threadworkNetworkShutdownBegin(idleTicks) {
+  threadworkRuntime.shutdownPreviousTransit = threadworkRuntime.transit;
+  threadworkRuntime.shutdownIdleTicks = idleTicks;
+  threadworkRuntime.shutdownRemainingTicks = idleTicks;
+}
+
+function threadworkNetworkHasRecentTransit() {
+  if (threadworkRuntime.transit !== threadworkRuntime.shutdownPreviousTransit) {
+    threadworkRuntime.shutdownPreviousTransit = threadworkRuntime.transit;
+    threadworkRuntime.shutdownRemainingTicks = threadworkRuntime.shutdownIdleTicks;
+    return true;
+  }
+  if (threadworkRuntime.shutdownRemainingTicks === 0) return false;
+  threadworkRuntime.shutdownRemainingTicks -= 1;
+  return true;
 }

@@ -1,4 +1,52 @@
-{# Runtime context is reserved for dependency instances and technology-specific shared services. #}function createRuntimeContext(): array
+{# Shared execution state: ingress stops first, then queued packets drain. #}
+if (!isset($GLOBALS['threadwork_running'])) {
+    $GLOBALS['threadwork_running'] = true;
+    $GLOBALS['threadwork_transit'] = 0;
+    $GLOBALS['threadwork_shutdown_previous_transit'] = 0;
+    $GLOBALS['threadwork_shutdown_idle_ticks'] = 0;
+    $GLOBALS['threadwork_shutdown_remaining_ticks'] = 0;
+}
+
+if (!function_exists('createRuntimeContext')) {
+function createRuntimeContext(): array
 {
     return ['imports' => []];
+}
+
+function threadwork_shutdown_request(): void
+{
+    $GLOBALS['threadwork_running'] = false;
+}
+
+function threadwork_record_transit(): void
+{
+    $GLOBALS['threadwork_transit']++;
+}
+
+function threadwork_network_shutdown_begin(int $idleTicks): void
+{
+    $GLOBALS['threadwork_shutdown_previous_transit'] = $GLOBALS['threadwork_transit'];
+    $GLOBALS['threadwork_shutdown_idle_ticks'] = $idleTicks;
+    $GLOBALS['threadwork_shutdown_remaining_ticks'] = $idleTicks;
+}
+
+function threadwork_network_has_recent_transit(): bool
+{
+    if ($GLOBALS['threadwork_transit'] !== $GLOBALS['threadwork_shutdown_previous_transit']) {
+        $GLOBALS['threadwork_shutdown_previous_transit'] = $GLOBALS['threadwork_transit'];
+        $GLOBALS['threadwork_shutdown_remaining_ticks'] = $GLOBALS['threadwork_shutdown_idle_ticks'];
+        return true;
+    }
+    if ($GLOBALS['threadwork_shutdown_remaining_ticks'] === 0) return false;
+    $GLOBALS['threadwork_shutdown_remaining_ticks']--;
+    return true;
+}
+
+function threadwork_install_shutdown_handlers(): void
+{
+    if (!function_exists('pcntl_signal')) return;
+    pcntl_async_signals(true);
+    pcntl_signal(SIGINT, static fn() => threadwork_shutdown_request());
+    pcntl_signal(SIGTERM, static fn() => threadwork_shutdown_request());
+}
 }

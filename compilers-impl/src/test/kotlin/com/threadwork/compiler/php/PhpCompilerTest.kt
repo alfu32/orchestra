@@ -81,8 +81,10 @@ class PhpCompilerTest {
         assertTrue(generated.contains("\$input_record1_a_port = [];"))
         assertTrue(generated.contains("\$input_record1_b_port = [];"))
         assertTrue(generated.contains("function transport_input_record1(array &\$a, array &\$b)"))
-        assertTrue(generated.contains("read_file(\$context, \$input_record1_a_port);"))
-        assertTrue(generated.contains("write_file(\$context, \$input_record1_b_port);"))
+        assertTrue(generated.contains("init_read_file_") && generated.contains("run_read_file_"))
+        assertTrue(generated.contains("init_write_file_") && generated.contains("run_write_file_"))
         assertTrue(generated.contains("transport_input_record1(\$input_record1_a_port, \$input_record1_b_port);"))
+        assertTrue(generated.contains("threadwork_record_transit()"))
+        assertTrue(generated.contains("threadwork_network_has_recent_transit()"))
     }
 }
