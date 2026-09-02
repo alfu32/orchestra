@@ -17,6 +17,7 @@ import com.threadwork.compiler.api.ANY_LANGUAGE_ID
 import com.threadwork.compiler.api.CompilerTechnology
 import com.threadwork.compiler.api.CompilerCodeSymbol
 import com.threadwork.compiler.api.CompilerCodeSymbolKind
+import com.threadwork.compiler.api.compilerArgumentName
 import com.threadwork.core.classification.LinkClassifier
 import com.threadwork.core.classification.LinkStereotype
 import com.threadwork.core.classification.NodeStereotype
@@ -24,6 +25,7 @@ import com.threadwork.core.classification.stereotype
 import com.threadwork.core.model.ThreadworkDocument
 import com.threadwork.core.model.Node
 import com.threadwork.core.model.NodeKind
+import com.threadwork.core.model.NodeTextSection
 import com.threadwork.core.model.TechnologyMetadata
 import com.threadwork.core.model.effectiveLanguageId
 import com.threadwork.core.model.effectiveTechnologyId
@@ -287,6 +289,55 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             }
 
             else -> emptyList()
+        }
+    }
+
+    override fun generatedFunctionHeader(
+        document: ThreadworkDocument,
+        node: Node,
+        section: NodeTextSection,
+    ): String {
+        if (node.isLink || node.stereotype(document) == NodeStereotype.ServiceLibrary) return ""
+        val functionPrefix = when (section) {
+            NodeTextSection.Declaration -> "run"
+            NodeTextSection.Instantiation -> "init"
+            else -> return ""
+        }
+        val languageId = document.effectiveLanguageId(node.id).lowercase()
+        val dataInputs = node.incomingLinks.mapNotNull(document::getElementById)
+            .filterNot { LinkClassifier.isCapability(document, it) }
+        val dataOutputs = node.outgoingLinks.mapNotNull(document::getElementById)
+            .filterNot { LinkClassifier.isCapability(document, it) }
+        val capabilities = node.incomingLinks.mapNotNull(document::getElementById)
+            .filter { LinkClassifier.isCapability(document, it) }
+        val symbol = indexedNodeSymbol(document, node)
+        return when (languageId) {
+            "kotlin" -> {
+                val arguments = buildList {
+                    add("context: RuntimeContext")
+                    (dataInputs + dataOutputs).forEach { linkNode ->
+                        add("${compilerArgumentName(linkNode.name)}: ArrayDeque<Any?>")
+                    }
+                    capabilities.forEach { linkNode -> add("${compilerArgumentName(linkNode.name)}: Any?") }
+                }
+                "fun ${functionPrefix}_$symbol(${arguments.joinToString(", ")}) {"
+            }
+
+            "javascript", "typescript" -> {
+                val arguments = buildList {
+                    add("context = {}")
+                    (dataInputs + dataOutputs + capabilities).forEach { linkNode -> add(compilerArgumentName(linkNode.name)) }
+                }
+                "function ${functionPrefix}_$symbol(${arguments.joinToString(", ")}) {"
+            }
+
+            else -> {
+                val arguments = buildList {
+                    add("context")
+                    (dataInputs + dataOutputs + capabilities).forEach { linkNode -> add(compilerArgumentName(linkNode.name)) }
+                }
+                "${functionPrefix}_$symbol(${arguments.joinToString(", ")}) {"
+            }
         }
     }
 

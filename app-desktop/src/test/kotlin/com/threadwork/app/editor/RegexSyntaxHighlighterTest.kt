@@ -7,6 +7,7 @@ import java.awt.Color
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class RegexSyntaxHighlighterTest {
     private val function = DeclarationSymbol(
@@ -67,5 +68,18 @@ class RegexSyntaxHighlighterTest {
     @Test
     fun `registers Pebble as a selectable editor language`() {
         assertEquals("pebble", RegexSyntaxHighlighter.normalizeLanguage("peb"))
+    }
+
+    @Test
+    fun `highlights PHP keywords`() {
+        val line = "function render_page(): void { return; }"
+        val tokens = RegexSyntaxHighlighter.highlightLine("php", line)
+
+        assertTrue(tokens.any { token ->
+            token.start == line.indexOf("function") && token.color == RegexSyntaxHighlighter.Keyword
+        })
+        assertTrue(tokens.any { token ->
+            token.start == line.indexOf("return") && token.color == RegexSyntaxHighlighter.Keyword
+        })
     }
 }

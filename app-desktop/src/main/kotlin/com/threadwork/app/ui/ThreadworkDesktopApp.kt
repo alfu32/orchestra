@@ -6639,7 +6639,9 @@ private class NodeTextEditor(
             }
             if (color != null) {
                 colors[symbol.name] = color
-                colors["${'$'}${symbol.name}"] = color
+                if (!symbol.name.startsWith("$")) {
+                    colors["${'$'}${symbol.name}"] = color
+                }
             }
         }
         if (node.isComposite) {

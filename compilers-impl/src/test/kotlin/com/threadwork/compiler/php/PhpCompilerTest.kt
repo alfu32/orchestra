@@ -49,7 +49,7 @@ class PhpCompilerTest {
     }
 
     @Test
-    fun `composite scopes dependency variables globally`() {
+    fun `service libraries emit prefixed aliases without injected variables`() {
         val repository = InMemoryDocumentRepository(newDocument("Dependency PHP"))
         val root = repository.getDocument().rootNodeId
         repository.updateNodeTechnology(root, TechnologyMetadata(languageId = "php", technologyId = "php"))
@@ -62,13 +62,37 @@ class PhpCompilerTest {
             dependency.id,
             requireNotNull(dependency.link).copy(interactionKind = LinkInteractionKinds.Library),
         )
+        repository.updateNodeText(
+            library.id,
+            library.text.copy(
+                declaration = """
+                    function now_text(string ${'$'}prefix = ''): string
+                    {
+                        return ${'$'}prefix . 'now';
+                    }
+                """.trimIndent(),
+            ),
+        )
+        repository.updateNodeText(
+            worker.id,
+            worker.text.copy(declaration = "\$value = clock_service__now_text('threadwork-');"),
+        )
 
-        val result = PhpCompiler().compile(repository.getDocument())
+        val compiler = PhpCompiler()
+        val result = compiler.compile(repository.getDocument())
 
         assertTrue(result.success, result.diagnostics.joinToString { it.message })
         val generated = requireNotNull(result.generatedProject).files.joinToString("\n") { it.content }
-        assertTrue(generated.contains("\$clock_service1 ="))
-        assertTrue(generated.contains("global \$clock_service1;"))
+        assertTrue(generated.contains("function now_text(string \$prefix = ''): string"))
+        assertTrue(generated.contains("function clock_service__now_text(string \$prefix = ''): string"))
+        assertTrue(generated.contains("return now_text(\$prefix);"))
+        assertTrue(!generated.contains("\$clock_service1 ="))
+        assertTrue(!generated.contains("mixed \$clock_service"))
+        val intelligence = compiler.codeIntelligence(repository.getDocument(), worker)
+        assertTrue(intelligence.symbols.any {
+            it.name == "clock_service__now_text" && it.kind == CompilerCodeSymbolKind.LibraryFunction
+        })
+        assertTrue(intelligence.symbols.none { it.name == "\$clock_service" })
     }
 
     @Test
@@ -148,6 +172,10 @@ class PhpCompilerTest {
             service.id,
             requireNotNull(service.link).copy(interactionKind = LinkInteractionKinds.Library),
         )
+        repository.updateNodeText(
+            library.id,
+            library.text.copy(declaration = "function now_text(): string { return 'now'; }"),
+        )
 
         val compiler = PhpCompiler()
         val intelligence = compiler.codeIntelligence(repository.getDocument(), worker)
@@ -159,7 +187,7 @@ class PhpCompilerTest {
             it.name == "\$outgoing_result" && it.kind == CompilerCodeSymbolKind.OutputBuffer
         })
         assertTrue(intelligence.symbols.any {
-            it.name == "\$clock_service" && it.kind == CompilerCodeSymbolKind.ServiceInstance
+            it.name == "clock_service__now_text" && it.kind == CompilerCodeSymbolKind.LibraryFunction
         })
         assertTrue(intelligence.symbols.any {
             it.name == "\$page_source" &&
@@ -185,7 +213,7 @@ class PhpCompilerTest {
                     repository.getDocument(),
                     worker,
                     com.threadwork.core.model.NodeTextSection.Declaration,
-                ).contains("mixed \$clock_service"),
+                ).contains("mixed \$clock_service").not(),
         )
     }
 }

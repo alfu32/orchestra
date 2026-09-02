@@ -5,6 +5,7 @@ import com.threadwork.compiler.api.CompilerCodeIntelligence
 import com.threadwork.compiler.api.CompilerCodeSymbol
 import com.threadwork.compiler.api.CompilerCodeSymbolKind
 import com.threadwork.compiler.api.CompilerTechnology
+import com.threadwork.compiler.api.NodeCompilerContext
 import com.threadwork.compiler.api.compilerArgumentName
 import com.threadwork.compiler.api.defaultCodeIntelligence
 import com.threadwork.compiler.generic.CompilerTemplateSet
@@ -48,11 +49,38 @@ class PhpCompiler : TemplateSetCompiler() {
     override fun templatesFor(document: ThreadworkDocument, options: CompilerOptions): CompilerTemplateSet =
         TEMPLATES
 
+    override fun declarationFor(context: NodeCompilerContext): String {
+        val declaration = super.declarationFor(context)
+        if (context.node.stereotype(context.document) != NodeStereotype.ServiceLibrary) return declaration
+        return listOf(declaration, libraryAliasesFor(context.document, context.node))
+            .filter(String::isNotBlank)
+            .joinToString("\n\n")
+    }
+
     override fun codeIntelligence(document: ThreadworkDocument, node: Node): CompilerCodeIntelligence {
+        val libraryLinkIds = node.incomingLinks.filter { linkId ->
+            document.nodes[linkId]?.let { LinkClassifier.classify(document, it) } in LIBRARY_LINK_STEREOTYPES
+        }.toSet()
         val defaults = defaultCodeIntelligence(document, node)
-        val phpScopeSymbols = defaults.symbols.map(::toPhpScopeSymbol)
+        val functions = libraryLinkIds.flatMap { linkId ->
+            val linkNode = document.nodes[linkId] ?: return@flatMap emptyList()
+            val sourceNode = linkNode.link?.sourceNodeId?.let(document.nodes::get) ?: return@flatMap emptyList()
+            val prefix = compilerArgumentName(linkNode.name)
+            PhpServiceFunctionDiscovery.discover(sourceNode.text.declaration).map { function ->
+                CompilerCodeSymbol(
+                    name = "${prefix}__${function.name}",
+                    kind = CompilerCodeSymbolKind.LibraryFunction,
+                    detail = function.signature,
+                    documentation = "Function '${function.name}' supplied by PHP service link '${linkNode.name}'.",
+                    originNodeId = linkNode.id,
+                )
+            }
+        }
+        val phpScopeSymbols = defaults.symbols
+            .filterNot { it.originNodeId in libraryLinkIds }
+            .map(::toPhpScopeSymbol)
         return defaults.copy(
-            symbols = (phpScopeSymbols + runtimeSymbols).distinctBy { it.name to it.kind },
+            symbols = (phpScopeSymbols + functions + runtimeSymbols).distinctBy { it.name to it.kind },
         )
     }
 
@@ -70,10 +98,12 @@ class PhpCompiler : TemplateSetCompiler() {
         val arguments = mutableListOf("array &\$context")
         node.incomingLinks.mapNotNull(document.nodes::get).forEach { linkNode ->
             val argument = "\$${compilerArgumentName(linkNode.name)}"
-            if (LinkClassifier.isCapability(document, linkNode)) {
-                arguments += "mixed $argument"
-            } else {
-                arguments += "array &$argument"
+            when (LinkClassifier.classify(document, linkNode)) {
+                LinkStereotype.UsageImport,
+                LinkStereotype.DependencyInjection -> Unit
+                LinkStereotype.SourceCapability,
+                LinkStereotype.RunnableCapability -> arguments += "mixed $argument"
+                else -> arguments += "array &$argument"
             }
         }
         node.outgoingLinks.mapNotNull(document.nodes::get)
@@ -116,6 +146,20 @@ class PhpCompiler : TemplateSetCompiler() {
             modelName.replace(Regex("[^A-Za-z0-9_]+"), "_").trim('_')
         }.ifBlank { "node" }.lowercase()
         return if (sanitized.first().isDigit()) "_$sanitized" else sanitized
+    }
+
+    private fun libraryAliasesFor(document: ThreadworkDocument, libraryNode: Node): String {
+        val functions = PhpServiceFunctionDiscovery.discover(libraryNode.text.declaration)
+        if (functions.isEmpty()) return ""
+        return libraryNode.outgoingLinks
+            .mapNotNull(document.nodes::get)
+            .filter { LinkClassifier.classify(document, it) in LIBRARY_LINK_STEREOTYPES }
+            .flatMap { linkNode ->
+                val prefix = compilerArgumentName(linkNode.name)
+                functions.map { function -> function.aliasDeclaration("${prefix}__${function.name}") }
+            }
+            .distinct()
+            .joinToString("\n\n")
     }
 
     private companion object {
@@ -186,5 +230,9 @@ class PhpCompiler : TemplateSetCompiler() {
             ),
         )
         val PHP_IDENTIFIER = Regex("[A-Za-z_][A-Za-z0-9_]*")
+        val LIBRARY_LINK_STEREOTYPES = setOf(
+            LinkStereotype.UsageImport,
+            LinkStereotype.DependencyInjection,
+        )
     }
 }
