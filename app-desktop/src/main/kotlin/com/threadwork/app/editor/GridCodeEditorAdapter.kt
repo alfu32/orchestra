@@ -83,6 +83,9 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     private var completionContext = EditorCompletionContext(null, NodeTextSection.Declaration)
     private var diagnostics: List<Diagnostic> = emptyList()
     private var declarationSymbols: List<DeclarationSymbol> = emptyList()
+    private val declarationSymbolsTimer = Timer(320) { refreshDeclarationSymbolsNow() }.apply {
+        isRepeats = false
+    }
     private var semanticIdentifierColors: Map<String, Color> = emptyMap()
     private var pinnedHeader: String = ""
     private var completionItems: List<CompletionSuggestion> = emptyList()
@@ -507,6 +510,15 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
     }
 
     private fun refreshDeclarationSymbols() {
+        declarationSymbolsTimer.stop()
+        refreshDeclarationSymbolsNow()
+    }
+
+    private fun scheduleDeclarationSymbolsRefresh() {
+        declarationSymbolsTimer.restart()
+    }
+
+    private fun refreshDeclarationSymbolsNow() {
         declarationSymbols = currentCompletionRequest()
             ?.let { request -> onDeclarationSymbolsRequested?.invoke(request) }
             .orEmpty()
@@ -546,7 +558,7 @@ class GridCodeEditorAdapter : JPanel(), CodeEditorAdapter {
         redoStack.clear()
         operation()
         hideCompletions()
-        refreshDeclarationSymbols()
+        scheduleDeclarationSymbolsRefresh()
         notifyTextChanged()
     }
 
