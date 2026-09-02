@@ -10,6 +10,7 @@ import com.threadwork.compiler.filesystem.FilesystemCompiler
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.model.NodeKind
 import com.threadwork.core.model.TechnologyMetadata
+import com.threadwork.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.threadwork.storage.InMemoryDocumentRepository
 import com.threadwork.storage.newDocument
 import kotlin.test.Test
@@ -59,7 +60,7 @@ class CompilerCapabilityResolverTest {
     }
 
     @Test
-    fun `resolves an unsupported single-file leaf as a filesystem file`() {
+    fun `resolves an unsupported single-file leaf as a file export`() {
         val repository = InMemoryDocumentRepository(newDocument("Mixed project"))
         val document = repository.getDocument()
         repository.updateNodeTechnology(
@@ -67,8 +68,7 @@ class CompilerCapabilityResolverTest {
             TechnologyMetadata(languageId = "c", technologyId = "c-native", compilerId = "c"),
         )
         val script = repository.createNode(document.rootNodeId, "run.sh", NodeKind.Processor)
-        repository.updateNodeTechnology(script.id, TechnologyMetadata(languageId = "shellscript", technologyId = "bash"))
-        repository.updateNodeFileLayoutStrategy(script.id, SingleFileLayoutStrategy.id)
+        repository.updateNodeTechnology(script.id, TechnologyMetadata(languageId = "shellscript", technologyId = "file-export"))
 
         val resolver = CompilerCapabilityResolver(
             listOf(
@@ -78,7 +78,7 @@ class CompilerCapabilityResolverTest {
         )
 
         assertEquals("multi-tech", resolver.compilerFor(document, script.id)?.id)
-        assertEquals(setOf(SingleFileLayoutStrategy.id), resolver.supportedLayoutStrategyIds(document, script.id))
+        assertEquals(setOf(VOID_LAYOUT_STRATEGY_ID), resolver.supportedLayoutStrategyIds(document, script.id))
     }
 
     private class StubCompiler(

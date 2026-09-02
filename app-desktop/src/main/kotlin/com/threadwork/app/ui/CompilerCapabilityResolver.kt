@@ -6,6 +6,7 @@ import com.threadwork.compiler.api.CompilerPlugin
 import com.threadwork.compiler.api.SingleFileLayoutStrategy
 import com.threadwork.core.model.NodeId
 import com.threadwork.core.model.ThreadworkDocument
+import com.threadwork.core.model.VOID_LAYOUT_STRATEGY_ID
 import com.threadwork.core.model.effectiveLanguageId
 import com.threadwork.core.model.effectiveTechnologyId
 import com.threadwork.core.model.effectiveLayoutStrategyId
@@ -44,6 +45,9 @@ internal class CompilerCapabilityResolver(
     }
 
     fun supportedLayoutStrategyIds(document: ThreadworkDocument, nodeId: NodeId): Set<String> {
+        if (document.effectiveTechnologyId(nodeId).trim() in LAYOUTLESS_TECHNOLOGIES) {
+            return setOf(VOID_LAYOUT_STRATEGY_ID)
+        }
         if (literalFileCompiler(document, nodeId, compilers) != null) {
             return setOf(SingleFileLayoutStrategy.id)
         }
@@ -105,4 +109,8 @@ internal class CompilerCapabilityResolver(
                         technology.languageId == languageId ||
                         technology.languageId == ANY_LANGUAGE_ID)
             }
+
+    private companion object {
+        val LAYOUTLESS_TECHNOLOGIES = setOf("multi-tech", "file-export", "compiler-template-set")
+    }
 }

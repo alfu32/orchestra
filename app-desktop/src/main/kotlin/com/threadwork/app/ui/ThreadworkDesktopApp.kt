@@ -1097,7 +1097,7 @@ class ThreadworkDesktopApp(
     private fun availableTechnologyIds(technologies: List<CompilerTechnology>): List<String> =
         (compilerPlugins.flatMap { it.supportedTechnologyIds } + technologies.map { it.technologyId })
             .map { it.trim() }
-            .filter { it.isNotBlank() && it != VOID_TECHNOLOGY_ID && it != "compiler-template-set" }
+            .filter { it.isNotBlank() && it != VOID_TECHNOLOGY_ID }
             .distinct()
             .sorted()
 
@@ -6207,7 +6207,7 @@ private class InspectorPanel(
                 technology.selectedItem = NoneTechnologyChoice
                 customTechnology.text = ""
             }
-            value in knownTechnologyIds && (value != CompilerTemplateSetTechnologyId || isCompilerTemplateContext()) -> {
+            value in knownTechnologyIds -> {
                 technology.selectedItem = technologyDisplayById.getValue(value)
                 customTechnology.text = ""
             }
@@ -6249,7 +6249,11 @@ private class InspectorPanel(
         val value = layoutStrategyId.trim()
         refreshLayoutStrategyOptions(value)
         val display = layoutDisplayById[value]
+        val supportedIds = nodeId?.let {
+            compilerCapabilityResolver.supportedLayoutStrategyIds(repository.getDocument(), it)
+        }.orEmpty()
         layoutStrategy.selectedItem = when {
+            supportedIds == setOf(VOID_LAYOUT_STRATEGY_ID) -> NoneLayoutChoice
             value.isBlank() || value == VOID_LAYOUT_STRATEGY_ID -> NoneLayoutChoice
             value == unsupportedLayoutSelectionId -> unsupportedLayoutDisplay(value)
             display == null -> NoneLayoutChoice

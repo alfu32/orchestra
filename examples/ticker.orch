@@ -97,15 +97,15 @@
             "layout": {
                 "x": 551.0,
                 "y": 699.0,
-                "width": 274.0,
+                "width": 280.0,
                 "height": 70.0,
-                "closedWidth": 274.0,
+                "closedWidth": 280.0,
                 "closedHeight": 70.0,
-                "openWidth": 274.0,
+                "openWidth": 280.0,
                 "openHeight": 70.0,
                 "isExpanded": true
             },
-            "fileLayoutStrategyId": "none",
+            "fileLayoutStrategyId": "single-file",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -131,7 +131,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-09-02T10:35:06.039149861Z",
+                "date": "2026-09-02T11:23:04.851847276Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -241,7 +241,7 @@
                 "openHeight": 70.0,
                 "isExpanded": true
             },
-            "fileLayoutStrategyId": "none",
+            "fileLayoutStrategyId": "single-file",
             "text": {
                 "initialization": "",
                 "initializationLanguageId": "",
@@ -267,7 +267,7 @@
             },
             "responsible": null,
             "modified": {
-                "date": "2026-09-02T10:54:59.116276974Z",
+                "date": "2026-09-02T11:24:39.396371232Z",
                 "user": "devlin"
             },
             "ports": [],
@@ -1784,11 +1784,11 @@
             "layout": {
                 "x": 906.0,
                 "y": 700.0,
-                "width": 274.0,
+                "width": 280.0,
                 "height": 70.0,
-                "closedWidth": 274.0,
+                "closedWidth": 280.0,
                 "closedHeight": 70.0,
-                "openWidth": 274.0,
+                "openWidth": 280.0,
                 "openHeight": 70.0,
                 "isExpanded": true
             },
