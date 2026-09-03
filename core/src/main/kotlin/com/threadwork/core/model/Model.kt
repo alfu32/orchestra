@@ -154,7 +154,7 @@ data class Node(
     val ports: MutableList<NodePort> = mutableListOf(),
     var link: LinkData? = null,
     var typeDefinition: TypeDefinition? = null,
-    /** Last compiler diagnostics mapped to this node; cleared when a new validation starts. */
+    /** Last compiler diagnostics mapped to this node; replaced when its validation completes. */
     val diagnostics: MutableList<Diagnostic> = mutableListOf(),
     var metadata: MutableMap<String, String> = mutableMapOf(),
     var pluginData: MutableMap<String, JsonObject> = mutableMapOf(),

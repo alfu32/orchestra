@@ -33,6 +33,7 @@ import com.threadwork.compiler.generic.CompilerTemplateRoles
 import com.threadwork.compiler.generic.GenericCompiler
 import com.threadwork.compiler.naivekotlin.NaiveKotlinCompiler
 import com.threadwork.compiler.php.PhpCompiler
+import com.threadwork.compiler.quickjs.QuickJsCompiler
 import com.threadwork.core.diagnostics.DiagnosticSeverity
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.completion.ModelAwareCompletionService
@@ -255,7 +256,7 @@ class ThreadworkDesktopApp(
     private val markdownOptions = MutableDataSet().set(Parser.EXTENSIONS, listOf(TablesExtension.create()))
     private val markdownParser = Parser.builder(markdownOptions).build()
     private val markdownHtmlRenderer = HtmlRenderer.builder(markdownOptions).build()
-    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + FilesystemCompiler() + JSCompiler() + PhpCompiler() + CCompiler() + GenericCompiler() + NaiveKotlinCompiler()
+    private val compilerPlugins: List<CompilerPlugin> = loadCompilerPlugins(pluginsFolder) + FilesystemCompiler() + JSCompiler() + QuickJsCompiler() + PhpCompiler() + CCompiler() + GenericCompiler() + NaiveKotlinCompiler()
     private val compilerTechnologies = availableCompilerTechnologies()
     private val languageIds = availableLanguageIds(compilerTechnologies)
     private val technologyIds = availableTechnologyIds(compilerTechnologies)
@@ -280,9 +281,9 @@ class ThreadworkDesktopApp(
         ::scheduleEmbeddedValidation,
     )
     private val nativeValidationExecutor = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "threadwork-tinycc-validation").apply { isDaemon = true }
+        Thread(runnable, "threadwork-embedded-validation").apply { isDaemon = true }
     }
-    private val embeddedSourceValidators: List<EmbeddedSourceValidator> = listOf(TinyCcSourceValidator)
+    private val embeddedSourceValidators: List<EmbeddedSourceValidator> = listOf(TinyCcSourceValidator, QuickJsSourceValidator)
     private var nativeValidationGeneration = 0L
     private var pendingValidationNodeId: NodeId? = null
     private var pendingValidationLanguageId: String? = null
@@ -1225,30 +1226,44 @@ class ThreadworkDesktopApp(
         nativeValidationTimer.restart()
     }
 
-    private fun clearNativeDiagnostics() {
-        var changed = false
-        repository.getDocument().nodes.values.forEach { node ->
-            if (node.diagnostics.isNotEmpty()) {
-                node.diagnostics.clear()
-                changed = true
+    private fun clearNativeDiagnostics(nodeId: NodeId? = null) {
+        if (nodeId == null) {
+            var changed = false
+            repository.getDocument().nodes.values.forEach { node ->
+                if (node.diagnostics.isNotEmpty()) {
+                    node.diagnostics.clear()
+                    changed = true
+                }
             }
+            if (changed) repository.markDirty()
+            nativeDiagnosticDetails = emptyList()
+            editorTabs.applyNativeDiagnostics(emptyMap())
+        } else {
+            repository.updateNodeDiagnostics(nodeId, emptyList())
+            nativeDiagnosticDetails = nativeDiagnosticDetails.filterNot { it.diagnostic.nodeId == nodeId }
+            editorTabs.applyNativeDiagnostics(mapOf(nodeId to emptyList()))
         }
-        if (changed) repository.markDirty()
-        nativeDiagnosticDetails = emptyList()
-        editorTabs.applyNativeDiagnostics(emptyMap())
         nativeDiagnosticStatus.text = ""
         nativeDiagnosticStatus.toolTipText = "Click to inspect mapped compiler diagnostics"
         canvas.repaint()
     }
 
-    private fun persistNativeDiagnostics(details: List<EmbeddedDiagnostic>) {
-        clearNativeDiagnostics()
-        details.groupBy { it.diagnostic.nodeId }
-            .filterKeys { it != null }
-            .forEach { (nodeId, nodeDetails) ->
-                repository.updateNodeDiagnostics(nodeId!!, nodeDetails.map(EmbeddedDiagnostic::diagnostic))
+    private fun persistNativeDiagnostics(nodeId: NodeId, details: List<EmbeddedDiagnostic>) {
+        val nodeDetails = details
+            .filter { it.diagnostic.nodeId == null || it.diagnostic.nodeId == nodeId }
+            .map { detail ->
+                if (detail.diagnostic.nodeId == null) {
+                    detail.copy(diagnostic = detail.diagnostic.copy(nodeId = nodeId))
+                } else {
+                    detail
+                }
             }
-        nativeDiagnosticDetails = details
+        val diagnostics = nodeDetails.map(EmbeddedDiagnostic::diagnostic)
+        repository.updateNodeDiagnostics(nodeId, diagnostics)
+        nativeDiagnosticDetails = nativeDiagnosticDetails
+            .filterNot { it.diagnostic.nodeId == nodeId }
+            .plus(nodeDetails)
+        editorTabs.applyNativeDiagnostics(mapOf(nodeId to diagnostics))
         canvas.repaint()
     }
 
@@ -1282,10 +1297,9 @@ class ThreadworkDesktopApp(
         val document = documentFromSnapshot(snapshot)
         val compiler = selectCompiler(document)
         if (compiler == null) {
-            clearNativeDiagnostics()
+            clearNativeDiagnostics(nodeId)
             return
         }
-        clearNativeDiagnostics()
         status.text = "Validating ${languageId.uppercase()} source..."
         nativeValidationExecutor.submit {
             val validationResults = runCatching {
@@ -1295,6 +1309,7 @@ class ThreadworkDesktopApp(
                         projectName = document.projectName(),
                         scopeNodeIds = nativeValidationScope(document, nodeId),
                         compilerPlugins = compilerPlugins,
+                        includeScopeDescendants = false,
                     ),
                 )
                 compilation.generatedProject
@@ -1325,23 +1340,23 @@ class ThreadworkDesktopApp(
             }
             SwingUtilities.invokeLater {
                 if (generation != nativeValidationGeneration) return@invokeLater
-                val diagnostics = validationResults.map(EmbeddedDiagnostic::diagnostic)
-                persistNativeDiagnostics(validationResults)
-                editorTabs.applyNativeDiagnostics(diagnostics.groupBy { it.nodeId })
-                val first = validationResults.firstOrNull()
+                persistNativeDiagnostics(nodeId, validationResults)
+                val diagnostics = repository.getNode(nodeId)?.diagnostics.orEmpty()
+                val activeDetails = nativeDiagnosticDetails.filter { it.diagnostic.nodeId == nodeId }
+                val first = activeDetails.firstOrNull()
                 if (first == null) {
                     nativeDiagnosticStatus.text = ""
                     nativeDiagnosticStatus.toolTipText = null
                 } else {
                     val diagnostic = first.diagnostic
-                    editorTabs.revealNativeDiagnostic(diagnostic.nodeId, diagnostic.textSection)
+                    editorTabs.revealNativeDiagnostic(nodeId, diagnostic.textSection)
                     val generatedLocation = listOfNotNull(
                         first.generatedLine,
                         first.generatedColumn,
                     ).joinToString(":")
                     val sourceLocation = listOfNotNull(diagnostic.line, diagnostic.column).joinToString(":")
-                    val nodeName = diagnostic.nodeId?.let(document::getElementById)?.name ?: "unmapped"
-                    val binding = if (diagnostic.nodeId != null && editorTabs.hasBoundNode(diagnostic.nodeId)) {
+                    val nodeName = document.getElementById(nodeId)?.name ?: "unmapped"
+                    val binding = if (editorTabs.hasBoundNode(nodeId)) {
                         "bound"
                     } else {
                         "not-bound"
@@ -1360,25 +1375,32 @@ class ThreadworkDesktopApp(
     }
 
     /**
-     * Native validation must compile the same enclosing unit as a normal build.
-     * Walk upwards while compiler and layout stay identical, then submit that
-     * compilation root to the compiler so line offsets and source maps match
-     * the generated artifact users actually receive.
+     * Native validation compiles the edited node's executable neighborhood,
+     * not unrelated branches. Connected links are followed so their endpoint
+     * declarations and dependency capabilities remain available to the validator.
      */
     private fun nativeValidationScope(document: ThreadworkDocument, editedNodeId: NodeId): Set<NodeId> {
-        val compilerId = compilerCapabilityResolver.compilerFor(document, editedNodeId)?.id
-        val layoutStrategyId = document.effectiveLayoutStrategyId(editedNodeId)
-        var rootId = editedNodeId
-        val visited = mutableSetOf<NodeId>()
+        val scope = linkedSetOf<NodeId>()
+        val pending = ArrayDeque<NodeId>()
 
-        while (visited.add(rootId)) {
-            val parentId = document.getElementById(rootId)?.parentId ?: break
-            val parentCompilerId = compilerCapabilityResolver.compilerFor(document, parentId)?.id
-            val parentLayoutStrategyId = document.effectiveLayoutStrategyId(parentId)
-            if (parentCompilerId != compilerId || parentLayoutStrategyId != layoutStrategyId) break
-            rootId = parentId
+        fun include(nodeId: NodeId) {
+            if (nodeId !in scope) pending += nodeId
         }
-        return setOf(rootId)
+
+        include(editedNodeId)
+        while (pending.isNotEmpty()) {
+            val node = document.getElementById(pending.removeFirst()) ?: continue
+            if (!scope.add(node.id)) continue
+            if (node.isLink) {
+                node.link?.let { link ->
+                    include(link.sourceNodeId)
+                    include(link.targetNodeId)
+                }
+            } else {
+                (node.incomingLinks + node.outgoingLinks).forEach(::include)
+            }
+        }
+        return scope
     }
 
     private fun compileProject() {

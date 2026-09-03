@@ -1,0 +1,1 @@
+{% if not link.isCapability %}{{ link.transportSymbol }}({{ link.aPortSymbol }}, {{ link.bPortSymbol }});{% endif %}

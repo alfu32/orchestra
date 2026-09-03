@@ -130,6 +130,7 @@ data class CompilerOptions(
     val scopeNodeIds: Set<NodeId> = emptySet(),
     val compilerPlugins: List<CompilerPlugin> = emptyList(),
     val includeScopeAncestors: Boolean = true,
+    val includeScopeDescendants: Boolean = true,
     val allowCompilerDelegation: Boolean = true,
 )
 
@@ -379,7 +380,12 @@ abstract class StructuredCompiler : CompilerPlugin {
 
         beforeCompile(document, options)
         val projectName = normalizedProjectName(document, options)
-        val scopeIds = compileScopeIds(document, options.scopeNodeIds, options.includeScopeAncestors)
+        val scopeIds = compileScopeIds(
+            document,
+            options.scopeNodeIds,
+            options.includeScopeAncestors,
+            options.includeScopeDescendants,
+        )
         val roots = compilationRoots(document, scopeIds)
         val files = mutableListOf<GeneratedFile>()
         val compiledArtifacts = linkedMapOf<NodeId, CompiledNodeArtifact>()
@@ -662,7 +668,12 @@ abstract class StructuredCompiler : CompilerPlugin {
         )
     }
 
-    private fun compileScopeIds(document: ThreadworkDocument, requested: Set<NodeId>, includeAncestors: Boolean): Set<NodeId> {
+    private fun compileScopeIds(
+        document: ThreadworkDocument,
+        requested: Set<NodeId>,
+        includeAncestors: Boolean,
+        includeDescendants: Boolean,
+    ): Set<NodeId> {
         if (requested.isEmpty()) return document.nodes.keys
         val result = linkedSetOf<NodeId>()
         fun includeAncestors(id: NodeId) {
@@ -675,7 +686,7 @@ abstract class StructuredCompiler : CompilerPlugin {
         }
         fun include(id: NodeId) {
             val node = document.getElementById(id) ?: return
-            if (result.add(id) && !node.isLink) node.children.forEach(::include)
+            if (result.add(id) && includeDescendants && !node.isLink) node.children.forEach(::include)
         }
         if (includeAncestors) requested.forEach(::includeAncestors)
         requested.forEach(::include)

@@ -1,0 +1,42 @@
+{# QuickJS has no Node process/module APIs; runtime state is kept on the global object. #}
+const threadworkRuntimeKey = Symbol.for("threadwork.runtime");
+const threadworkRuntime = globalThis[threadworkRuntimeKey] ??= {
+  running: true,
+  transit: 0,
+  shutdownPreviousTransit: 0,
+  shutdownIdleTicks: 0,
+  shutdownRemainingTicks: 0,
+};
+
+function createRuntimeContext() {
+  return { imports: Object.create(null) };
+}
+
+function threadworkShutdownRequest() {
+  threadworkRuntime.running = false;
+}
+
+function threadworkIsRunning() {
+  return threadworkRuntime.running;
+}
+
+function threadworkRecordTransit() {
+  threadworkRuntime.transit += 1;
+}
+
+function threadworkNetworkShutdownBegin(idleTicks) {
+  threadworkRuntime.shutdownPreviousTransit = threadworkRuntime.transit;
+  threadworkRuntime.shutdownIdleTicks = idleTicks;
+  threadworkRuntime.shutdownRemainingTicks = idleTicks;
+}
+
+function threadworkNetworkHasRecentTransit() {
+  if (threadworkRuntime.transit !== threadworkRuntime.shutdownPreviousTransit) {
+    threadworkRuntime.shutdownPreviousTransit = threadworkRuntime.transit;
+    threadworkRuntime.shutdownRemainingTicks = threadworkRuntime.shutdownIdleTicks;
+    return true;
+  }
+  if (threadworkRuntime.shutdownRemainingTicks === 0) return false;
+  threadworkRuntime.shutdownRemainingTicks -= 1;
+  return true;
+}
