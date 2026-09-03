@@ -181,6 +181,7 @@ import javax.swing.JToolBar
 import javax.swing.KeyStroke
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
+import javax.swing.SwingWorker
 import javax.swing.Timer
 import javax.swing.TransferHandler
 import javax.swing.WindowConstants
@@ -6783,67 +6784,90 @@ private class NodeEditorTabs(
     private var boundIds: List<NodeId> = emptyList()
     private var activePalette: DesignerPalette = ThreadworkAppearance.palette()
     private var nativeDiagnosticsByNode: Map<NodeId?, List<Diagnostic>> = emptyMap()
+    private val loadedEditors = mutableMapOf<NodeId, NodeTextEditor>()
+    private var bindingTabs = false
+
+    init {
+        addChangeListener {
+            if (!bindingTabs) ensureSelectedEditor()
+        }
+    }
 
     fun bind(ids: List<NodeId>, activeSection: NodeTextSection? = null) {
-        if (ids != boundIds) {
-            removeAll()
-            ids.mapNotNull(repository::getNode).forEach { node ->
-                addTab(
-                    node.name,
-                    NodeTextEditor(
-                        repository,
-                        node.id,
-                        refreshAll,
-                        checkpointHistory,
-                        undoDocument,
-                        redoDocument,
-                        languageIds,
-                        compilerCapabilityResolver,
-                        activePalette,
-                        requestNativeValidation,
-                    ),
-                )
+        val validIds = ids.filter { repository.getNode(it) != null }
+        if (validIds != boundIds) {
+            bindingTabs = true
+            try {
+                removeAll()
+                loadedEditors.clear()
+                boundIds = validIds
+                boundIds.mapNotNull(repository::getNode).forEach { node ->
+                    addTab(node.name, null, JPanel())
+                }
+            } finally {
+                bindingTabs = false
             }
-            boundIds = ids
+            ensureSelectedEditor()
         } else {
             refreshTitlesAndMetadata()
         }
         applyNativeDiagnosticsToBoundEditors()
         activeSection?.let { section ->
-            ids.firstOrNull()?.let { selectSection(it, section) }
+            boundIds.firstOrNull()?.let { selectSection(it, section) }
         }
     }
 
     private fun selectSection(nodeId: NodeId, section: NodeTextSection) {
-        for (index in 0 until tabCount) {
-            val editor = getComponentAt(index) as? NodeTextEditor ?: continue
-            if (editor.nodeId == nodeId) {
-                selectedIndex = index
-                editor.selectSection(section)
-                return
-            }
+        val index = boundIds.indexOf(nodeId)
+        if (index < 0) return
+        selectedIndex = index
+        ensureEditorAt(index)?.selectSection(section)
+    }
+
+    private fun ensureSelectedEditor() {
+        if (selectedIndex >= 0) ensureEditorAt(selectedIndex)
+    }
+
+    private fun ensureEditorAt(index: Int): NodeTextEditor? {
+        val nodeId = boundIds.getOrNull(index) ?: return null
+        loadedEditors[nodeId]?.let { return it }
+        val editor = NodeTextEditor(
+            repository,
+            nodeId,
+            refreshAll,
+            checkpointHistory,
+            undoDocument,
+            redoDocument,
+            languageIds,
+            compilerCapabilityResolver,
+            activePalette,
+            requestNativeValidation,
+        )
+        loadedEditors[nodeId] = editor
+        if (index < tabCount && getComponentAt(index) !is NodeTextEditor) {
+            setComponentAt(index, editor)
         }
+        editor.setNativeDiagnostics(
+            nativeDiagnosticsByNode[nodeId]
+                ?: repository.getNode(nodeId)?.diagnostics.orEmpty(),
+        )
+        return editor
     }
 
     private fun refreshTitlesAndMetadata() {
-        for (index in 0 until tabCount) {
-            val editor = getComponentAt(index) as? NodeTextEditor ?: continue
-            repository.getNode(editor.nodeId)?.let { node -> setTitleAt(index, node.name) }
-            editor.refreshMetadata()
+        boundIds.forEachIndexed { index, nodeId ->
+            repository.getNode(nodeId)?.let { node -> setTitleAt(index, node.name) }
+            loadedEditors[nodeId]?.refreshMetadata()
         }
     }
 
     fun applyCodeEditorFont(font: Font) {
-        for (index in 0 until tabCount) {
-            (getComponentAt(index) as? NodeTextEditor)?.applyCodeEditorFont(font)
-        }
+        loadedEditors.values.forEach { it.applyCodeEditorFont(font) }
     }
 
     fun applyPalette(palette: DesignerPalette) {
         activePalette = palette
-        for (index in 0 until tabCount) {
-            (getComponentAt(index) as? NodeTextEditor)?.applyPalette(palette)
-        }
+        loadedEditors.values.forEach { it.applyPalette(palette) }
     }
 
     fun applyNativeDiagnostics(diagnosticsByNode: Map<NodeId?, List<Diagnostic>>) {
@@ -6866,8 +6890,7 @@ private class NodeEditorTabs(
     }
 
     private fun applyNativeDiagnosticsToBoundEditors() {
-        for (index in 0 until tabCount) {
-            val editor = getComponentAt(index) as? NodeTextEditor ?: continue
+        loadedEditors.values.forEach { editor ->
             editor.setNativeDiagnostics(
                 nativeDiagnosticsByNode[editor.nodeId]
                     ?: repository.getNode(editor.nodeId)?.diagnostics.orEmpty(),
@@ -6901,7 +6924,7 @@ private class NodeTextEditor(
     private var imagePanel: ImagePreviewPanel? = null
     private var binding = false
     private var activePalette = initialPalette
-    private var textTabsVisible = true
+    private var textTabsVisible = repository.requireNode(nodeId).binaryContent == null
     private val inheritedLanguageChoice = "Inherited"
     private val selectableLanguages = (listOf(VOID_LANGUAGE_ID) + languageIds).distinct()
     private val textTabs = listOf(
@@ -6952,10 +6975,15 @@ private class NodeTextEditor(
     )
 
     init {
+        if (textTabsVisible) addTextTabs()
+        syncSpecialContentTabs()
+    }
+
+    private fun addTextTabs() {
+        if (componentsBySection.isNotEmpty()) return
         textTabs.dropLast(1).forEach(::addTextTab)
         addTestsTab()
         addTextTab(textTabs.last())
-        syncSpecialContentTabs()
     }
 
     fun selectSection(section: NodeTextSection) {
@@ -7274,6 +7302,7 @@ private class NodeTextEditor(
             return
         }
 
+        addTextTabs()
         var index = 0
         textTabs.dropLast(1).forEach { spec ->
             val component = componentsBySection[spec.section] ?: return@forEach
@@ -7369,6 +7398,8 @@ private class BinaryContentPanel : JPanel(BorderLayout()) {
         lineWrap = false
         wrapStyleWord = false
     }
+    private var renderGeneration = 0L
+    private var renderWorker: SwingWorker<String, Unit>? = null
 
     init {
         add(summary, BorderLayout.NORTH)
@@ -7377,15 +7408,28 @@ private class BinaryContentPanel : JPanel(BorderLayout()) {
 
     fun bind(node: Node) {
         val bytes = node.binaryContent ?: byteArrayOf()
+        val generation = ++renderGeneration
         summary.text = "${bytes.size} bytes${node.technology.contentType.takeIf(String::isNotBlank)?.let { " | $it" }.orEmpty()}"
-        content.text = binaryHexDump(bytes)
-        content.caretPosition = 0
+        content.text = "Loading binary preview..."
+        renderWorker?.cancel(true)
+        renderWorker = object : SwingWorker<String, Unit>() {
+            override fun doInBackground(): String = binaryHexDump(bytes)
+
+            override fun done() {
+                if (isCancelled || generation != renderGeneration) return
+                content.text = runCatching { get() }
+                    .getOrElse { "Unable to render binary preview." }
+                content.caretPosition = 0
+            }
+        }.also { it.execute() }
     }
 }
 
 private class ImagePreviewPanel : JPanel(BorderLayout()) {
     private val status = JLabel("No preview", SwingConstants.CENTER)
     private val imageLabel = JLabel("", SwingConstants.CENTER)
+    private var renderGeneration = 0L
+    private var renderWorker: SwingWorker<BufferedImage?, Unit>? = null
 
     init {
         add(status, BorderLayout.NORTH)
@@ -7393,17 +7437,30 @@ private class ImagePreviewPanel : JPanel(BorderLayout()) {
     }
 
     fun bind(node: Node, bytes: ByteArray) {
-        val image = when {
-            node.technology.contentType == "image/svg+xml" -> renderSvgPreview(bytes)
-            else -> runCatching { ImageIO.read(ByteArrayInputStream(bytes)) }.getOrNull()
-        }
-        if (image != null) {
-            imageLabel.icon = javax.swing.ImageIcon(image)
-            status.text = "${node.name} | ${image.width} x ${image.height}"
-        } else {
-            imageLabel.icon = null
-            status.text = "${node.name} | preview unavailable; binary content is preserved"
-        }
+        val contentType = node.technology.contentType
+        val nodeName = node.name
+        val generation = ++renderGeneration
+        renderWorker?.cancel(true)
+        imageLabel.icon = null
+        status.text = "$nodeName | Loading image preview..."
+        renderWorker = object : SwingWorker<BufferedImage?, Unit>() {
+            override fun doInBackground(): BufferedImage? = when {
+                contentType == "image/svg+xml" -> renderSvgPreview(bytes)
+                else -> runCatching { ImageIO.read(ByteArrayInputStream(bytes)) }.getOrNull()
+            }
+
+            override fun done() {
+                if (isCancelled || generation != renderGeneration) return
+                val image = runCatching { get() }.getOrNull()
+                if (image != null) {
+                    imageLabel.icon = javax.swing.ImageIcon(image)
+                    status.text = "$nodeName | ${image.width} x ${image.height}"
+                } else {
+                    imageLabel.icon = null
+                    status.text = "$nodeName | preview unavailable; binary content is preserved"
+                }
+            }
+        }.also { it.execute() }
     }
 }
 
