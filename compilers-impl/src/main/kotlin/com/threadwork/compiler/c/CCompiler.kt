@@ -85,9 +85,12 @@ class CCompiler : TemplateSetCompiler() {
         node: Node,
         layoutId: String = document.effectiveLayoutStrategyId(node.id),
     ): Boolean {
-        if (node.isLink || node.children.isNotEmpty()) return false
         val technologyId = document.effectiveTechnologyId(node.id).trim()
-        if (technologyId == "file-export") return true
+        // These nodes are owned by the aggregate compiler.  They are directory
+        // boundaries as well as literal-file boundaries, so their descendants
+        // must never be assembled into the C source file.
+        if (technologyId in setOf("file-export", "multi-tech")) return true
+        if (node.isLink || node.children.isNotEmpty()) return false
         return layoutId == SingleFileLayoutStrategy.id &&
             document.effectiveLanguageId(node.id).trim().lowercase() !in setOf("", "c")
     }

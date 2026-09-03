@@ -7,6 +7,7 @@ import com.threadwork.compiler.api.DirectFileSystemHomorphismLayoutStrategy
 import com.threadwork.compiler.api.GeneratedElementKind
 import com.threadwork.compiler.api.GeneratedFile
 import com.threadwork.compiler.api.GeneratedProject
+import com.threadwork.compiler.api.LayoutStrategy
 import com.threadwork.compiler.api.NodeCompilerContext
 import com.threadwork.compiler.api.SingleFileLayoutStrategy
 import com.threadwork.compiler.generic.GenericCompiler
@@ -40,7 +41,20 @@ class FilesystemCompiler : GenericCompiler() {
 
     override fun supports(document: ThreadworkDocument): Boolean = true
 
+    override fun layoutStrategy(
+        document: ThreadworkDocument,
+        nodeId: NodeId,
+        options: CompilerOptions,
+    ): LayoutStrategy {
+        if (document.effectiveTechnologyId(nodeId).trim() in EXPORT_TECHNOLOGIES) {
+            return DirectFileSystemHomorphismLayoutStrategy
+        }
+        return super.layoutStrategy(document, nodeId, options)
+    }
+
     companion object {
+        private val EXPORT_TECHNOLOGIES = setOf("file-export", "multi-tech")
+
         /**
          * A direct filesystem root or a foreign standalone file needs the
          * aggregate compiler even if its enclosing workflow has one language.
@@ -82,6 +96,16 @@ class FilesystemCompiler : GenericCompiler() {
             elementKind = GeneratedElementKind.StaticFile,
             binaryContent = node.binaryContent,
         )
+    }
+
+    override fun declarationFor(context: NodeCompilerContext): String {
+        val node = context.node
+        val technologyId = context.document.effectiveTechnologyId(node.id).trim()
+        // An export container represents a directory, not a source file. Keep
+        // the regular artifact assembly so its child files are retained, but
+        // do not create a generated wrapper function for the directory node.
+        if (!node.isLink && node.children.isNotEmpty() && technologyId in EXPORT_TECHNOLOGIES) return ""
+        return super.declarationFor(context)
     }
 
     override fun finalizeProject(
@@ -194,7 +218,13 @@ class FilesystemCompiler : GenericCompiler() {
             parentId = parent.parentId
         }
         return parents.asReversed()
-            .filter { parent -> parent.children.isNotEmpty() && document.effectiveLayoutStrategyId(parent.id) != SingleFileLayoutStrategy.id }
+            .filter { parent ->
+                parent.children.isNotEmpty() &&
+                    (
+                        document.effectiveTechnologyId(parent.id).trim() in EXPORT_TECHNOLOGIES ||
+                            document.effectiveLayoutStrategyId(parent.id) != SingleFileLayoutStrategy.id
+                    )
+            }
             .map { parent -> safeSegment(parent.name) }
     }
 

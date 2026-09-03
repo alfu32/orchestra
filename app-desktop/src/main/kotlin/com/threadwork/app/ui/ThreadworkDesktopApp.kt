@@ -6901,6 +6901,7 @@ private class NodeTextEditor(
     private var imagePanel: ImagePreviewPanel? = null
     private var binding = false
     private var activePalette = initialPalette
+    private var textTabsVisible = true
     private val inheritedLanguageChoice = "Inherited"
     private val selectableLanguages = (listOf(VOID_LANGUAGE_ID) + languageIds).distinct()
     private val textTabs = listOf(
@@ -7234,6 +7235,7 @@ private class NodeTextEditor(
     private fun syncSpecialContentTabs() {
         val node = repository.getNode(nodeId) ?: return
         val binary = node.binaryContent
+        syncTextTabsForBinary(binary != null)
         if (binary != null) {
             if (binaryPanel == null) {
                 val panel = BinaryContentPanel()
@@ -7259,6 +7261,33 @@ private class NodeTextEditor(
             imagePanel?.let(::remove)
             imagePanel = null
         }
+    }
+
+    private fun syncTextTabsForBinary(hasBinaryContent: Boolean) {
+        if (hasBinaryContent == !textTabsVisible) return
+        if (hasBinaryContent) {
+            textTabs.forEach { spec ->
+                componentsBySection[spec.section]?.let(::remove)
+            }
+            componentsBySection[NodeTextSection.Tests]?.let(::remove)
+            textTabsVisible = false
+            return
+        }
+
+        var index = 0
+        textTabs.dropLast(1).forEach { spec ->
+            val component = componentsBySection[spec.section] ?: return@forEach
+            insertTab(spec.label, ThreadworkIcons.buttonIcon(spec.iconId), component, null, index++)
+        }
+        componentsBySection[NodeTextSection.Tests]?.let { component ->
+            insertTab("Tests", ThreadworkIcons.buttonIcon("ide_tab_tests"), component, null, index++)
+        }
+        textTabs.lastOrNull()?.let { spec ->
+            componentsBySection[spec.section]?.let { component ->
+                insertTab(spec.label, ThreadworkIcons.buttonIcon(spec.iconId), component, null, index)
+            }
+        }
+        textTabsVisible = true
     }
 
     private fun typeHoverInfo(request: EditorHoverRequest): EditorHoverInfo? {

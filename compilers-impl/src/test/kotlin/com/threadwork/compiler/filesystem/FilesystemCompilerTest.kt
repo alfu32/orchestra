@@ -120,6 +120,57 @@ class FilesystemCompilerTest {
     }
 
     @Test
+    fun `filesystem compiler keeps nested binary export subtrees out of C source`() {
+        val repository = InMemoryDocumentRepository(newDocument("ticker"))
+        val rootId = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(
+            rootId,
+            TechnologyMetadata(
+                languageId = "c",
+                technologyId = "c-native",
+                compilerId = "c-compiler",
+                fileExtension = "c",
+            ),
+        )
+        repository.updateNodeFileLayoutStrategy(rootId, SingleFileLayoutStrategy.id)
+
+        val dlls = repository.createNode(rootId, "dlls", NodeKind.Processor)
+        repository.updateNodeTechnology(
+            dlls.id,
+            TechnologyMetadata(languageId = "", technologyId = "file-export"),
+        )
+        val platform = repository.createNode(dlls.id, "linux-x64", NodeKind.Processor)
+        repository.updateNodeTechnology(
+            platform.id,
+            TechnologyMetadata(languageId = "", technologyId = "file-export"),
+        )
+        val binary = repository.createNode(platform.id, "qjs.so", NodeKind.Processor)
+        repository.updateNodeTechnology(
+            binary.id,
+            TechnologyMetadata(
+                languageId = "",
+                technologyId = "file-export",
+                fileExtension = "so",
+                contentType = "application/octet-stream",
+            ),
+        )
+        repository.updateNodeBinaryContent(binary.id, byteArrayOf(0x00, 0x01, 0x7f))
+
+        val result = FilesystemCompiler().compile(
+            repository.getDocument(),
+            CompilerOptions(compilerPlugins = listOf(CCompiler())),
+        )
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val files = assertNotNull(result.generatedProject).files.associateBy { it.path }
+        assertTrue("ticker.c" in files)
+        assertTrue("dlls/linux-x64/qjs.so" in files)
+        assertTrue(files.getValue("dlls/linux-x64/qjs.so").binaryContent!!.contentEquals(byteArrayOf(0x00, 0x01, 0x7f)))
+        assertFalse(files.getValue("ticker.c").content.contains("run_dlls"))
+        assertFalse(files.getValue("ticker.c").content.contains("qjs.so"))
+    }
+
+    @Test
     fun `scoped filesystem validation delegates the selected C source`() {
         val repository = InMemoryDocumentRepository(newDocument("sample_c"))
         val rootId = repository.getDocument().rootNodeId

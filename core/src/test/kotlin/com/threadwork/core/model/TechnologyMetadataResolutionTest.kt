@@ -93,6 +93,33 @@ class TechnologyMetadataResolutionTest {
     }
 
     @Test
+    fun `file export without language or layout does not inherit enclosing workflow settings`() {
+        val root = Node(
+            id = NodeId("root"),
+            name = "root",
+            kind = NodeKind.Group,
+            technology = TechnologyMetadata(languageId = "c", technologyId = "c-native"),
+        )
+        val exported = Node(
+            id = NodeId("exported"),
+            name = "dlls",
+            kind = NodeKind.Group,
+            parentId = root.id,
+            technology = TechnologyMetadata(technologyId = "file-export"),
+        )
+        root.children += exported.id
+        val document = ThreadworkDocument(
+            id = "doc",
+            name = "doc",
+            rootNodeId = root.id,
+            nodes = mutableMapOf(root.id to root, exported.id to exported),
+        )
+
+        assertEquals(VOID_LANGUAGE_ID, document.effectiveLanguageId(exported.id))
+        assertEquals(VOID_LAYOUT_STRATEGY_ID, document.effectiveLayoutStrategyId(exported.id))
+    }
+
+    @Test
     fun `effective layout strategy skips explicit none and blank values and inherits from parent`() {
         val root = Node(
             id = NodeId("root"),

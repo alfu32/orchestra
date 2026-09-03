@@ -293,8 +293,20 @@ private fun ThreadworkDocument.isCompositeBoundary(nodeId: NodeId): Boolean {
     return node.kind == NodeKind.Group || node.children.any { childId -> nodes[childId]?.isLink == false }
 }
 
-fun ThreadworkDocument.effectiveLanguageId(nodeId: NodeId): String =
-    inheritedTechnologyValue(nodeId, VOID_LANGUAGE_ID) { it.languageId }
+fun ThreadworkDocument.effectiveLanguageId(nodeId: NodeId): String {
+    val node = nodes[nodeId]
+    val technology = effectiveTechnologyId(nodeId)
+    if (node != null &&
+        node.technology.languageId.isBlank() &&
+        (technology == "file-export" || technology == "multi-tech")
+    ) {
+        // An explicit export boundary is language-neutral unless the exported
+        // file declares its own language. Do not inherit the enclosing workflow
+        // language for binary files or directory containers.
+        return VOID_LANGUAGE_ID
+    }
+    return inheritedTechnologyValue(nodeId, VOID_LANGUAGE_ID) { it.languageId }
+}
 
 fun ThreadworkDocument.effectiveTechnologyId(nodeId: NodeId): String =
     inheritedNodeValue(nodeId, VOID_TECHNOLOGY_ID) {
@@ -302,11 +314,22 @@ fun ThreadworkDocument.effectiveTechnologyId(nodeId: NodeId): String =
         if (value.isBlank() || value == VOID_TECHNOLOGY_ID) "" else value
     }
 
-fun ThreadworkDocument.effectiveLayoutStrategyId(nodeId: NodeId): String =
-    inheritedNodeValue(nodeId, VOID_LAYOUT_STRATEGY_ID) {
+fun ThreadworkDocument.effectiveLayoutStrategyId(nodeId: NodeId): String {
+    val node = nodes[nodeId]
+    val technology = effectiveTechnologyId(nodeId)
+    if (node != null &&
+        (technology == "file-export" || technology == "multi-tech") &&
+        node.fileLayoutStrategyId.trim() in setOf("", VOID_LAYOUT_STRATEGY_ID)
+    ) {
+        // Export boundaries use the aggregate compiler's directory semantics;
+        // do not inherit a parent's single-file layout by accident.
+        return VOID_LAYOUT_STRATEGY_ID
+    }
+    return inheritedNodeValue(nodeId, VOID_LAYOUT_STRATEGY_ID) {
         val value = it.fileLayoutStrategyId.trim()
         if (value.isBlank() || value == VOID_LAYOUT_STRATEGY_ID) "" else value
     }
+}
 
 fun ThreadworkDocument.effectiveResponsible(nodeId: NodeId): String =
     inheritedNodeValue(nodeId, VOID_RESPONSIBLE) { it.responsible.orEmpty() }
