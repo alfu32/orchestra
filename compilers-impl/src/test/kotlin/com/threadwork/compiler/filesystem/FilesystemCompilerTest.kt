@@ -120,6 +120,48 @@ class FilesystemCompilerTest {
     }
 
     @Test
+    fun `scoped filesystem validation delegates the selected C source`() {
+        val repository = InMemoryDocumentRepository(newDocument("sample_c"))
+        val rootId = repository.getDocument().rootNodeId
+        repository.updateNodeTechnology(
+            rootId,
+            TechnologyMetadata(
+                languageId = "plain",
+                technologyId = "multi-tech",
+                compilerId = "multi-tech",
+            ),
+        )
+        repository.updateNodeFileLayoutStrategy(rootId, DirectFileSystemHomorphismLayoutStrategy.id)
+
+        val ticker = repository.createNode(rootId, "ticker", NodeKind.Processor)
+        repository.updateNodeTechnology(
+            ticker.id,
+            TechnologyMetadata(
+                languageId = "c",
+                technologyId = "c-native",
+                compilerId = "c-compiler",
+                fileExtension = "c",
+            ),
+        )
+        repository.updateNodeFileLayoutStrategy(ticker.id, SingleFileLayoutStrategy.id)
+        repository.updateNodeText(ticker.id, ticker.text.copy(declaration = "int broken = ;"))
+
+        val result = FilesystemCompiler().compile(
+            repository.getDocument(),
+            CompilerOptions(
+                scopeNodeIds = setOf(ticker.id),
+                includeScopeDescendants = false,
+                compilerPlugins = listOf(CCompiler()),
+            ),
+        )
+
+        assertTrue(result.success, result.diagnostics.joinToString { it.message })
+        val generated = assertNotNull(result.generatedProject).files.single { it.path == "ticker.c" }
+        assertTrue(generated.content.contains("int broken = ;"))
+        assertTrue(generated.sourceMap.entries.any { it.nodeId == ticker.id && it.sourceLine == 1 })
+    }
+
+    @Test
     fun `filesystem compiler exposes direct filesystem layout only`() {
         assertTrue(
             FilesystemCompiler().supportedLayoutStrategyIds == setOf(DirectFileSystemHomorphismLayoutStrategy.id),

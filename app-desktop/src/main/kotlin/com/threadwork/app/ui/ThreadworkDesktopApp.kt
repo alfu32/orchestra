@@ -294,10 +294,11 @@ class ThreadworkDesktopApp(
     private val status = JLabel("Status and Messages").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
     }
-    private val nativeDiagnosticStatus = JLabel().apply {
+    private val nativeDiagnosticStatus = JLabel("Validation: idle").apply {
         border = BorderFactory.createEmptyBorder(3, 8, 3, 8)
         font = Font(Font.MONOSPACED, Font.PLAIN, 11)
         foreground = Color(0xff7777)
+        horizontalAlignment = SwingConstants.RIGHT
         toolTipText = "Click to inspect mapped compiler diagnostics"
         addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
@@ -1243,14 +1244,13 @@ class ThreadworkDesktopApp(
             nativeDiagnosticDetails = nativeDiagnosticDetails.filterNot { it.diagnostic.nodeId == nodeId }
             editorTabs.applyNativeDiagnostics(mapOf(nodeId to emptyList()))
         }
-        nativeDiagnosticStatus.text = ""
+        nativeDiagnosticStatus.text = "Validation: idle"
         nativeDiagnosticStatus.toolTipText = "Click to inspect mapped compiler diagnostics"
         canvas.repaint()
     }
 
     private fun persistNativeDiagnostics(nodeId: NodeId, details: List<EmbeddedDiagnostic>) {
-        val nodeDetails = details
-            .filter { it.diagnostic.nodeId == null || it.diagnostic.nodeId == nodeId }
+        val mappedDetails = details
             .map { detail ->
                 if (detail.diagnostic.nodeId == null) {
                     detail.copy(diagnostic = detail.diagnostic.copy(nodeId = nodeId))
@@ -1258,12 +1258,23 @@ class ThreadworkDesktopApp(
                     detail
                 }
             }
-        val diagnostics = nodeDetails.map(EmbeddedDiagnostic::diagnostic)
-        repository.updateNodeDiagnostics(nodeId, diagnostics)
+        val affectedNodeIds = mappedDetails.mapNotNull { it.diagnostic.nodeId }.toSet() + nodeId
+        val diagnosticsByNode = affectedNodeIds.associateWith { affectedNodeId ->
+            mappedDetails
+                .filter { it.diagnostic.nodeId == affectedNodeId }
+                .map(EmbeddedDiagnostic::diagnostic)
+        }
+        diagnosticsByNode.forEach { (affectedNodeId, diagnostics) ->
+            repository.updateNodeDiagnostics(affectedNodeId, diagnostics)
+        }
         nativeDiagnosticDetails = nativeDiagnosticDetails
-            .filterNot { it.diagnostic.nodeId == nodeId }
-            .plus(nodeDetails)
-        editorTabs.applyNativeDiagnostics(mapOf(nodeId to diagnostics))
+            .filterNot { it.diagnostic.nodeId in affectedNodeIds }
+            .plus(mappedDetails)
+        editorTabs.applyNativeDiagnostics(
+            diagnosticsByNode.entries.associate { (affectedNodeId, diagnostics) ->
+                affectedNodeId as NodeId? to diagnostics
+            },
+        )
         canvas.repaint()
     }
 
@@ -1300,6 +1311,8 @@ class ThreadworkDesktopApp(
             clearNativeDiagnostics(nodeId)
             return
         }
+        nativeDiagnosticStatus.text = "${languageId.uppercase()} validation: checking..."
+        nativeDiagnosticStatus.toolTipText = "Embedded compiler validation is running"
         status.text = "Validating ${languageId.uppercase()} source..."
         nativeValidationExecutor.submit {
             val validationResults = runCatching {
@@ -1322,17 +1335,13 @@ class ThreadworkDesktopApp(
                     ?.flatMap(validator::validateDetailed)
                     .orEmpty()
                     .let { sourceDiagnostics ->
-                        if (compilation.generatedProject != null) {
-                            sourceDiagnostics
-                        } else {
-                            compilation.diagnostics.map { diagnostic ->
-                                EmbeddedDiagnostic(
-                                    diagnostic = diagnostic,
-                                    generatedPath = "compiler",
-                                    generatedLine = null,
-                                    generatedColumn = null,
-                                )
-                            }
+                        sourceDiagnostics + compilation.diagnostics.map { diagnostic ->
+                            EmbeddedDiagnostic(
+                                diagnostic = diagnostic,
+                                generatedPath = "compiler",
+                                generatedLine = null,
+                                generatedColumn = null,
+                            )
                         }
                     }
             }.getOrElse { error ->
@@ -1355,29 +1364,30 @@ class ThreadworkDesktopApp(
             SwingUtilities.invokeLater {
                 if (generation != nativeValidationGeneration) return@invokeLater
                 persistNativeDiagnostics(nodeId, validationResults)
-                val diagnostics = repository.getNode(nodeId)?.diagnostics.orEmpty()
-                val activeDetails = nativeDiagnosticDetails.filter { it.diagnostic.nodeId == nodeId }
-                val first = activeDetails.firstOrNull()
+                val diagnostics = nativeDiagnosticDetails.map(EmbeddedDiagnostic::diagnostic)
+                val first = nativeDiagnosticDetails.firstOrNull()
                 if (first == null) {
-                    nativeDiagnosticStatus.text = ""
-                    nativeDiagnosticStatus.toolTipText = null
+                    nativeDiagnosticStatus.text = "${languageId.uppercase()} validation: OK"
+                    nativeDiagnosticStatus.toolTipText = "No embedded compiler diagnostics"
                 } else {
                     val diagnostic = first.diagnostic
-                    editorTabs.revealNativeDiagnostic(nodeId, diagnostic.textSection)
+                    validationResults.firstOrNull()?.let { detail ->
+                        editorTabs.revealNativeDiagnostic(detail.diagnostic.nodeId, detail.diagnostic.textSection)
+                    }
                     val generatedLocation = listOfNotNull(
                         first.generatedLine,
                         first.generatedColumn,
                     ).joinToString(":")
                     val sourceLocation = listOfNotNull(diagnostic.line, diagnostic.column).joinToString(":")
-                    val nodeName = document.getElementById(nodeId)?.name ?: "unmapped"
-                    val binding = if (editorTabs.hasBoundNode(nodeId)) {
+                    val nodeName = diagnostic.nodeId?.let(document::getElementById)?.name ?: "unmapped"
+                    val binding = if (editorTabs.hasBoundNode(diagnostic.nodeId)) {
                         "bound"
                     } else {
                         "not-bound"
                     }
                     val mapping = "${first.generatedPath}:$generatedLocation -> $nodeName ${diagnostic.textSection ?: "unknown"} $sourceLocation ($binding)"
-                    nativeDiagnosticStatus.text = "${diagnostic.severity}: ${mapping.take(180)}"
-                    nativeDiagnosticStatus.toolTipText = "$mapping\n${diagnostic.message}"
+                    nativeDiagnosticStatus.text = "${languageId.uppercase()} validation: ${diagnostics.size} issue${if (diagnostics.size == 1) "" else "s"}"
+                    nativeDiagnosticStatus.toolTipText = "$mapping\n${diagnostic.message}\nClick for all diagnostics"
                 }
                 status.text = if (diagnostics.isEmpty()) {
                     "${languageId.uppercase()} source validated"

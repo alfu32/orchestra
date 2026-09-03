@@ -563,7 +563,7 @@ abstract class StructuredCompiler : CompilerPlugin {
             val result = delegate.compile(
                 document,
                 options.copy(
-                    scopeNodeIds = setOf(node.id),
+                    scopeNodeIds = delegatedScopeNodeIds(document, node, options),
                     includeScopeAncestors = false,
                 ),
             )
@@ -666,6 +666,27 @@ abstract class StructuredCompiler : CompilerPlugin {
             hoistedDeclarationText = ownHoistedDeclaration,
             hoistedDeclarations = hoistedDeclarations,
         )
+    }
+
+    private fun delegatedScopeNodeIds(
+        document: ThreadworkDocument,
+        delegateRoot: Node,
+        options: CompilerOptions,
+    ): Set<NodeId> {
+        if (options.scopeNodeIds.isEmpty()) return setOf(delegateRoot.id)
+        return options.scopeNodeIds
+            .filter { nodeId -> isInSubtree(document, nodeId, delegateRoot.id) }
+            .toSet()
+            .plus(delegateRoot.id)
+    }
+
+    private fun isInSubtree(document: ThreadworkDocument, nodeId: NodeId, ancestorId: NodeId): Boolean {
+        var currentId: NodeId? = nodeId
+        while (currentId != null) {
+            if (currentId == ancestorId) return true
+            currentId = document.getElementById(currentId)?.parentId
+        }
+        return false
     }
 
     private fun compileScopeIds(
