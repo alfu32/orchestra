@@ -1321,6 +1321,20 @@ class ThreadworkDesktopApp(
                     }
                     ?.flatMap(validator::validateDetailed)
                     .orEmpty()
+                    .let { sourceDiagnostics ->
+                        if (compilation.generatedProject != null) {
+                            sourceDiagnostics
+                        } else {
+                            compilation.diagnostics.map { diagnostic ->
+                                EmbeddedDiagnostic(
+                                    diagnostic = diagnostic,
+                                    generatedPath = "compiler",
+                                    generatedLine = null,
+                                    generatedColumn = null,
+                                )
+                            }
+                        }
+                    }
             }.getOrElse { error ->
                 listOf(
                     EmbeddedDiagnostic(
@@ -2034,6 +2048,10 @@ class ThreadworkDesktopApp(
         refreshSelectedEntitiesTree()
         canvas.invalidateRenderCache()
         canvas.repaint()
+        selection.singleOrNull()?.let { nodeId ->
+            val languageId = repository.getDocument().effectiveTextLanguageId(nodeId, NodeTextSection.Declaration)
+            scheduleEmbeddedValidation(nodeId, languageId)
+        }
     }
 
     private fun openNodeInEntityEditor(id: NodeId) {
