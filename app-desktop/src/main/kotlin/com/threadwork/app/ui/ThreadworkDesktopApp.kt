@@ -117,6 +117,7 @@ import java.awt.event.MouseEvent
 import java.awt.event.MouseWheelEvent
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FilenameFilter
 import java.io.StringReader
@@ -136,6 +137,9 @@ import org.apache.pdfbox.multipdf.PDFMergerUtility
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.rendering.ImageType
 import org.apache.pdfbox.rendering.PDFRenderer
+import org.apache.batik.transcoder.TranscoderInput
+import org.apache.batik.transcoder.TranscoderOutput
+import org.apache.batik.transcoder.image.PNGTranscoder
 import javax.imageio.ImageIO
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
@@ -231,6 +235,40 @@ class ThreadworkDesktopApp(
         const val DEFAULT_PROJECT_NAME = "document.orch"
         const val MAX_HISTORY_SNAPSHOTS = 100
         const val DOCUMENTATION_PAGE_BREAK = "<!-- threadwork:page-break -->"
+        val BINARY_FILE_EXTENSIONS = setOf("dll", "so", "dylib", "bin", "exe")
+        val RASTER_IMAGE_EXTENSIONS = setOf("png", "jpeg", "jpg", "gif", "webm")
+        val IMPORT_LANGUAGE_BY_EXTENSION = mapOf(
+            "c" to "c",
+            "h" to "c",
+            "cc" to "cpp",
+            "cpp" to "cpp",
+            "cxx" to "cpp",
+            "hpp" to "cpp",
+            "css" to "css",
+            "go" to "go",
+            "html" to "html",
+            "htm" to "html",
+            "java" to "java",
+            "js" to "javascript",
+            "mjs" to "javascript",
+            "cjs" to "javascript",
+            "json" to "json",
+            "kt" to "kotlin",
+            "kts" to "kotlin",
+            "md" to "markdown",
+            "markdown" to "markdown",
+            "php" to "php",
+            "py" to "python",
+            "rs" to "rust",
+            "sh" to "shellscript",
+            "bash" to "shellscript",
+            "sql" to "sql",
+            "ts" to "typescript",
+            "tsx" to "typescript",
+            "xml" to "xml",
+            "yaml" to "yaml",
+            "yml" to "yaml",
+        )
     }
 
     private val frame = JFrame()
@@ -244,6 +282,7 @@ class ThreadworkDesktopApp(
         ::updateTileProgress,
         ::openNodeInEntityEditor,
         ::showCommandContextMenu,
+        ::importDroppedFiles,
     )
     private val hierarchyTree = JTree()
     private val detailsHierarchyTree = JTree()
@@ -769,6 +808,114 @@ class ThreadworkDesktopApp(
         refreshAll()
         updateWindowTitle()
     }
+
+    private fun importDroppedFiles(files: List<Path>, dropPoint: Point) {
+        val accepted = files.mapNotNull { path ->
+            val extension = path.fileName.toString().substringAfterLast('.', "").lowercase()
+            val kind = importedFileKind(extension)
+            if (kind == null) {
+                status.text = "Unsupported dropped file: ${path.fileName}"
+                return@mapNotNull null
+            }
+            runCatching {
+                ImportedFile(path, kind, Files.readAllBytes(path))
+            }.onFailure {
+                status.text = "Could not read ${path.fileName}: ${it.message}"
+            }.getOrNull()
+        }
+        if (accepted.isEmpty()) return
+
+        val parentId = canvas.dropParentAt(dropPoint) ?: repository.getDocument().rootNodeId
+        val created = mutableListOf<NodeId>()
+        accepted.forEachIndexed { index, imported ->
+            val node = repository.createNode(parentId, imported.path.fileName.toString(), NodeKind.Processor)
+            repository.updateNodeLayout(
+                node.id,
+                node.layout.copy(
+                    x = dropPoint.x.toDouble() + index * 40.0,
+                    y = dropPoint.y.toDouble() + index * 40.0,
+                ),
+            )
+            repository.updateNodeTechnology(
+                node.id,
+                TechnologyMetadata(
+                    languageId = imported.kind.languageId.orEmpty(),
+                    technologyId = "file-export",
+                    fileExtension = imported.kind.extension,
+                    contentType = imported.kind.contentType,
+                ),
+            )
+            when {
+                imported.kind.isSvg || !imported.kind.isBinary -> repository.updateNodeText(
+                    node.id,
+                    NodeText(
+                        declaration = imported.bytes.toString(Charsets.UTF_8),
+                        declarationLanguageId = imported.kind.languageId.orEmpty(),
+                    ),
+                )
+                else -> repository.updateNodeBinaryContent(node.id, imported.bytes)
+            }
+            created += node.id
+        }
+        checkpointHistory()
+        selection.clear()
+        selection += created
+        status.text = "Imported ${created.size} file${if (created.size == 1) "" else "s"} as node${if (created.size == 1) "" else "s"}."
+        refreshAll()
+    }
+
+    private fun importedFileKind(extension: String): ImportedFileKind? = when {
+        extension in BINARY_FILE_EXTENSIONS -> ImportedFileKind(
+            extension = extension,
+            languageId = null,
+            contentType = "application/octet-stream",
+            isBinary = true,
+        )
+        extension in RASTER_IMAGE_EXTENSIONS -> ImportedFileKind(
+            extension = extension,
+            languageId = null,
+            contentType = when (extension) {
+                "png" -> "image/png"
+                "gif" -> "image/gif"
+                "webm" -> "image/webm"
+                else -> "image/jpeg"
+            },
+            isBinary = true,
+        )
+        extension == "svg" -> ImportedFileKind(
+            extension = extension,
+            languageId = "xml",
+            contentType = "image/svg+xml",
+            isSvg = true,
+        )
+        IMPORT_LANGUAGE_BY_EXTENSION[extension] != null -> ImportedFileKind(
+            extension = extension,
+            languageId = IMPORT_LANGUAGE_BY_EXTENSION.getValue(extension),
+            contentType = when (extension) {
+                "html", "htm" -> "text/html"
+                "css" -> "text/css"
+                "json" -> "application/json"
+                "xml" -> "application/xml"
+                "md", "markdown" -> "text/markdown"
+                else -> "text/plain"
+            },
+        )
+        else -> null
+    }
+
+    private data class ImportedFile(
+        val path: Path,
+        val kind: ImportedFileKind,
+        val bytes: ByteArray,
+    )
+
+    private data class ImportedFileKind(
+        val extension: String,
+        val languageId: String?,
+        val contentType: String,
+        val isBinary: Boolean = false,
+        val isSvg: Boolean = false,
+    )
 
     private fun quit() {
         autosave()
@@ -2458,6 +2605,7 @@ class GraphCanvas(
     private val onTileProgress: (Int, Int, Boolean) -> Unit = { _, _, _ -> },
     private val onNodeDoubleClicked: (NodeId) -> Unit = {},
     private val onContextMenu: (Component, Int, Int) -> Unit = { _, _, _ -> },
+    private val onFilesDropped: (List<Path>, Point) -> Unit = { _, _ -> },
 ) : JPanel() {
     var mode: CanvasMode = CanvasMode.Select
         private set
@@ -2680,7 +2828,30 @@ class GraphCanvas(
         addMouseListener(mouse)
         addMouseMotionListener(mouse)
         addMouseWheelListener(mouse)
+        transferHandler = object : TransferHandler() {
+            override fun canImport(support: TransferSupport): Boolean =
+                support.isDrop && support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)
+
+            override fun importData(support: TransferSupport): Boolean {
+                if (!canImport(support)) return false
+                val paths = runCatching {
+                    @Suppress("UNCHECKED_CAST")
+                    (support.transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>)
+                        .map(File::toPath)
+                }.getOrNull().orEmpty()
+                if (paths.isEmpty()) return false
+                val dropPoint = (support.dropLocation as? TransferHandler.DropLocation)?.dropPoint
+                val point = dropPoint?.let(::modelPoint) ?: modelPoint(Point(width / 2, height / 2))
+                onFilesDropped(paths, point)
+                return true
+            }
+        }
     }
+
+    fun dropParentAt(point: Point): NodeId? = hitNode(point)
+        ?.takeIf { candidate ->
+            repository.getNode(candidate)?.let { !it.isLink && !it.isType } == true
+        }
 
     override fun getToolTipText(event: MouseEvent): String? {
         val linkId = hitLink(modelPoint(event.point)) ?: return null
@@ -2966,6 +3137,7 @@ class GraphCanvas(
             source.layout.copy(x = source.layout.x + 40, y = source.layout.y + 40),
         )
         repository.updateNodeText(copy.id, source.text.copy())
+        repository.updateNodeBinaryContent(copy.id, source.binaryContent?.copyOf())
         repository.updateNodeTechnology(copy.id, source.technology.copy())
         repository.updateNodeFileLayoutStrategy(copy.id, source.fileLayoutStrategyId)
         repository.updateNodeMetadata(copy.id, source.metadata)
@@ -6725,6 +6897,8 @@ private class NodeTextEditor(
     private val effectiveLanguageLabelsBySection = mutableMapOf<NodeTextSection, JLabel>()
     private val componentsBySection = mutableMapOf<NodeTextSection, JComponent>()
     private var testsPanel: TestTextEditorPanel? = null
+    private var binaryPanel: BinaryContentPanel? = null
+    private var imagePanel: ImagePreviewPanel? = null
     private var binding = false
     private var activePalette = initialPalette
     private val inheritedLanguageChoice = "Inherited"
@@ -6780,6 +6954,7 @@ private class NodeTextEditor(
         textTabs.dropLast(1).forEach(::addTextTab)
         addTestsTab()
         addTextTab(textTabs.last())
+        syncSpecialContentTabs()
     }
 
     fun selectSection(section: NodeTextSection) {
@@ -6815,6 +6990,7 @@ private class NodeTextEditor(
             editorsBySection[NodeTextSection.Tests]?.let(::applySemanticIdentifierPresentation)
             testsPanel?.bindLanguage(effectiveTextLanguage(NodeTextSection.Tests))
             testsPanel?.refreshTopology()
+            syncSpecialContentTabs()
         } finally {
             binding = false
         }
@@ -7055,6 +7231,36 @@ private class NodeTextEditor(
         )
     }
 
+    private fun syncSpecialContentTabs() {
+        val node = repository.getNode(nodeId) ?: return
+        val binary = node.binaryContent
+        if (binary != null) {
+            if (binaryPanel == null) {
+                val panel = BinaryContentPanel()
+                binaryPanel = panel
+                addTab("Binary", panel)
+            }
+            binaryPanel?.bind(node)
+        } else if (binaryPanel != null) {
+            binaryPanel?.let(::remove)
+            binaryPanel = null
+        }
+
+        val isRasterImage = node.technology.contentType.startsWith("image/") && binary != null
+        val isSvgImage = node.technology.contentType == "image/svg+xml" && node.text.declaration.isNotBlank()
+        if (isRasterImage || isSvgImage) {
+            if (imagePanel == null) {
+                val panel = ImagePreviewPanel()
+                imagePanel = panel
+                addTab("Image", panel)
+            }
+            imagePanel?.bind(node, binary ?: node.text.declaration.toByteArray(Charsets.UTF_8))
+        } else if (imagePanel != null) {
+            imagePanel?.let(::remove)
+            imagePanel = null
+        }
+    }
+
     private fun typeHoverInfo(request: EditorHoverRequest): EditorHoverInfo? {
         val document = repository.getDocument()
         val node = document.getElementById(NodeId(request.nodeId)) ?: return null
@@ -7125,6 +7331,84 @@ private class NodeTextEditor(
         val languageSetter: (NodeText, String) -> NodeText,
     )
 }
+
+private class BinaryContentPanel : JPanel(BorderLayout()) {
+    private val summary = JLabel()
+    private val content = JTextArea().apply {
+        isEditable = false
+        font = Font(Font.MONOSPACED, Font.PLAIN, 12)
+        lineWrap = false
+        wrapStyleWord = false
+    }
+
+    init {
+        add(summary, BorderLayout.NORTH)
+        add(JScrollPane(content), BorderLayout.CENTER)
+    }
+
+    fun bind(node: Node) {
+        val bytes = node.binaryContent ?: byteArrayOf()
+        summary.text = "${bytes.size} bytes${node.technology.contentType.takeIf(String::isNotBlank)?.let { " | $it" }.orEmpty()}"
+        content.text = binaryHexDump(bytes)
+        content.caretPosition = 0
+    }
+}
+
+private class ImagePreviewPanel : JPanel(BorderLayout()) {
+    private val status = JLabel("No preview", SwingConstants.CENTER)
+    private val imageLabel = JLabel("", SwingConstants.CENTER)
+
+    init {
+        add(status, BorderLayout.NORTH)
+        add(JScrollPane(imageLabel), BorderLayout.CENTER)
+    }
+
+    fun bind(node: Node, bytes: ByteArray) {
+        val image = when {
+            node.technology.contentType == "image/svg+xml" -> renderSvgPreview(bytes)
+            else -> runCatching { ImageIO.read(ByteArrayInputStream(bytes)) }.getOrNull()
+        }
+        if (image != null) {
+            imageLabel.icon = javax.swing.ImageIcon(image)
+            status.text = "${node.name} | ${image.width} x ${image.height}"
+        } else {
+            imageLabel.icon = null
+            status.text = "${node.name} | preview unavailable; binary content is preserved"
+        }
+    }
+}
+
+private fun binaryHexDump(bytes: ByteArray): String {
+    val displayed = bytes.take(1_048_576).toByteArray()
+    return buildString {
+        displayed.asList().chunked(16).forEachIndexed { row, chunk ->
+            append(String.format("%08x  ", row * 16))
+            chunk.forEach { byte -> append(String.format("%02x ", byte.toInt() and 0xff)) }
+            repeat(16 - chunk.size) { append("   ") }
+            append(" | ")
+            chunk.forEach { byte ->
+                val value = byte.toInt() and 0xff
+                append(if (value in 32..126) value.toChar() else '.')
+            }
+            appendLine("|")
+        }
+        if (bytes.size > displayed.size) {
+            appendLine("... ${bytes.size - displayed.size} more bytes not displayed")
+        }
+    }
+}
+
+private fun renderSvgPreview(bytes: ByteArray): BufferedImage? = runCatching {
+    val output = ByteArrayOutputStream()
+    PNGTranscoder().apply {
+        addTranscodingHint(PNGTranscoder.KEY_WIDTH, 900f)
+        addTranscodingHint(PNGTranscoder.KEY_HEIGHT, 700f)
+    }.transcode(
+        TranscoderInput(ByteArrayInputStream(bytes)),
+        TranscoderOutput(output),
+    )
+    ImageIO.read(ByteArrayInputStream(output.toByteArray()))
+}.getOrNull()
 
 private class TestTextEditorPanel(
     private val repository: DocumentRepository,

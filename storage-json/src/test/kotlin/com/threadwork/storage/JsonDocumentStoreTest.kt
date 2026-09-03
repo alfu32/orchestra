@@ -17,11 +17,28 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class JsonDocumentStoreTest {
+    @Test
+    fun `binary node content round trips as Base64`() {
+        val repository = InMemoryDocumentRepository(newDocument("binary json"))
+        val node = repository.createNode(repository.getDocument().rootNodeId, "lib.so", NodeKind.Processor)
+        val content = byteArrayOf(0, 1, 2, 127, -1)
+        repository.updateNodeBinaryContent(node.id, content)
+        val file = createTempFile(suffix = ".orch")
+
+        KotlinxJsonDocumentStore().save(repository.getDocument(), file)
+        val json = Files.readString(file)
+        val loaded = KotlinxJsonDocumentStore().load(file)
+
+        assertTrue(json.contains("\"binaryContent\": \"AAECf/8=\""))
+        assertContentEquals(content, loaded.nodes.getValue(node.id).binaryContent)
+    }
+
     @Test
     fun `link interaction kinds round trip while legacy model defaults to auto`() {
         val repository = InMemoryDocumentRepository(newDocument("capability json"))

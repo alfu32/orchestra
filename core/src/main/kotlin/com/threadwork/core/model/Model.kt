@@ -1,9 +1,27 @@
 package com.threadwork.core.model
 
 import com.threadwork.core.diagnostics.Diagnostic
+import java.util.Base64
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonObject
+
+/** Stores binary node payloads as portable Base64 strings in .orch documents. */
+object Base64ByteArraySerializer : KSerializer<ByteArray> {
+    override val descriptor = PrimitiveSerialDescriptor("Base64ByteArray", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: ByteArray) {
+        encoder.encodeString(Base64.getEncoder().encodeToString(value))
+    }
+
+    override fun deserialize(decoder: Decoder): ByteArray =
+        Base64.getDecoder().decode(decoder.decodeString())
+}
 
 @Serializable
 @JvmInline
@@ -147,6 +165,8 @@ data class Node(
     var layout: NodeLayout = NodeLayout(),
     var fileLayoutStrategyId: String = VOID_LAYOUT_STRATEGY_ID,
     var text: NodeText = NodeText(),
+    @Serializable(with = Base64ByteArraySerializer::class)
+    var binaryContent: ByteArray? = null,
     var technology: TechnologyMetadata = TechnologyMetadata(),
     var revision: Revision? = null,
     var responsible: String? = null,

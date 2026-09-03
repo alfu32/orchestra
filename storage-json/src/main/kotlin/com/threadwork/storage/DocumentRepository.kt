@@ -46,6 +46,7 @@ interface DocumentRepository {
     fun renameNode(id: NodeId, name: String)
     fun updateNodeLayout(id: NodeId, layout: NodeLayout)
     fun updateNodeText(id: NodeId, text: NodeText)
+    fun updateNodeBinaryContent(id: NodeId, content: ByteArray?)
     fun updateNodeTechnology(id: NodeId, technology: TechnologyMetadata)
     fun updateNodeFileLayoutStrategy(id: NodeId, strategyId: String)
     fun updateNodeMetadata(id: NodeId, metadata: Map<String, String>)
@@ -151,6 +152,16 @@ class InMemoryDocumentRepository(
         val node = requireNode(id)
         if (node.text == text) return
         node.text = text
+        touchNodes(listOf(id))
+        markDirty()
+    }
+
+    override fun updateNodeBinaryContent(id: NodeId, content: ByteArray?) {
+        val node = requireNode(id)
+        if (node.binaryContent?.contentEquals(content) == true ||
+            (node.binaryContent == null && content == null)
+        ) return
+        node.binaryContent = content?.copyOf()
         touchNodes(listOf(id))
         markDirty()
     }

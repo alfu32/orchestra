@@ -19,6 +19,7 @@ import kotlinx.serialization.json.JsonPrimitive
 data class VirtualFile(
     var path: String,
     var content: String,
+    var binaryContent: ByteArray? = null,
 )
 
 interface FsStorage {
@@ -28,7 +29,7 @@ interface FsStorage {
 }
 
 fun GeneratedFile.toVirtualFile(): VirtualFile =
-    VirtualFile(path, content)
+    VirtualFile(path, content, binaryContent)
 
 fun GeneratedProject.toVirtualFiles(): List<VirtualFile> =
     files.flatMap { file ->
@@ -97,7 +98,7 @@ fun List<VirtualFile>.writeTo(directory: Path) {
     forEach { file ->
         val target = directory.resolve(file.path)
         target.parent?.let(Files::createDirectories)
-        Files.writeString(target, file.content)
+        file.binaryContent?.let { Files.write(target, it) } ?: Files.writeString(target, file.content)
     }
 }
 

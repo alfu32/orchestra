@@ -187,6 +187,7 @@ data class GeneratedFile(
     val reason: String,
     val elementKind: GeneratedElementKind = GeneratedElementKind.TerminalEntity,
     val sourceMap: GeneratedSourceMap = GeneratedSourceMap(),
+    val binaryContent: ByteArray? = null,
 )
 
 data class CompiledNodeArtifact(

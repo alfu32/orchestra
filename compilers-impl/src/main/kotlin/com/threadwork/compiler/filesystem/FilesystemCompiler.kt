@@ -80,6 +80,7 @@ class FilesystemCompiler : GenericCompiler() {
             originNodeId = node.id,
             reason = "Literal source file represented by '${node.name}'",
             elementKind = GeneratedElementKind.StaticFile,
+            binaryContent = node.binaryContent,
         )
     }
 
@@ -128,6 +129,7 @@ class FilesystemCompiler : GenericCompiler() {
                 originNodeId = node.id,
                 reason = "Literal fallback file for technology '$technologyId'",
                 elementKind = GeneratedElementKind.StaticFile,
+                binaryContent = node.binaryContent,
             )
         }
 
