@@ -15,7 +15,13 @@ internal data class SheetPaginationSettings(
     val scaleChoice: String,
     val multipage: Boolean,
     val overlapMm: Double,
+    val pdfRenderMode: PdfRenderMode = PdfRenderMode.Rasterized,
 )
+
+internal enum class PdfRenderMode {
+    Rasterized,
+    Searchable,
+}
 
 /** Page geometry for reflowed documentation; unlike plans, documents do not use drawing scale. */
 internal data class DocumentationPrintSettings(
@@ -156,6 +162,7 @@ internal class ThreadworkPrintProfileStore(
         scaleChoice = string("scale", "1:1"),
         multipage = boolean("multipage", false),
         overlapMm = double("overlap-mm", 5.0),
+        pdfRenderMode = enumValue("pdf-render-mode", PdfRenderMode.Rasterized),
     ).normalized()
 
     private fun SheetPaginationSettings.toJson(): JsonObject = buildJsonObject {
@@ -163,6 +170,7 @@ internal class ThreadworkPrintProfileStore(
         put("scale", JsonPrimitive(scaleChoice))
         put("multipage", JsonPrimitive(multipage))
         put("overlap-mm", JsonPrimitive(overlapMm))
+        put("pdf-render-mode", JsonPrimitive(pdfRenderMode.name))
     }
 
     private fun DocumentationPrintSettings.normalized(): DocumentationPrintSettings = copy(
@@ -201,6 +209,11 @@ internal class ThreadworkPrintProfileStore(
 
     private fun JsonObject.double(name: String, fallback: Double): Double =
         (this[name] as? JsonPrimitive)?.content?.toDoubleOrNull() ?: fallback
+
+    private inline fun <reified T : Enum<T>> JsonObject.enumValue(name: String, fallback: T): T =
+        (this[name] as? JsonPrimitive)?.content
+            ?.let { value -> enumValues<T>().firstOrNull { it.name.equals(value, ignoreCase = true) } }
+            ?: fallback
 
     internal companion object {
         const val PREF_NODE = "com/threadwork/app/print"

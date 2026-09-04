@@ -677,7 +677,7 @@ class ThreadworkDesktopApp(
             applyPdfPlanSettings()
             sheetButton?.isSelected = canvas.toggleSheet()
         })
-        registerCommand(AppCommand("export.plan.pdf", "Export: Plan PDF") { canvas.exportPlan(frame, SheetExportFormat.Pdf) })
+        registerCommand(AppCommand("export.plan.pdf", "Export: Plan PDF") { exportPlanPdf() })
         registerCommand(AppCommand("export.plan.svg", "Export: Plan SVG") { canvas.exportPlan(frame, SheetExportFormat.Svg) })
         registerCommand(AppCommand("export.plan.png", "Export: Plan PNG") { canvas.exportPlan(frame, SheetExportFormat.Png) })
         registerCommand(AppCommand("export.documentation.pdf", "Export: Documentation PDF") { exportDocumentation(DocumentationExportFormat.Pdf) })
@@ -1790,6 +1790,16 @@ class ThreadworkDesktopApp(
         ).isVisible = true
     }
 
+    private fun exportPlanPdf() {
+        val profile = printProfiles.profileFor(
+            PrinterTarget.PDF_PRINTER_KEY,
+            canvas.paginationSettings(),
+            defaultDocumentationPaginationSettings(),
+        )
+        canvas.applyPaginationSettings(profile.plan)
+        canvas.exportPlan(frame, SheetExportFormat.Pdf)
+    }
+
     private fun defaultDocumentationPaginationSettings(): DocumentationPrintSettings =
         ThreadworkPrintProfileStore.DEFAULT_DOCUMENTATION_SETTINGS
 
@@ -1829,6 +1839,7 @@ class ThreadworkDesktopApp(
 
     private fun savePreprintPdf(
         documents: List<PrintDocumentationAsset>,
+        planSettings: SheetPaginationSettings,
         documentationSettings: DocumentationPrintSettings,
     ) {
         val dialog = FileDialog(frame, "Save Print PDF", FileDialog.SAVE).apply {
@@ -1842,7 +1853,7 @@ class ThreadworkDesktopApp(
             if (path.fileName.toString().endsWith(".pdf", ignoreCase = true)) path else Path.of("${path}.pdf")
         }
         runCatching {
-            writePreprintPdf(output, documents, documentationSettings)
+            writePreprintPdf(output, documents, planSettings, documentationSettings)
         }.onSuccess {
             status.text = "Saved print PDF to ${output.toAbsolutePath()}"
         }.onFailure { error ->
@@ -1854,13 +1865,14 @@ class ThreadworkDesktopApp(
     private fun writePreprintPdf(
         output: Path,
         documents: List<PrintDocumentationAsset>,
+        planSettings: SheetPaginationSettings,
         documentationSettings: DocumentationPrintSettings,
     ) {
         val temporaryFiles = mutableListOf<Path>()
         try {
             val planPdf = Files.createTempFile("threadwork-plan-", ".pdf")
             temporaryFiles.add(planPdf)
-            RasterPdfWriter.write(planPdf, canvas.renderPdfPages())
+            canvas.writePdf(planPdf, planSettings.pdfRenderMode)
             val documentationPdfs = documents.map { asset ->
                 Files.createTempFile("threadwork-documentation-", ".pdf").also { file ->
                     temporaryFiles.add(file)
@@ -1881,11 +1893,12 @@ class ThreadworkDesktopApp(
     private fun printPreprint(
         service: javax.print.PrintService,
         documents: List<PrintDocumentationAsset>,
+        planSettings: SheetPaginationSettings,
         documentationSettings: DocumentationPrintSettings,
     ) {
         runCatching {
             val spoolFile = Files.createTempFile("threadwork-print-", ".pdf")
-            writePreprintPdf(spoolFile, documents, documentationSettings)
+            writePreprintPdf(spoolFile, documents, planSettings, documentationSettings)
             spoolFile.toFile().deleteOnExit()
             val pages = preprintPdfPages(documents, documentationSettings)
 
@@ -2628,6 +2641,7 @@ class GraphCanvas(
     private var sheetScale = 1
     private var multipagePdfEnabled = false
     private var sheetOverlapMm = DEFAULT_SHEET_OVERLAP_MM
+    private var pdfRenderMode = PdfRenderMode.Rasterized
     private var designerFont: Font = ThreadworkFonts.designerFont(13f)
     private var activePalette: DesignerPalette = ThreadworkAppearance.palette()
     private val technicalPalette: DesignerPalette = ThreadworkAppearance.defaultPalette(ApplicationTheme.Light)
@@ -2971,6 +2985,7 @@ class GraphCanvas(
         scaleChoice = selectedSheetScaleChoice(),
         multipage = multipagePdfEnabled,
         overlapMm = sheetOverlapMm,
+        pdfRenderMode = pdfRenderMode,
     )
 
     internal fun applyPaginationSettings(settings: SheetPaginationSettings) {
@@ -2985,7 +3000,8 @@ class GraphCanvas(
             sheetFormatChoice == nextFormat &&
             sheetScale == nextScale &&
             multipagePdfEnabled == settings.multipage &&
-            sheetOverlapMm == nextOverlap
+            sheetOverlapMm == nextOverlap &&
+            pdfRenderMode == settings.pdfRenderMode
         ) {
             return
         }
@@ -2993,6 +3009,7 @@ class GraphCanvas(
         sheetScale = nextScale
         multipagePdfEnabled = settings.multipage
         sheetOverlapMm = nextOverlap
+        pdfRenderMode = settings.pdfRenderMode
         invalidateRenderCache()
         repaint()
     }
@@ -4561,7 +4578,14 @@ class GraphCanvas(
         if (value % 1.0 == 0.0) value.toInt().toString() else "%.2f".format(java.util.Locale.ROOT, value)
 
     private fun writePdfSheet(file: File) {
-        RasterPdfWriter.write(file.toPath(), renderPdfPages())
+        writePdf(file.toPath(), pdfRenderMode)
+    }
+
+    internal fun writePdf(path: Path, renderMode: PdfRenderMode) {
+        when (renderMode) {
+            PdfRenderMode.Rasterized -> RasterPdfWriter.write(path, renderPdfPages())
+            PdfRenderMode.Searchable -> FopPdfWriter.write(path, renderVectorPdfPages())
+        }
     }
 
     internal fun renderPdfPages(): List<PdfRasterPage> {
@@ -4576,6 +4600,50 @@ class GraphCanvas(
                 heightPoints = heightMm * PDF_POINTS_PER_MM,
             )
         }
+    }
+
+    private fun renderVectorPdfPages(): List<PdfVectorPage> {
+        val plan = sheetPlan(requestMultipage = multipagePdfEnabled) ?: error("Nothing to export.")
+        return plan.pages.map { page ->
+            val widthPoints = page.sheet.width
+                .toDouble()
+                .div(SHEET_UNITS_PER_MM * plan.scale)
+                .times(PDF_POINTS_PER_MM)
+                .roundToInt()
+                .coerceAtLeast(1)
+            val heightPoints = page.sheet.height
+                .toDouble()
+                .div(SHEET_UNITS_PER_MM * plan.scale)
+                .times(PDF_POINTS_PER_MM)
+                .roundToInt()
+                .coerceAtLeast(1)
+            PdfVectorPage(widthPoints, heightPoints) { graphics ->
+                drawVectorPdfPage(graphics, plan, page, widthPoints, heightPoints)
+            }
+        }
+    }
+
+    private fun drawVectorPdfPage(
+        graphics: Graphics2D,
+        plan: SheetPlan,
+        page: SheetPage,
+        widthPoints: Int,
+        heightPoints: Int,
+    ) {
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        graphics.color = Color.WHITE
+        graphics.fillRect(0, 0, widthPoints, heightPoints)
+        graphics.font = designerFont
+        val pointsPerModelUnit = PDF_POINTS_PER_MM / SHEET_UNITS_PER_MM / plan.scale
+        graphics.scale(pointsPerModelUnit, pointsPerModelUnit)
+        graphics.translate(-page.sheet.x.toDouble(), -page.sheet.y.toDouble())
+        graphics.clip = page.sheet
+        drawTechnicalSheet(graphics, plan)
+        graphics.clip = page.sheet
+        graphics.clip(plan.drawing)
+        withPalette(technicalPalette) { drawGraph(graphics, plan.scopeIds) }
+        graphics.clip = page.sheet
+        if (plan.isMultipage) drawAlignmentCrosses(graphics, plan, page)
     }
 
     private fun renderPdfPage(plan: SheetPlan, page: SheetPage): BufferedImage {

@@ -16,6 +16,7 @@ import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import javax.print.PrintService
 import javax.swing.BorderFactory
+import javax.swing.ButtonGroup
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
@@ -26,6 +27,7 @@ import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
+import javax.swing.JRadioButton
 import javax.swing.JScrollPane
 import javax.swing.JSpinner
 import javax.swing.JTabbedPane
@@ -55,8 +57,8 @@ internal class PreprintDialog(
     private val applyPlanSettings: (String, SheetPaginationSettings) -> Unit,
     private val planPreview: () -> BufferedImage?,
     private val documentationAssets: (DocumentationPrintSettings) -> List<PrintDocumentationAsset>,
-    private val savePdf: (List<PrintDocumentationAsset>, DocumentationPrintSettings) -> Unit,
-    private val print: (PrintService, List<PrintDocumentationAsset>, DocumentationPrintSettings) -> Unit,
+    private val savePdf: (List<PrintDocumentationAsset>, SheetPaginationSettings, DocumentationPrintSettings) -> Unit,
+    private val print: (PrintService, List<PrintDocumentationAsset>, SheetPaginationSettings, DocumentationPrintSettings) -> Unit,
     private val reportStatus: (String) -> Unit,
 ) : JDialog(parent, "Print Preview", ModalityType.DOCUMENT_MODAL) {
     private val printerModel = DefaultListModel<PrinterTarget>()
@@ -207,10 +209,12 @@ internal class PreprintDialog(
                 reportStatus("Removed stored settings for ${target.label}")
             }
         }
-        savePdfButton.addActionListener { savePdf(documents, documentationControls.settings()) }
+        savePdfButton.addActionListener {
+            savePdf(documents, planControls.settings(), documentationControls.settings())
+        }
         printButton.addActionListener {
             selectedTarget()?.service?.let { service ->
-                print(service, documents, documentationControls.settings())
+                print(service, documents, planControls.settings(), documentationControls.settings())
             }
         }
     }
@@ -429,6 +433,12 @@ internal class PreprintDialog(
         private val scaleBox = JComboBox(scaleChoices.toTypedArray())
         private val multipageBox = JCheckBox("Split fixed sheets across pages")
         private val overlapSpinner = JSpinner(SpinnerNumberModel(5.0, 0.0, 50.0, 0.5))
+        private val rasterizedPdf = JRadioButton("Rasterized")
+        private val searchablePdf = JRadioButton("Searchable")
+        private val pdfModeGroup = ButtonGroup().apply {
+            add(rasterizedPdf)
+            add(searchablePdf)
+        }
         val panel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
             border = BorderFactory.createTitledBorder("$label pagination")
             add(JLabel("Format"))
@@ -438,6 +448,9 @@ internal class PreprintDialog(
             add(multipageBox)
             add(JLabel("Overlap (mm)"))
             add(overlapSpinner.apply { preferredSize = Dimension(76, preferredSize.height) })
+            add(JLabel("PDF drawing"))
+            add(rasterizedPdf)
+            add(searchablePdf)
         }
 
         fun onChange(listener: () -> Unit) {
@@ -445,6 +458,8 @@ internal class PreprintDialog(
             scaleBox.addActionListener { listener() }
             multipageBox.addActionListener { listener() }
             overlapSpinner.addChangeListener(ChangeListener { listener() })
+            rasterizedPdf.addActionListener { listener() }
+            searchablePdf.addActionListener { listener() }
         }
 
         fun setSettings(settings: SheetPaginationSettings) {
@@ -452,6 +467,7 @@ internal class PreprintDialog(
             scaleBox.selectedItem = settings.scaleChoice
             multipageBox.isSelected = settings.multipage
             overlapSpinner.value = settings.overlapMm
+            (if (settings.pdfRenderMode == PdfRenderMode.Searchable) searchablePdf else rasterizedPdf).isSelected = true
         }
 
         fun settings(): SheetPaginationSettings = SheetPaginationSettings(
@@ -459,6 +475,7 @@ internal class PreprintDialog(
             scaleChoice = scaleBox.selectedItem?.toString().orEmpty(),
             multipage = multipageBox.isSelected,
             overlapMm = (overlapSpinner.value as Number).toDouble(),
+            pdfRenderMode = if (searchablePdf.isSelected) PdfRenderMode.Searchable else PdfRenderMode.Rasterized,
         )
     }
 
