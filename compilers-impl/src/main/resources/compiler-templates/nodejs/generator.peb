@@ -1,4 +1,5 @@
 {# Generators stop ingress after shutdown is requested; consumers continue draining. #}
+{{ nodeProvenanceComment }}
 function {{ initializerSymbol }}(context = {}{% for link in incomingDataLinks %}, {{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, {{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}, {{ link.argumentSymbol }}{% endfor %}) {
 {% if instantiation is not empty %}{{ instantiationIndent2 }}
 {% endif %}}

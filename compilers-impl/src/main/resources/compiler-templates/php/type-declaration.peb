@@ -1,4 +1,5 @@
 {# type.declaration: emits a PHP value object for a declared Threadwork type. #}
+{{ nodeProvenanceComment }}
 final class {{ symbol }}
 {
     public function __construct(

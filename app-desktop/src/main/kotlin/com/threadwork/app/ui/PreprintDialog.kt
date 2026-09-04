@@ -57,10 +57,12 @@ internal class PreprintDialog(
     private val applyPlanSettings: (String, SheetPaginationSettings) -> Unit,
     private val planPreview: () -> BufferedImage?,
     private val documentationAssets: (DocumentationPrintSettings) -> List<PrintDocumentationAsset>,
+    private val exportPlan: (SheetExportFormat, SheetPaginationSettings) -> Unit,
+    private val exportDocumentation: (DocumentationExportFormat) -> Unit,
     private val savePdf: (List<PrintDocumentationAsset>, SheetPaginationSettings, DocumentationPrintSettings) -> Unit,
     private val print: (PrintService, List<PrintDocumentationAsset>, SheetPaginationSettings, DocumentationPrintSettings) -> Unit,
     private val reportStatus: (String) -> Unit,
-) : JDialog(parent, "Print Preview", ModalityType.DOCUMENT_MODAL) {
+) : JDialog(parent, "Export", ModalityType.DOCUMENT_MODAL) {
     private val printerModel = DefaultListModel<PrinterTarget>()
     private val printerList = JList(printerModel).apply {
         selectionMode = ListSelectionModel.SINGLE_SELECTION
@@ -167,18 +169,46 @@ internal class PreprintDialog(
     }
 
     private fun previewPanel(): JTabbedPane = JTabbedPane().apply {
-        addTab("Plan", previewTab(planControls, planPreviewHost))
-        addTab("Documentation", previewTab(documentationControls, documentPreviewHost))
+        addTab("Plan", previewTab(planControls, planPreviewHost, planExportPanel()))
+        addTab("Documentation", previewTab(documentationControls, documentPreviewHost, documentationExportPanel()))
     }
 
-    private fun previewTab(controls: PaginationControls, preview: Component): JPanel = JPanel(BorderLayout(0, 8)).apply {
-        add(controls.panel, BorderLayout.NORTH)
+    private fun previewTab(controls: PaginationControls, preview: Component, exports: Component): JPanel = JPanel(BorderLayout(0, 8)).apply {
+        add(JPanel().apply {
+            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            add(controls.panel)
+            add(exports)
+        }, BorderLayout.NORTH)
         add(preview, BorderLayout.CENTER)
     }
 
-    private fun previewTab(controls: DocumentationControls, preview: Component): JPanel = JPanel(BorderLayout(0, 8)).apply {
-        add(controls.panel, BorderLayout.NORTH)
+    private fun previewTab(controls: DocumentationControls, preview: Component, exports: Component): JPanel = JPanel(BorderLayout(0, 8)).apply {
+        add(JPanel().apply {
+            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            add(controls.panel)
+            add(exports)
+        }, BorderLayout.NORTH)
         add(preview, BorderLayout.CENTER)
+    }
+
+    private fun planExportPanel(): JPanel = exportPanel(
+        listOf(
+            "PDF" to { exportPlan(SheetExportFormat.Pdf, planControls.settings()) },
+            "SVG" to { exportPlan(SheetExportFormat.Svg, planControls.settings()) },
+            "PNG" to { exportPlan(SheetExportFormat.Png, planControls.settings()) },
+            "mermaid" to { exportPlan(SheetExportFormat.Mermaid, planControls.settings()) },
+        ),
+    )
+
+    private fun documentationExportPanel(): JPanel = exportPanel(
+        DocumentationExportFormat.entries.map { format -> format.toString() to { exportDocumentation(format) } },
+    )
+
+    private fun exportPanel(actions: List<Pair<String, () -> Unit>>): JPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+        add(JLabel("export:"))
+        actions.forEach { (label, action) ->
+            add(JButton(label).apply { addActionListener { action() } })
+        }
     }
 
     private fun actionsPanel(): JPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply {
@@ -448,7 +478,7 @@ internal class PreprintDialog(
             add(multipageBox)
             add(JLabel("Overlap (mm)"))
             add(overlapSpinner.apply { preferredSize = Dimension(76, preferredSize.height) })
-            add(JLabel("PDF drawing"))
+            add(JLabel("PDF output"))
             add(rasterizedPdf)
             add(searchablePdf)
         }

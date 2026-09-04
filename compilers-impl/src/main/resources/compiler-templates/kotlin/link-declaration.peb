@@ -1,4 +1,5 @@
 {# A data link owns two typed FIFO buffers so processor execution and transport remain separate phases. #}
+{{ linkProvenanceComment }}
 {% if link.isLibraryCapability %}val {{ link.dependencySymbol }}: {% if link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}Any?{% endif %} = {% if link.libraryInstantiation is not empty %}{{ link.libraryInstantiation }}{% else %}null{% endif %}
 {% elseif link.isSourceCapability %}class {{ link.capabilityTypeSymbol }} {
     fun getSource(parameters: Map<String, Any?> = emptyMap()): String {

@@ -1,4 +1,5 @@
 {# QuickJS link-owned buffers and synchronous capability adapters. #}
+{{ linkProvenanceComment }}
 {% if link.isLibraryCapability %}const {{ link.dependencySymbol }} = {% if link.libraryInstantiation is not empty %}{{ link.libraryInstantiation }}{% else %}undefined{% endif %};
 {% elseif link.isSourceCapability %}const {{ link.dependencySymbol }} = {
   getSource(parameters = {}) {

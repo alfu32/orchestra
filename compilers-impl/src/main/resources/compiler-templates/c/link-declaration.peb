@@ -1,4 +1,5 @@
 {# Each C data link owns two buffers and a dedicated transport function. #}
+{{ linkProvenanceComment }}
 {% if link.isLibraryCapability %}{# C library links are exposed as compiler-generated prefixed function pointers. #}
 {% elseif link.isSourceCapability %}typedef struct {{ link.capabilityTypeSymbol }} {
     const char *template_source;

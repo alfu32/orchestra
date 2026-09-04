@@ -1,4 +1,5 @@
 {# Each data link owns two FIFO arrays and a transport function. #}
+{{ linkProvenanceComment }}
 {% if link.isLibraryCapability %}{# Library links compile into prefixed function aliases with the service-library source. #}
 {% elseif link.isSourceCapability %}${{ link.dependencySymbol }} = new class("{{ link.sourceNodeDeclarationDollarEscaped }}") {
     public function __construct(private string $template) {}

@@ -87,7 +87,7 @@ internal class ThreadworkPrintProfileStore(
         return listOf(
             PrinterTarget(
                 key = PrinterTarget.PDF_PRINTER_KEY,
-                label = "Save as PDF",
+                label = "PDF export",
                 service = null,
                 reachable = true,
             ),

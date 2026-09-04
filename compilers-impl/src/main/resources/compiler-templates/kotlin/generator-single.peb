@@ -1,4 +1,5 @@
 {# Single-file generator: ingress stops after shutdown, consumers remain runnable. #}fun {{ initializerSymbol }}(context: RuntimeContext{% for link in incomingDataLinks %}, {{ link.argumentSymbol }}: ArrayDeque<{% if link.typeSymbol == "string" %}String{% elseif link.typeSymbol == "number" %}Double{% elseif link.typeSymbol == "date" %}java.time.Instant{% elseif link.typeSymbol == "array" %}List<Any?>{% elseif link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}Any?{% endif %}>{% endfor %}{% for link in outgoingDataLinks %}, {{ link.argumentSymbol }}: ArrayDeque<{% if link.typeSymbol == "string" %}String{% elseif link.typeSymbol == "number" %}Double{% elseif link.typeSymbol == "date" %}java.time.Instant{% elseif link.typeSymbol == "array" %}List<Any?>{% elseif link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}Any?{% endif %}>{% endfor %}{% for link in dependencyInjectionLinks %}, {{ link.argumentSymbol }}: {% if link.isSourceCapability or link.isRunnableCapability %}{{ link.capabilityTypeSymbol }}{% else %}Any?{% endif %}{% endfor %}) {
+{{ nodeProvenanceComment }}
 {% if instantiation is not empty %}{{ instantiationIndent4 }}
 {% endif %}}
 

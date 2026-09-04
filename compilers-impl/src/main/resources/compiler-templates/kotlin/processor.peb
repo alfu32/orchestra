@@ -1,4 +1,6 @@
-{# File-based node/composite declaration: emits generated.nodes initializer/run functions using current node text and compiled child/link artifacts. #}package generated.nodes
+{# File-based node/composite declaration: emits generated.nodes initializer/run functions using current node text and compiled child/link artifacts. #}
+{{ nodeProvenanceComment }}
+package generated.nodes
 
 import generated.RuntimeContext
 {% if linkDeclarations is not empty %}{{ linkDeclarations }}

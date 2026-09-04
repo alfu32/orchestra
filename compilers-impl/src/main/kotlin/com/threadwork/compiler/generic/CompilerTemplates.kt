@@ -33,6 +33,7 @@ import com.threadwork.core.model.getElementById
 import com.threadwork.core.model.projectName
 import com.threadwork.core.model.linkTypeDisplayName
 import com.threadwork.core.model.typeDisplayName
+import com.threadwork.core.model.effectiveResponsible
 import com.threadwork.core.diagnostics.Diagnostic
 import com.threadwork.core.validation.DocumentValidator
 import io.pebbletemplates.pebble.PebbleEngine
@@ -702,6 +703,7 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             "safeProjectName" to safePathSegment(context.projectName),
             "safePackageName" to safePackageName(context.projectName),
             "projectIdentifier" to safeIdentifier(context.projectName),
+            "nodeProvenanceComment" to nodeProvenanceComment(document, node),
         ) + linkContext(document, node, context.compiledArtifacts)
     }
 
@@ -842,6 +844,7 @@ private fun nodeView(document: ThreadworkDocument, node: Node): Map<String, Any?
     },
     "metadataComment" to "name=${node.name}\nkind=${node.kind.name}\nstereotype=${stereotypeForTemplateContext(document, node)}",
     "declarationBlockComment" to node.text.declaration.ifBlank { node.text.specification }.toBlockComment(),
+    "provenanceComment" to nodeProvenanceComment(document, node),
 )
 
 private fun textView(node: Node): Map<String, Any?> = mapOf(
@@ -1064,11 +1067,91 @@ private fun linkContext(
             "escapedTargetReferenceDoubleQuoted" to targetReference.escapeDoubleQuoted(),
             "escapedSourceReferenceSingleQuoted" to sourceReference.escapeSingleQuoted(),
             "escapedTargetReferenceSingleQuoted" to targetReference.escapeSingleQuoted(),
+            "provenanceComment" to linkProvenanceComment(document, node),
         ),
         "sourceNode" to sourceNode?.let { nodeView(document, it) },
         "targetNode" to targetNode?.let { nodeView(document, it) },
     )
 }
+
+private fun nodeProvenanceComment(document: ThreadworkDocument, node: Node): String {
+    val technology = effectiveTechnology(document, node)
+    val stereotype = stereotypeForTemplateContext(document, node)
+    val using = node.incomingLinks
+        .mapNotNull(document::getElementById)
+        .filter { linkNode ->
+            linkNode.link != null && LinkClassifier.classify(document, linkNode) in setOf(
+                LinkStereotype.UsageImport,
+                LinkStereotype.DependencyInjection,
+            )
+        }
+        .map { it.name }
+        .filter(String::isNotBlank)
+        .distinct()
+    val usedBy = if (node.kind == NodeKind.Type || stereotype == NodeStereotype.ServiceLibrary) {
+        document.nodes.values
+            .filter { it.link != null }
+            .mapNotNull { linkNode ->
+                val link = linkNode.link ?: return@mapNotNull null
+                if (link.sourceNodeId == node.id || link.typeDefinitionId == node.id.value) {
+                    document.getElementById(link.targetNodeId)?.name
+                } else {
+                    null
+                }
+            }
+            .filter(String::isNotBlank)
+            .distinct()
+    } else {
+        emptyList()
+    }
+    return buildString {
+        appendLine("/* Threadwork entity")
+        appendLine(" * node_id: ${commentValue(node.id.value)}")
+        appendLine(" * name: ${commentValue(node.name)}")
+        appendLine(" * responsible: ${commentValue(document.effectiveResponsible(node.id))}")
+        appendLine(" * changed: ${commentValue(node.modified.date)}")
+        appendLine(" * stereotype: ${commentValue(stereotype.name)}")
+        appendLine(" * language: ${commentValue(technology.languageId)}")
+        appendLine(" * technology: ${commentValue(technology.technologyId)}")
+        appendLine(" * using: ${using.ifEmpty { listOf("none") }.joinToString(", ") { commentValue(it) }}")
+        if (node.kind == NodeKind.Type || stereotype == NodeStereotype.ServiceLibrary) {
+            appendLine(" * used-by: ${usedBy.ifEmpty { listOf("none") }.joinToString(", ") { commentValue(it) }}")
+        }
+        appendLine(" */")
+    }
+}
+
+private fun linkProvenanceComment(document: ThreadworkDocument, node: Node): String {
+    val link = node.link ?: return ""
+    val source = document.getElementById(link.sourceNodeId)?.name ?: link.sourceNodeId.value
+    val boundaries = link.compositeBoundaryIds.map { boundaryId ->
+        document.getElementById(boundaryId)?.name ?: boundaryId.value
+    }
+    val target = document.getElementById(link.targetNodeId)?.name ?: link.targetNodeId.value
+    val type = when (LinkClassifier.classify(document, node)) {
+        LinkStereotype.UsageImport,
+        LinkStereotype.DependencyInjection -> "dependency"
+        LinkStereotype.SourceCapability -> "source capability"
+        LinkStereotype.RunnableCapability -> "run capability"
+        LinkStereotype.Transport,
+        LinkStereotype.ErrorPipe -> "data transport"
+    }
+    return buildString {
+        appendLine("/* Threadwork link")
+        appendLine(" * node_id: ${commentValue(node.id.value)}")
+        appendLine(" * name: ${commentValue(node.name)}")
+        appendLine(" * traversal: [${(listOf(source) + boundaries + target).joinToString(", ") { commentValue(it) }}]")
+        appendLine(" * kind: ${commentValue(node.kind.name)}")
+        appendLine(" * type: $type")
+        appendLine(" */")
+    }
+}
+
+private fun commentValue(value: String): String = value
+    .replace("*/", "* /")
+    .replace(Regex("\\s+"), " ")
+    .trim()
+    .ifBlank { "none" }
 
 private fun isCapabilityDescriptor(descriptor: Map<String, Any?>): Boolean =
     descriptor["stereotype"] in setOf(

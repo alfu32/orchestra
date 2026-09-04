@@ -1,4 +1,6 @@
-{# File-based generator: ingress stops after shutdown, consumers remain runnable. #}package generated.nodes
+{# File-based generator: ingress stops after shutdown, consumers remain runnable. #}
+{{ nodeProvenanceComment }}
+package generated.nodes
 
 import generated.RuntimeContext
 {% if linkDeclarations is not empty %}{{ linkDeclarations }}

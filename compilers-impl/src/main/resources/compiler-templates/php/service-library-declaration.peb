@@ -1,3 +1,4 @@
 {# Service-library functions are emitted at PHP file scope, not inside a processing function. #}<?php
 
+{{ nodeProvenanceComment }}
 {{ declaration }}

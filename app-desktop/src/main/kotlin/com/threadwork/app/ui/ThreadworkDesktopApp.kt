@@ -542,15 +542,6 @@ class ThreadworkDesktopApp(
             add(commandItem("file.saveAs", "disk"))
             add(commandItem("file.saveAsArchetype", "disk"))
             add(commandItem("file.printPreview", "sheet"))
-            add(JMenu("Export").apply {
-                add(commandItem("export.plan.pdf", "pdf"))
-                add(commandItem("export.plan.svg", "svg"))
-                add(commandItem("export.plan.png", "png"))
-                addSeparator()
-                add(commandItem("export.documentation.pdf", "pdf"))
-                add(commandItem("export.documentation.html", "html"))
-                add(commandItem("export.documentation.markdown", "md"))
-            })
             add(commandItem("app.options"))
             add(commandItem("file.quit"))
         })
@@ -622,7 +613,7 @@ class ThreadworkDesktopApp(
         registerCommand(AppCommand("file.save", "File: Save", KeyStroke.getKeyStroke(KeyEvent.VK_S, shortcut)) { saveFile() })
         registerCommand(AppCommand("file.saveAs", "File: Save As...", KeyStroke.getKeyStroke(KeyEvent.VK_S, shiftShortcut)) { saveAsFile() })
         registerCommand(AppCommand("file.saveAsArchetype", "File: Save Model as Archetype...") { saveAsArchetype() })
-        registerCommand(AppCommand("file.printPreview", "File: Print Preview...", KeyStroke.getKeyStroke(KeyEvent.VK_P, shortcut)) { showPreprintDialog() })
+        registerCommand(AppCommand("file.printPreview", "File: Export...", KeyStroke.getKeyStroke(KeyEvent.VK_P, shortcut)) { showPreprintDialog() })
         registerCommand(AppCommand("file.quit", "File: Quit", KeyStroke.getKeyStroke(KeyEvent.VK_Q, shortcut)) { quit() })
         registerCommand(AppCommand("app.options", "Application: Options...") { showOptions() })
         registerCommand(AppCommand("edit.undo", "Edit: Undo", KeyStroke.getKeyStroke(KeyEvent.VK_Z, shortcut)) { undo() })
@@ -677,12 +668,6 @@ class ThreadworkDesktopApp(
             applyPdfPlanSettings()
             sheetButton?.isSelected = canvas.toggleSheet()
         })
-        registerCommand(AppCommand("export.plan.pdf", "Export: Plan PDF") { exportPlanPdf() })
-        registerCommand(AppCommand("export.plan.svg", "Export: Plan SVG") { canvas.exportPlan(frame, SheetExportFormat.Svg) })
-        registerCommand(AppCommand("export.plan.png", "Export: Plan PNG") { canvas.exportPlan(frame, SheetExportFormat.Png) })
-        registerCommand(AppCommand("export.documentation.pdf", "Export: Documentation PDF") { exportDocumentation(DocumentationExportFormat.Pdf) })
-        registerCommand(AppCommand("export.documentation.html", "Export: Documentation HTML") { exportDocumentation(DocumentationExportFormat.Html) })
-        registerCommand(AppCommand("export.documentation.markdown", "Export: Documentation Markdown") { exportDocumentation(DocumentationExportFormat.Markdown) })
         registerCommand(AppCommand("compile.project", "Build: Project or Selection") { compileProject() })
         registerCommand(AppCommand("compile.compiler", "Build: Generate Compiler From @Compiler") { generateCompilerFromDesign() })
         registerCommand(AppCommand("compile.documentation", "Build: Compile Documentation") { compileDocumentation() })
@@ -1784,20 +1769,15 @@ class ThreadworkDesktopApp(
             },
             planPreview = { canvas.renderPlanPreview() },
             documentationAssets = ::preprintDocumentationAssets,
+            exportPlan = { format, settings ->
+                canvas.applyPaginationSettings(settings)
+                canvas.exportPlan(frame, format)
+            },
+            exportDocumentation = ::exportDocumentation,
             savePdf = ::savePreprintPdf,
             print = ::printPreprint,
             reportStatus = { message -> status.text = message },
         ).isVisible = true
-    }
-
-    private fun exportPlanPdf() {
-        val profile = printProfiles.profileFor(
-            PrinterTarget.PDF_PRINTER_KEY,
-            canvas.paginationSettings(),
-            defaultDocumentationPaginationSettings(),
-        )
-        canvas.applyPaginationSettings(profile.plan)
-        canvas.exportPlan(frame, SheetExportFormat.Pdf)
     }
 
     private fun defaultDocumentationPaginationSettings(): DocumentationPrintSettings =
@@ -1858,7 +1838,7 @@ class ThreadworkDesktopApp(
             status.text = "Saved print PDF to ${output.toAbsolutePath()}"
         }.onFailure { error ->
             status.text = "Print PDF export failed: ${error.message}"
-            JOptionPane.showMessageDialog(frame, error.message ?: "Could not save the PDF.", "Print Preview", JOptionPane.ERROR_MESSAGE)
+            JOptionPane.showMessageDialog(frame, error.message ?: "Could not save the PDF.", "Export", JOptionPane.ERROR_MESSAGE)
         }
     }
 
@@ -1913,7 +1893,7 @@ class ThreadworkDesktopApp(
             }
         }.onFailure { error ->
             status.text = "Printing failed: ${error.message}"
-            JOptionPane.showMessageDialog(frame, error.message ?: "Could not submit the print job.", "Print Preview", JOptionPane.ERROR_MESSAGE)
+            JOptionPane.showMessageDialog(frame, error.message ?: "Could not submit the print job.", "Export", JOptionPane.ERROR_MESSAGE)
         }
     }
 
@@ -2584,12 +2564,13 @@ enum class SheetExportFormat(
     Pdf("pdf", "Plan PDF"),
     Svg("svg", "Plan SVG"),
     Png("png", "Plan PNG"),
+    Mermaid("mmd", "Mermaid"),
     ;
 
     override fun toString(): String = label
 }
 
-private enum class DocumentationExportFormat(private val label: String) {
+internal enum class DocumentationExportFormat(private val label: String) {
     Pdf("PDF"),
     Html("HTML"),
     Markdown("Markdown"),
@@ -3057,6 +3038,7 @@ class GraphCanvas(
                 SheetExportFormat.Svg -> writeSvgSheet(file)
                 SheetExportFormat.Png -> writePngSheet(file)
                 SheetExportFormat.Pdf -> writePdfSheet(file)
+                SheetExportFormat.Mermaid -> writeMermaidPlan(file)
             }
         }.onSuccess {
             JOptionPane.showMessageDialog(
@@ -4094,17 +4076,48 @@ class GraphCanvas(
         val svg = StringBuilder()
         svg.appendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
         svg.appendLine(
-            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${plan.sheet.width}\" height=\"${plan.sheet.height}\" viewBox=\"0 0 ${plan.sheet.width} ${plan.sheet.height}\">",
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${plan.sheet.width / SHEET_UNITS_PER_MM}mm\" height=\"${plan.sheet.height / SHEET_UNITS_PER_MM}mm\" viewBox=\"0 0 ${plan.sheet.width} ${plan.sheet.height}\" preserveAspectRatio=\"xMinYMin meet\">",
         )
         svg.appendLine("  <title>${xml(projectTitle())} - ${xml(plan.format.id)}</title>")
         svg.appendLine("  <desc>Generated by Threadwork ${xml(Version.CURRENT.semver)} (${xml(Version.CURRENT.gitCommitId)})</desc>")
+        svg.appendLine("  <defs>")
+        svg.appendLine("    <clipPath id=\"drawing-clip\" clipPathUnits=\"userSpaceOnUse\">")
+        svg.appendLine("      <rect x=\"${plan.drawing.x}\" y=\"${plan.drawing.y}\" width=\"${plan.drawing.width}\" height=\"${plan.drawing.height}\" />")
+        svg.appendLine("    </clipPath>")
+        svg.appendLine("  </defs>")
         svg.appendLine("  <g transform=\"translate(${-plan.sheet.x} ${-plan.sheet.y})\" font-family=\"monospace\" text-rendering=\"geometricPrecision\" shape-rendering=\"crispEdges\">")
         svgSheet(svg, plan)
-        svgGraph(svg, plan.scopeIds)
+        svg.appendLine("    <g clip-path=\"url(#drawing-clip)\">")
+        withPalette(technicalPalette) { svgGraph(svg, plan.scopeIds) }
+        svg.appendLine("    </g>")
         svg.appendLine("  </g>")
         svg.appendLine("</svg>")
         Files.writeString(file.toPath(), svg.toString())
     }
+
+    private fun writeMermaidPlan(file: File) {
+        val scopeIds = sheetPlan(requestMultipage = false)?.scopeIds ?: error("Nothing to export.")
+        val nodes = orderedVisibleNodes(scopeIds)
+        val links = visibleLinks(scopeIds).filterNot(::isDependencyAnnotation)
+        val mermaid = buildString {
+            appendLine("flowchart LR")
+            nodes.forEach { node ->
+                appendLine("    ${mermaidPlanId(node.id)}[\"${mermaidPlanText(node.name)}\"]")
+            }
+            links.forEach { linkNode ->
+                val link = linkNode.link ?: return@forEach
+                val label = mermaidPlanText(linkNode.name)
+                appendLine("    ${mermaidPlanId(link.sourceNodeId)} -->|\"$label\"| ${mermaidPlanId(link.targetNodeId)}")
+            }
+        }
+        Files.writeString(file.toPath(), mermaid)
+    }
+
+    private fun mermaidPlanId(nodeId: NodeId): String =
+        "node_${nodeId.value.replace(Regex("[^A-Za-z0-9_]"), "_")}"
+
+    private fun mermaidPlanText(value: String): String =
+        value.replace('"', '\'').replace('|', '/').replace(Regex("\\s+"), " ").trim()
 
     private fun writePngSheet(file: File) {
         ImageIO.write(renderSheetImage() ?: error("Nothing to export."), "png", file)

@@ -1,4 +1,5 @@
 {# Processor initialization is distinct from recurring execution. #}<?php
+{{ nodeProvenanceComment }}
 
 function {{ initializerSymbol }}(array &$context{% for link in incomingDataLinks %}, array &${{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, array &${{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}{% if not link.isLibraryCapability %}, mixed ${{ link.argumentSymbol }}{% endif %}{% endfor %}): void
 {
