@@ -59,6 +59,8 @@ internal class PreprintDialog(
     private val documentationAssets: (DocumentationPrintSettings) -> List<PrintDocumentationAsset>,
     private val exportPlan: (SheetExportFormat, SheetPaginationSettings) -> Unit,
     private val exportDocumentation: (DocumentationExportFormat) -> Unit,
+    private val printPlan: (PrintService, SheetPaginationSettings) -> Unit,
+    private val printDocumentation: (PrintService, List<PrintDocumentationAsset>, DocumentationPrintSettings) -> Unit,
     private val savePdf: (List<PrintDocumentationAsset>, SheetPaginationSettings, DocumentationPrintSettings) -> Unit,
     private val print: (PrintService, List<PrintDocumentationAsset>, SheetPaginationSettings, DocumentationPrintSettings) -> Unit,
     private val reportStatus: (String) -> Unit,
@@ -98,8 +100,12 @@ internal class PreprintDialog(
         viewport.background = documentPreviewPanel.background
     }
     private val documentPreviewHost = JPanel(BorderLayout())
-    private val savePdfButton = JButton("Save PDF...")
-    private val printButton = JButton("Print...")
+    private val planPrintButton = JButton("Print")
+    private val documentationPrintButton = JButton("Print")
+    private val planExportGroup = planExportGroup()
+    private val documentationExportGroup = documentationExportGroup()
+    private val savePdfButton = JButton("PDF All")
+    private val printButton = JButton("Print All")
     private val removeButton = JButton("Remove Stored Settings")
     private val resetButton = JButton("Reset Settings")
     private var documents = emptyList<PrintDocumentationAsset>()
@@ -169,29 +175,29 @@ internal class PreprintDialog(
     }
 
     private fun previewPanel(): JTabbedPane = JTabbedPane().apply {
-        addTab("Plan", previewTab(planControls, planPreviewHost, planExportPanel()))
-        addTab("Documentation", previewTab(documentationControls, documentPreviewHost, documentationExportPanel()))
+        addTab("Plan", previewTab(planControls, planPreviewHost, planPrintButton, planExportGroup))
+        addTab("Documentation", previewTab(documentationControls, documentPreviewHost, documentationPrintButton, documentationExportGroup))
     }
 
-    private fun previewTab(controls: PaginationControls, preview: Component, exports: Component): JPanel = JPanel(BorderLayout(0, 8)).apply {
+    private fun previewTab(controls: PaginationControls, preview: Component, printButton: JButton, exports: Component): JPanel = JPanel(BorderLayout(0, 8)).apply {
         add(JPanel().apply {
             layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
             add(controls.panel)
-            add(exports)
+            add(FlowLayoutPanel(printButton, exports))
         }, BorderLayout.NORTH)
         add(preview, BorderLayout.CENTER)
     }
 
-    private fun previewTab(controls: DocumentationControls, preview: Component, exports: Component): JPanel = JPanel(BorderLayout(0, 8)).apply {
+    private fun previewTab(controls: DocumentationControls, preview: Component, printButton: JButton, exports: Component): JPanel = JPanel(BorderLayout(0, 8)).apply {
         add(JPanel().apply {
             layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
             add(controls.panel)
-            add(exports)
+            add(FlowLayoutPanel(printButton, exports))
         }, BorderLayout.NORTH)
         add(preview, BorderLayout.CENTER)
     }
 
-    private fun planExportPanel(): JPanel = exportPanel(
+    private fun planExportGroup(): JPanel = exportGroup(
         listOf(
             "PDF" to { exportPlan(SheetExportFormat.Pdf, planControls.settings()) },
             "SVG" to { exportPlan(SheetExportFormat.Svg, planControls.settings()) },
@@ -200,15 +206,20 @@ internal class PreprintDialog(
         ),
     )
 
-    private fun documentationExportPanel(): JPanel = exportPanel(
+    private fun documentationExportGroup(): JPanel = exportGroup(
         DocumentationExportFormat.entries.map { format -> format.toString() to { exportDocumentation(format) } },
     )
 
-    private fun exportPanel(actions: List<Pair<String, () -> Unit>>): JPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+    private fun exportGroup(actions: List<Pair<String, () -> Unit>>): JPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
         add(JLabel("export:"))
         actions.forEach { (label, action) ->
             add(JButton(label).apply { addActionListener { action() } })
         }
+    }
+
+    private fun FlowLayoutPanel(printButton: JButton, exports: Component): JPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+        add(printButton)
+        add(exports)
     }
 
     private fun actionsPanel(): JPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply {
@@ -225,6 +236,12 @@ internal class PreprintDialog(
         })
         planControls.onChange { if (!updating) saveProfileAndRefreshPlan() }
         documentationControls.onChange { if (!updating) saveProfileAndRefreshDocumentation() }
+        planPrintButton.addActionListener {
+            selectedTarget()?.service?.let { printPlan(it, planControls.settings()) }
+        }
+        documentationPrintButton.addActionListener {
+            selectedTarget()?.service?.let { printDocumentation(it, documents, documentationControls.settings()) }
+        }
         resetButton.addActionListener {
             selectedTarget()?.let { target ->
                 profiles.reset(target.key)
@@ -275,6 +292,12 @@ internal class PreprintDialog(
             printerDetails.text = printerDetailHtml(target)
             savePdfButton.isVisible = target.isPdf
             printButton.isVisible = !target.isPdf
+            planExportGroup.isVisible = target.isPdf
+            documentationExportGroup.isVisible = target.isPdf
+            planPrintButton.isVisible = !target.isPdf
+            documentationPrintButton.isVisible = !target.isPdf
+            planPrintButton.isEnabled = target.reachable && target.service != null
+            documentationPrintButton.isEnabled = target.reachable && target.service != null
             removeButton.isEnabled = !target.isPdf
         } finally {
             updating = false
@@ -469,18 +492,22 @@ internal class PreprintDialog(
             add(rasterizedPdf)
             add(searchablePdf)
         }
-        val panel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+        val panel = JPanel(BorderLayout(0, 2)).apply {
             border = BorderFactory.createTitledBorder("$label pagination")
-            add(JLabel("Format"))
-            add(formatBox.apply { preferredSize = Dimension(118, preferredSize.height) })
-            add(JLabel("Scale"))
-            add(scaleBox.apply { preferredSize = Dimension(76, preferredSize.height) })
-            add(multipageBox)
-            add(JLabel("Overlap (mm)"))
-            add(overlapSpinner.apply { preferredSize = Dimension(76, preferredSize.height) })
-            add(JLabel("PDF output"))
-            add(rasterizedPdf)
-            add(searchablePdf)
+            add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+                add(JLabel("Format"))
+                add(formatBox.apply { preferredSize = Dimension(118, preferredSize.height) })
+                add(JLabel("Scale"))
+                add(scaleBox.apply { preferredSize = Dimension(76, preferredSize.height) })
+                add(multipageBox)
+                add(JLabel("Overlap (mm)"))
+                add(overlapSpinner.apply { preferredSize = Dimension(76, preferredSize.height) })
+            }, BorderLayout.NORTH)
+            add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+                add(JLabel("PDF output"))
+                add(rasterizedPdf)
+                add(searchablePdf)
+            }, BorderLayout.SOUTH)
         }
 
         fun onChange(listener: () -> Unit) {

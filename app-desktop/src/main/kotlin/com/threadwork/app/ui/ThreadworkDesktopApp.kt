@@ -1774,6 +1774,8 @@ class ThreadworkDesktopApp(
                 canvas.exportPlan(frame, format)
             },
             exportDocumentation = ::exportDocumentation,
+            printPlan = ::printPlan,
+            printDocumentation = ::printDocumentation,
             savePdf = ::savePreprintPdf,
             print = ::printPreprint,
             reportStatus = { message -> status.text = message },
@@ -1894,6 +1896,52 @@ class ThreadworkDesktopApp(
         }.onFailure { error ->
             status.text = "Printing failed: ${error.message}"
             JOptionPane.showMessageDialog(frame, error.message ?: "Could not submit the print job.", "Export", JOptionPane.ERROR_MESSAGE)
+        }
+    }
+
+    private fun printPlan(service: javax.print.PrintService, settings: SheetPaginationSettings) {
+        runCatching {
+            canvas.applyPaginationSettings(settings)
+            submitPrintPages(service, canvas.renderPdfPages())
+        }.onFailure { error ->
+            status.text = "Plan printing failed: ${error.message}"
+            JOptionPane.showMessageDialog(frame, error.message ?: "Could not print the plan.", "Export", JOptionPane.ERROR_MESSAGE)
+        }
+    }
+
+    private fun printDocumentation(
+        service: javax.print.PrintService,
+        documents: List<PrintDocumentationAsset>,
+        settings: DocumentationPrintSettings,
+    ) {
+        runCatching {
+            val paperSize = canvas.paperSizeMm(settings.formatChoice)
+            val pages = documents.flatMap { asset ->
+                asset.pages.map { image ->
+                    PdfRasterPage(
+                        image = image,
+                        widthPoints = paperSize.first * 72.0 / 25.4,
+                        heightPoints = paperSize.second * 72.0 / 25.4,
+                    )
+                }
+            }
+            submitPrintPages(service, pages)
+        }.onFailure { error ->
+            status.text = "Documentation printing failed: ${error.message}"
+            JOptionPane.showMessageDialog(frame, error.message ?: "Could not print the documentation.", "Export", JOptionPane.ERROR_MESSAGE)
+        }
+    }
+
+    private fun submitPrintPages(service: javax.print.PrintService, pages: List<PdfRasterPage>) {
+        require(pages.isNotEmpty()) { "Nothing to print." }
+        val printerJob = PrinterJob.getPrinterJob().apply {
+            printService = service
+            jobName = "Threadwork ${repository.getDocument().projectName()}"
+            setPrintable(RasterPagesPrintable(pages))
+        }
+        if (printerJob.printDialog()) {
+            printerJob.print()
+            status.text = "Submitted ${pages.size} print page(s) to ${service.name}"
         }
     }
 
@@ -2757,7 +2805,10 @@ class GraphCanvas(
         const val COMPOSITE_TEXT_MIN_MODEL_SIZE = 6.0
         const val COMPOSITE_TEXT_MAX_MODEL_SIZE = 256.0
         const val SHEET_UNITS_PER_MM = 4.0
-        const val SHEET_MARGIN_MM = 10.0
+        const val SHEET_MARGIN_TOP_MM = 5.0
+        const val SHEET_MARGIN_RIGHT_MM = 5.0
+        const val SHEET_MARGIN_BOTTOM_MM = 5.0
+        const val SHEET_MARGIN_LEFT_MM = 20.0
         const val TITLE_BLOCK_WIDTH_MM = 180.0
         const val TITLE_BLOCK_HEIGHT_MM = 36.0
         const val DEFAULT_SHEET_OVERLAP_MM = 5.0
@@ -3758,7 +3809,10 @@ class GraphCanvas(
         val bomRows = bomRows(scopeIds)
         val scale = sheetScale
         val partsColumns = partsListColumns(bomRows, scale)
-        val margin = sheetMm(SHEET_MARGIN_MM, scale)
+        val marginTop = sheetMm(SHEET_MARGIN_TOP_MM, scale)
+        val marginRight = sheetMm(SHEET_MARGIN_RIGHT_MM, scale)
+        val marginBottom = sheetMm(SHEET_MARGIN_BOTTOM_MM, scale)
+        val marginLeft = sheetMm(SHEET_MARGIN_LEFT_MM, scale)
         val titleWidth = sheetMm(TITLE_BLOCK_WIDTH_MM, scale)
         val titleHeight = sheetMm(TITLE_BLOCK_HEIGHT_MM, scale)
         val partsWidth = partsColumns.totalWidth
@@ -3766,8 +3820,8 @@ class GraphCanvas(
         val partsRequiredHeight = SheetLayout.partsListHeight(bomRows.size, partsRowHeight)
         val gap = sheetMm(8.0, scale)
 
-        val requiredWidth = margin * 2 + contentBounds.width
-        val requiredHeight = margin * 2 + contentBounds.height
+        val requiredWidth = marginLeft + marginRight + contentBounds.width
+        val requiredHeight = marginTop + marginBottom + contentBounds.height
         val occupiedArea = contentBounds.width.toDouble() * contentBounds.height
         val best = when (val choice = sheetFormatChoice) {
             AUTO_SHEET_FORMAT -> autoSheetCandidate(requiredWidth, requiredHeight, occupiedArea, scale)
@@ -3783,7 +3837,11 @@ class GraphCanvas(
             contentBounds = contentBounds,
             sheetWidth = best.width,
             sheetHeight = best.height,
-            margin = margin,
+            margin = marginTop,
+            marginTop = marginTop,
+            marginRight = marginRight,
+            marginBottom = marginBottom,
+            marginLeft = marginLeft,
             requestedOverlap = sheetMm(sheetOverlapMm, scale),
             multipage = tiled,
         )

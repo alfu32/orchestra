@@ -52,17 +52,21 @@ internal object SheetLayout {
         margin: Int,
         requestedOverlap: Int,
         multipage: Boolean,
+        marginTop: Int = margin,
+        marginRight: Int = margin,
+        marginBottom: Int = margin,
+        marginLeft: Int = margin,
     ): SheetTileLayout {
-        require(sheetWidth > margin * 2) { "Sheet width must exceed its margins." }
-        require(sheetHeight > margin * 2) { "Sheet height must exceed its margins." }
+        require(sheetWidth > marginLeft + marginRight) { "Sheet width must exceed its margins." }
+        require(sheetHeight > marginTop + marginBottom) { "Sheet height must exceed its margins." }
 
         val overlap = if (multipage) {
             requestedOverlap.coerceIn(0, minOf(sheetWidth, sheetHeight) - 1)
         } else {
             0
         }
-        val requiredWidth = contentBounds.width + margin * 2
-        val requiredHeight = contentBounds.height + margin * 2
+        val requiredWidth = contentBounds.width + marginLeft + marginRight
+        val requiredHeight = contentBounds.height + marginTop + marginBottom
         val columnCount = if (multipage) pageCount(requiredWidth, sheetWidth, overlap) else 1
         val rowCount = if (multipage) pageCount(requiredHeight, sheetHeight, overlap) else 1
         val horizontalStep = sheetWidth - overlap
@@ -99,10 +103,10 @@ internal object SheetLayout {
             columns = columnCount,
             overlap = overlap,
             drawing = Rectangle(
-                bounds.x + margin,
-                bounds.y + margin,
-                bounds.width - margin * 2,
-                bounds.height - margin * 2,
+                bounds.x + marginLeft,
+                bounds.y + marginTop,
+                bounds.width - marginLeft - marginRight,
+                bounds.height - marginTop - marginBottom,
             ),
         )
     }

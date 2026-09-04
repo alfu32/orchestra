@@ -90,4 +90,25 @@ class SheetLayoutTest {
         )
         assertTrue(layout.tiles.all { it.sheet.width == 400 && it.sheet.height == 300 })
     }
+
+    @Test
+    fun `asymmetric margins keep the drawing border at the requested offsets`() {
+        val layout = SheetLayout.tile(
+            contentBounds = Rectangle(0, 0, 100, 80),
+            sheetWidth = 160,
+            sheetHeight = 120,
+            margin = 5,
+            marginTop = 5,
+            marginRight = 5,
+            marginBottom = 5,
+            marginLeft = 20,
+            requestedOverlap = 0,
+            multipage = false,
+        )
+
+        assertEquals(20, layout.drawing.x - layout.bounds.x)
+        assertEquals(5, layout.drawing.y - layout.bounds.y)
+        assertEquals(5.0, layout.bounds.maxX - layout.drawing.maxX)
+        assertEquals(5.0, layout.bounds.maxY - layout.drawing.maxY)
+    }
 }
