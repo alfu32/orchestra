@@ -6304,6 +6304,7 @@ private class InspectorPanel(
     private val nameCompletionList = JList<NameSuggestion>(nameCompletionModel).apply {
         visibleRowCount = 10
         fixedCellWidth = 300
+        isFocusable = false
         cellRenderer = object : DefaultListCellRenderer() {
             override fun getListCellRendererComponent(
                 list: JList<*>?,
@@ -6322,8 +6323,11 @@ private class InspectorPanel(
         }
     }
     private val nameCompletionPopup = JPopupMenu().apply {
+        isFocusable = false
+        setRequestFocusEnabled(false)
         add(JScrollPane(nameCompletionList).apply {
             preferredSize = Dimension(340, 180)
+            isFocusable = false
         })
     }
     private val language = JComboBox(languageOptions.toTypedArray()).apply { isEditable = false }
@@ -6518,21 +6522,49 @@ private class InspectorPanel(
         metadata.text = metadataText(node)
         updateEntityFieldVisibility()
         binding = false
+        if (nameField.isFocusOwner) {
+            SwingUtilities.invokeLater {
+                if (nameField.isFocusOwner) updateNameCompletions()
+            }
+        }
     }
 
     private fun applyOnCommit(field: JTextField) {
         field.addActionListener { apply() }
         field.addFocusListener(object : FocusAdapter() {
             override fun focusLost(e: FocusEvent) {
-                if (field == nameField && !isNameCompletionFocusTarget(e.oppositeComponent)) hideNameCompletions()
-                apply()
+                if (field != nameField) {
+                    apply()
+                    return
+                }
+                SwingUtilities.invokeLater {
+                    if (isNameCompletionFocusTarget(e.oppositeComponent)) return@invokeLater
+                    if (!nameField.isFocusOwner) {
+                        hideNameCompletions()
+                        apply()
+                    }
+                }
             }
         })
     }
 
     private fun installNameCompletions() {
+        nameField.document.addDocumentListener(SimpleDocumentListener {
+            if (nameField.isFocusOwner) updateNameCompletions()
+        })
         nameField.addFocusListener(object : FocusAdapter() {
-            override fun focusGained(e: FocusEvent) = updateNameCompletions()
+            override fun focusGained(e: FocusEvent) {
+                SwingUtilities.invokeLater {
+                    if (nameField.isFocusOwner) updateNameCompletions()
+                }
+            }
+        })
+        nameField.addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(e: MouseEvent) {
+                SwingUtilities.invokeLater {
+                    if (nameField.isFocusOwner) updateNameCompletions()
+                }
+            }
         })
         nameField.addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) {
@@ -6572,7 +6604,7 @@ private class InspectorPanel(
     }
 
     private fun updateNameCompletions() {
-        if (binding) {
+        if (binding || !nameField.isFocusOwner) {
             hideNameCompletions()
             return
         }
@@ -6603,7 +6635,8 @@ private class InspectorPanel(
     }
 
     private fun isNameCompletionFocusTarget(component: Component?): Boolean =
-        component != null && SwingUtilities.isDescendingFrom(component, nameCompletionPopup)
+        component == nameCompletionPopup ||
+            component != null && SwingUtilities.isDescendingFrom(component, nameCompletionPopup)
 
     private fun applyOnCommit(field: JComboBox<String>) {
         field.addActionListener {
