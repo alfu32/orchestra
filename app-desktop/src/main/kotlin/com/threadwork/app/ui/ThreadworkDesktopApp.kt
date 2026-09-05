@@ -304,7 +304,7 @@ class ThreadworkDesktopApp(
     private val compilerCapabilityResolver = CompilerCapabilityResolver(compilerPlugins)
     private val inspector = InspectorPanel(
         repository,
-        ::refreshAll,
+        ::refreshAfterInspectorEdit,
         languageIds,
         technologyIds,
         layoutStrategies,
@@ -2267,6 +2267,14 @@ class ThreadworkDesktopApp(
         canvas.refreshBoundsFromChildren()
         canvas.repaint()
         onSelectionChanged()
+        checkpointHistory()
+    }
+
+    private fun refreshAfterInspectorEdit() {
+        refreshTree()
+        canvas.refreshBoundsFromChildren()
+        canvas.invalidateRenderCache()
+        canvas.repaint()
         checkpointHistory()
     }
 
@@ -6238,7 +6246,7 @@ class GraphCanvas(
 
 private class InspectorPanel(
     private val repository: DocumentRepository,
-    private val refreshAll: () -> Unit,
+    private val refreshView: () -> Unit,
     languageIds: List<String>,
     technologyIds: List<String>,
     layoutStrategies: List<LayoutStrategy>,
@@ -6283,23 +6291,21 @@ private class InspectorPanel(
     private var compilerTechnologyProposal = "generated"
     private val nameField = JTextField()
     private val nameDetail = JTextField()
-    private val nameSuggestions = (
-        CompilerTemplateRoles.suggestedOverrideNodeNames +
-            NodeStereotype.entries.map { "@${it.name}" } +
+    private val namePrefixes = listOf(
+        NameSuggestion("lib_", "library"),
+        NameSuggestion("library_", "library"),
+        NameSuggestion("service_", "service library"),
+        NameSuggestion("client_", "service client"),
+        NameSuggestion("err_", "error handler"),
+        NameSuggestion("error_", "error handler"),
+        NameSuggestion("test_", "test"),
+    )
+    private val nameSuggestions = namePrefixes + (
+        CompilerTemplateRoles.overrideNodeNames.keys +
             listOf("@Compiler", "@ProjectFile", "@StaticFile")
         ).distinct().sorted().map { token ->
             NameSuggestion(token, "compiler override")
-        } + listOf(
-            NameSuggestion("lib_", "library"),
-            NameSuggestion("library_", "library"),
-            NameSuggestion("service_", "service library"),
-            NameSuggestion("client_", "service client"),
-            NameSuggestion("err_", "error handler"),
-            NameSuggestion("error_", "error handler"),
-            NameSuggestion("test_", "test"),
-        )
-        .distinctBy(NameSuggestion::token)
-        .sortedBy(NameSuggestion::token)
+        }
     private val nameCompletionModel = DefaultListModel<NameSuggestion>()
     private val nameCompletionList = JList<NameSuggestion>(nameCompletionModel).apply {
         visibleRowCount = 10
@@ -6329,6 +6335,9 @@ private class InspectorPanel(
             preferredSize = Dimension(340, 180)
             isFocusable = false
         })
+    }
+    private val inspectorRefreshTimer = Timer(150) { refreshView() }.apply {
+        isRepeats = false
     }
     private val language = JComboBox(languageOptions.toTypedArray()).apply { isEditable = false }
     private val customLanguage = JTextField()
@@ -6713,7 +6722,7 @@ private class InspectorPanel(
             it.typeDefinitionId = selectedTypeDefinitionId()
             repository.updateLinkData(id, it)
         }
-        refreshAll()
+        inspectorRefreshTimer.restart()
         val previousBinding = binding
         binding = true
         bindLayoutStrategy(repository.requireNode(id).fileLayoutStrategyId)
