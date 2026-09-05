@@ -56,6 +56,13 @@ class NodeClassifierTest {
     }
 
     @Test
+    fun `classifies err prefixed nodes as error handlers`() {
+        val node = Node(NodeId("n1"), "err_network", NodeKind.Processor)
+
+        assertEquals(NodeStereotype.ErrorHandler, NodeClassifier.classify(node))
+    }
+
+    @Test
     fun `classifies static file template name`() {
         val node = Node(NodeId("n1"), "@StaticFile", NodeKind.Processor)
 

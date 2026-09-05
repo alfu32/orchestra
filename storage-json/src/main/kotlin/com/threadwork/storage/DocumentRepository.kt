@@ -44,6 +44,7 @@ interface DocumentRepository {
     fun deleteNode(id: NodeId)
 
     fun renameNode(id: NodeId, name: String)
+    fun updateNodeNameDetail(id: NodeId, nameDetail: String)
     fun updateNodeLayout(id: NodeId, layout: NodeLayout)
     fun updateNodeText(id: NodeId, text: NodeText)
     fun updateNodeBinaryContent(id: NodeId, content: ByteArray?)
@@ -137,6 +138,14 @@ class InMemoryDocumentRepository(
         if (node.name == name && !documentNameChanged) return
         node.name = name
         if (id == document.rootNodeId) document.name = name
+        touchNodes(listOf(id))
+        markDirty()
+    }
+
+    override fun updateNodeNameDetail(id: NodeId, nameDetail: String) {
+        val node = requireNode(id)
+        if (node.nameDetail == nameDetail) return
+        node.nameDetail = nameDetail
         touchNodes(listOf(id))
         markDirty()
     }

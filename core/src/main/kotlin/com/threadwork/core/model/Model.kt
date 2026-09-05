@@ -178,6 +178,7 @@ data class Node(
     val diagnostics: MutableList<Diagnostic> = mutableListOf(),
     var metadata: MutableMap<String, String> = mutableMapOf(),
     var pluginData: MutableMap<String, JsonObject> = mutableMapOf(),
+    var nameDetail: String = "",
 ) {
     val isTerminal: Boolean get() = children.isEmpty()
     val isComposite: Boolean get() = children.isNotEmpty()

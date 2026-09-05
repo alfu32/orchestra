@@ -73,6 +73,17 @@ class InMemoryDocumentRepositoryTest {
     }
 
     @Test
+    fun `name detail is updated and persisted on the node`() {
+        val repository = InMemoryDocumentRepository(newDocument("test"))
+        val node = repository.createNode(repository.getDocument().rootNodeId, "@ProcessorDeclaration", NodeKind.Processor)
+
+        repository.updateNodeNameDetail(node.id, "used for generated processor source")
+
+        assertEquals("used for generated processor source", repository.requireNode(node.id).nameDetail)
+        assertTrue(repository.isDirty())
+    }
+
+    @Test
     fun `generated ids are uuid backed`() {
         val repository = InMemoryDocumentRepository(newDocument("test"))
         val node = repository.createNode(repository.getDocument().rootNodeId, "source", NodeKind.Processor)

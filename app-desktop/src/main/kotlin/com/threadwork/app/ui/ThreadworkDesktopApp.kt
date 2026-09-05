@@ -3331,7 +3331,7 @@ class GraphCanvas(
 
     private fun requiredNodeWidth(node: Node): Double {
         val labels = buildList {
-            add(node.name)
+            add(nodeDisplayName(node))
             add(nodeStereotype(node).name)
             technologyLabel(node)?.let(::add)
             typeFieldLabels(node).forEach(::add)
@@ -3366,7 +3366,7 @@ class GraphCanvas(
         if (!node.isComposite) return requiredNodeWidth(node).roundToInt()
         val metrics = compositeTextMetrics(node, width, height)
         return maxOf(
-            monospaceTextWidth(node.name, metrics.titleSize, 28),
+            monospaceTextWidth(nodeDisplayName(node), metrics.titleSize, 28),
             monospaceTextWidth(nodeStereotype(node).name, metrics.infoSize, 28),
             technologyLabel(node)?.let { monospaceTextWidth(it, metrics.infoSize, 28) } ?: 0,
             200,
@@ -4293,14 +4293,14 @@ class GraphCanvas(
         )
         if (node.isComposite && node.layout.isExpanded) {
             val metrics = compositeTextMetrics(node)
-            svgText(svg, node.name, r.x + 12, r.y + metrics.titleBaselineOffset, metrics.titleSize.roundToInt(), "#222222")
+            svgNodeName(svg, node, r.x + 12, r.y + metrics.titleBaselineOffset, metrics.titleSize.roundToInt())
             svgText(svg, stereotype.name, r.x + 12, r.y + metrics.stereotypeBaselineOffset, metrics.infoSize.roundToInt(), "#555555")
             technologyLabel(node)?.let {
                 svgText(svg, it, r.x + 12, r.y + metrics.technologyBaselineOffset, metrics.infoSize.roundToInt(), "#666666")
             }
         } else {
             val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
-            svgText(svg, node.name, r.x + 12, r.y + TERMINAL_TITLE_BASELINE + headerOffset, TERMINAL_TITLE_SIZE.roundToInt(), "#222222")
+            svgNodeName(svg, node, r.x + 12, r.y + TERMINAL_TITLE_BASELINE + headerOffset, TERMINAL_TITLE_SIZE.roundToInt())
             svgText(svg, stereotype.name, r.x + 12, r.y + TERMINAL_STEREOTYPE_BASELINE + headerOffset, TERMINAL_INFO_SIZE.roundToInt(), "#555555")
             val technology = technologyLabel(node)
             technology?.let {
@@ -4567,6 +4567,17 @@ class GraphCanvas(
         svg.appendLine(" stroke-linejoin=\"miter\"/>")
     }
 
+    private fun svgNodeName(svg: StringBuilder, node: Node, x: Int, baseline: Int, size: Int) {
+        val name = node.name
+        val detail = node.nameDetail.trim()
+        val override = isCompilerOverride(node)
+        svgText(svg, name, x, baseline, size, "#222222")
+        if (detail.isBlank()) return
+        val renderedDetail = if (override) "($detail)" else detail
+        val detailX = x + if (name.isBlank()) 0 else monospaceTextWidth("$name ", size.toFloat(), 0)
+        svgText(svg, renderedDetail, detailX, baseline, size, if (override) "#000000" else "#666666")
+    }
+
     private fun svgText(svg: StringBuilder, text: String, x: Int, y: Int, size: Int, fill: String) {
         svg.appendLine("    <text x=\"$x\" y=\"$y\" font-size=\"$size\" fill=\"$fill\">${xml(text)}</text>")
     }
@@ -4775,7 +4786,7 @@ class GraphCanvas(
         if (node.isComposite && node.layout.isExpanded) {
             val metrics = compositeTextMetrics(node)
             g2.font = designerFont.deriveFont(metrics.titleSize)
-            g2.drawString(node.name, r.x + 12, r.y + metrics.titleBaselineOffset)
+            drawNodeName(g2, node, r.x + 12, r.y + metrics.titleBaselineOffset)
             g2.color = activePalette[DesignerColorKey.TextSecondary]
             g2.font = designerFont.deriveFont(metrics.infoSize)
             g2.drawString(stereotype.name, r.x + 12, r.y + metrics.stereotypeBaselineOffset)
@@ -4786,7 +4797,7 @@ class GraphCanvas(
         } else {
             val headerOffset = if (node.isComposite) COMPOSITE_HEADER_EXTRA_HEIGHT else 0
             g2.font = designerFont.deriveFont(TERMINAL_TITLE_SIZE)
-            g2.drawString(node.name, r.x + 12, r.y + TERMINAL_TITLE_BASELINE + headerOffset)
+            drawNodeName(g2, node, r.x + 12, r.y + TERMINAL_TITLE_BASELINE + headerOffset)
             g2.color = activePalette[DesignerColorKey.TextSecondary]
             g2.font = designerFont.deriveFont(TERMINAL_INFO_SIZE)
             g2.drawString(stereotype.name, r.x + 12, r.y + TERMINAL_STEREOTYPE_BASELINE + headerOffset)
@@ -4809,6 +4820,41 @@ class GraphCanvas(
         g2.stroke = previousStroke
         g2.font = previousFont
     }
+
+    private fun nodeDisplayName(node: Node): String {
+        val name = node.name.trim()
+        val detail = node.nameDetail.trim()
+        if (detail.isBlank()) return name
+        val renderedDetail = if (isCompilerOverride(node)) {
+            "($detail)"
+        } else {
+            detail
+        }
+        return listOf(name, renderedDetail).filter(String::isNotBlank).joinToString(" ")
+    }
+
+    private fun drawNodeName(g2: Graphics2D, node: Node, x: Int, baseline: Int) {
+        val name = node.name
+        val detail = node.nameDetail.trim()
+        g2.color = activePalette[DesignerColorKey.TextPrimary]
+        g2.drawString(name, x, baseline)
+        if (detail.isBlank()) return
+        val renderedDetail = if (isCompilerOverride(node)) {
+            "($detail)"
+        } else {
+            detail
+        }
+        val detailX = x + if (name.isBlank()) 0 else g2.fontMetrics.stringWidth("$name ")
+        g2.color = if (isCompilerOverride(node)) {
+            Color.BLACK
+        } else {
+            activePalette[DesignerColorKey.TextMuted]
+        }
+        g2.drawString(renderedDetail, detailX, baseline)
+    }
+
+    private fun isCompilerOverride(node: Node): Boolean =
+        nodeStereotype(node) in setOf(NodeStereotype.CompilerTemplate, NodeStereotype.StaticFile)
 
     private fun drawDiagnosticBadge(g2: Graphics2D, node: Node) {
         if (node.diagnostics.isEmpty()) return
@@ -5738,7 +5784,7 @@ class GraphCanvas(
                     repository.getNode(candidate)?.let { !it.isLink && !it.isType } == true
                 }
                     ?: repository.getDocument().rootNodeId
-                val node = repository.createNode(parent, "New Node", NodeKind.Processor)
+                val node = repository.createNode(parent, "", NodeKind.Processor)
                 repository.updateNodeLayout(
                     node.id,
                     NodeLayout(
@@ -5760,7 +5806,7 @@ class GraphCanvas(
                 val parent = hit?.takeIf { candidate ->
                     repository.getNode(candidate)?.let { !it.isLink && !it.isType } == true
                 } ?: repository.getDocument().rootNodeId
-                val node = repository.createNode(parent, "New Type", NodeKind.Type)
+                val node = repository.createNode(parent, "", NodeKind.Type)
                 repository.updateNodeLayout(
                     node.id,
                     NodeLayout(
@@ -6193,6 +6239,11 @@ private class InspectorPanel(
     layoutStrategies: List<LayoutStrategy>,
     private val compilerCapabilityResolver: CompilerCapabilityResolver,
 ) : JPanel(BorderLayout()) {
+    private data class NameSuggestion(
+        val token: String,
+        val explanation: String,
+    )
+
     private val knownLanguageIds = languageIds
         .map { it.trim() }
         .filter { it.isNotBlank() && !it.equals(NoneLanguageChoice, ignoreCase = true) && !it.equals(OtherLanguageChoice, ignoreCase = true) }
@@ -6226,19 +6277,48 @@ private class InspectorPanel(
     private var unsupportedLayoutSelectionId: String? = null
     private var compilerTechnologyProposal = "generated"
     private val nameField = JTextField()
-    private val compilerTemplateNames = (
+    private val nameDetail = JTextField()
+    private val nameSuggestions = (
         CompilerTemplateRoles.suggestedOverrideNodeNames +
             NodeStereotype.entries.map { "@${it.name}" } +
             listOf("@Compiler", "@ProjectFile", "@StaticFile")
-        ).distinct().sorted()
-    private val nameCompletionModel = DefaultListModel<String>()
-    private val nameCompletionList = JList(nameCompletionModel).apply {
+        ).distinct().sorted().map { token ->
+            NameSuggestion(token, "compiler override")
+        } + listOf(
+            NameSuggestion("lib_", "library"),
+            NameSuggestion("library_", "library"),
+            NameSuggestion("service_", "service library"),
+            NameSuggestion("client_", "service client"),
+            NameSuggestion("err_", "error handler"),
+            NameSuggestion("error_", "error handler"),
+            NameSuggestion("test_", "test"),
+        )
+        .distinctBy(NameSuggestion::token)
+        .sortedBy(NameSuggestion::token)
+    private val nameCompletionModel = DefaultListModel<NameSuggestion>()
+    private val nameCompletionList = JList<NameSuggestion>(nameCompletionModel).apply {
         visibleRowCount = 10
-        fixedCellWidth = 180
+        fixedCellWidth = 300
+        cellRenderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(
+                list: JList<*>?,
+                value: Any?,
+                index: Int,
+                isSelected: Boolean,
+                cellHasFocus: Boolean,
+            ): Component {
+                val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
+                val suggestion = value as? NameSuggestion
+                component.text = suggestion?.let {
+                    "<html><b>${escapeHtml(it.token)}</b>&nbsp;&nbsp;<font color=\"#777777\">(${escapeHtml(it.explanation)})</font></html>"
+                }.orEmpty()
+                return component
+            }
+        }
     }
     private val nameCompletionPopup = JPopupMenu().apply {
         add(JScrollPane(nameCompletionList).apply {
-            preferredSize = Dimension(220, 180)
+            preferredSize = Dimension(340, 180)
         })
     }
     private val language = JComboBox(languageOptions.toTypedArray()).apply { isEditable = false }
@@ -6289,6 +6369,7 @@ private class InspectorPanel(
     }
     private val metadata = JTextArea(5, 24)
     private val nameRow = fieldRow("Name", nameField)
+    private val nameDetailRow = fieldRow("Name detail", nameDetail)
     private val languageRow = fieldRow("Language", language)
     private val technologyRow = fieldRow("Technology", technology)
     private val layoutStrategyRow = fieldRow(
@@ -6352,6 +6433,7 @@ private class InspectorPanel(
         installNameCompletions()
         listOf(
             nameField,
+            nameDetail,
             customLanguage,
             customTechnology,
             state,
@@ -6371,6 +6453,7 @@ private class InspectorPanel(
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
             add(nameRow)
+            add(nameDetailRow)
             add(languageRow)
             add(customLanguagePanel)
             add(technologyRow)
@@ -6408,6 +6491,7 @@ private class InspectorPanel(
         boundNodeIsRoot = node?.id == repository.getDocument().rootNodeId
         compilerTechnologyProposal = proposedCompilerTechnologyId()
         nameField.text = node?.name.orEmpty()
+        nameDetail.text = node?.nameDetail.orEmpty()
         bindLanguage(node?.technology?.languageId.orEmpty())
         refreshTechnologyOptions()
         bindTechnology(node?.technology?.technologyId.orEmpty(), forceCustom = boundNodeIsCompiler)
@@ -6442,6 +6526,9 @@ private class InspectorPanel(
     }
 
     private fun installNameCompletions() {
+        nameField.addFocusListener(object : FocusAdapter() {
+            override fun focusGained(e: FocusEvent) = updateNameCompletions()
+        })
         nameField.addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) {
                 if (!nameCompletionPopup.isVisible) return
@@ -6480,16 +6567,12 @@ private class InspectorPanel(
     }
 
     private fun updateNameCompletions() {
-        if (binding || boundNodeIsLink) {
+        if (binding) {
             hideNameCompletions()
             return
         }
         val prefix = nameField.text.trim()
-        if (!prefix.startsWith("@")) {
-            hideNameCompletions()
-            return
-        }
-        val matches = compilerTemplateNames.filter { it.startsWith(prefix, ignoreCase = true) }
+        val matches = nameSuggestions.filter { prefix.isBlank() || it.token.startsWith(prefix, ignoreCase = true) }
         if (matches.isEmpty()) {
             hideNameCompletions()
             return
@@ -6503,7 +6586,7 @@ private class InspectorPanel(
     }
 
     private fun applyNameCompletion() {
-        val value = nameCompletionList.selectedValue ?: return
+        val value = nameCompletionList.selectedValue?.token ?: return
         nameField.text = value
         nameField.caretPosition = value.length
         hideNameCompletions()
@@ -6532,6 +6615,7 @@ private class InspectorPanel(
 
     private fun isEditing(): Boolean =
         nameField.hasFocus() ||
+            nameDetail.hasFocus() ||
             language.hasFocus() ||
             customLanguage.hasFocus() ||
             technology.hasFocus() ||
@@ -6568,7 +6652,8 @@ private class InspectorPanel(
         if (boundNodeIsRoot) {
             repository.updateMasterRevision(Revision(masterRevisionName.text.trim(), masterRevisionDate.text.trim()))
         }
-        repository.renameNode(id, nameField.text)
+        repository.renameNode(id, nameField.text.trim())
+        repository.updateNodeNameDetail(id, nameDetail.text.trim())
         val isLink = node.isLink
         if (!isLink) {
             repository.updateNodeTechnology(id, node.technology.copy(languageId = selectedLanguage(), technologyId = selectedTechnology()))
@@ -6882,6 +6967,12 @@ private class InspectorPanel(
             .replace(Regex("[^a-z0-9_.-]+"), "-")
             .trim('-', '.', '_')
             .ifBlank { "generated" }
+
+    private fun escapeHtml(text: String): String =
+        text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
 
     private fun technologyDisplay(id: String): String =
         when (id) {

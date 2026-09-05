@@ -94,6 +94,7 @@ class JsonDocumentStoreTest {
         repository.getDocument().masterRevision = Revision("R4", "2026-08-17")
         val child = repository.createNode(repository.getDocument().rootNodeId, "child", NodeKind.Processor)
         repository.updateNodeResponsible(child.id, "Ada")
+        repository.updateNodeNameDetail(child.id, "worker entry point")
         val file = createTempFile(suffix = ".threadwork.json")
         val store = KotlinxJsonDocumentStore()
 
@@ -105,9 +106,25 @@ class JsonDocumentStoreTest {
         assertEquals(repository.getDocument().nodes.keys, loaded.nodes.keys)
         assertEquals(Revision("R4", "2026-08-17"), loaded.masterRevision)
         assertEquals("Ada", loaded.nodes.getValue(child.id).responsible)
+        assertEquals("worker entry point", loaded.nodes.getValue(child.id).nameDetail)
         assertEquals("R4", loaded.nodes.getValue(child.id).revision?.name)
         assertTrue(loaded.nodes.getValue(child.id).modified.date.isNotBlank())
         assertTrue(savedJson.getValue("nodes") is JsonArray)
+    }
+
+    @Test
+    fun `missing name detail defaults to an empty string`() {
+        val repository = InMemoryDocumentRepository(newDocument("name detail json"))
+        val child = repository.createNode(repository.getDocument().rootNodeId, "worker", NodeKind.Processor)
+        val file = createTempFile(suffix = ".orch")
+        val store = KotlinxJsonDocumentStore()
+
+        store.save(repository.getDocument(), file)
+        val legacyJson = Files.readString(file).replace(Regex("\\s*\"nameDetail\": \"\",?\\n"), "\n")
+        assertFalse(legacyJson.contains("\"nameDetail\""))
+        val loaded = store.loadText(legacyJson)
+
+        assertEquals("", loaded.nodes.getValue(child.id).nameDetail)
     }
 
     @Test

@@ -67,11 +67,11 @@ object NodeClassifier {
             node.kind == NodeKind.Node -> NodeStereotype.Node
             name.isStaticFileTemplateName() -> NodeStereotype.StaticFile
             name.isCompilerTemplateName() -> NodeStereotype.CompilerTemplate
-            node.children.isNotEmpty() && name.startsOrEndsWith("error") -> NodeStereotype.CompositeErrorHandler
+            node.children.isNotEmpty() && name.startsOrEndsWithAnyOf("error", "err") -> NodeStereotype.CompositeErrorHandler
             node.children.isNotEmpty() && name.startsOrEndsWith("test") -> NodeStereotype.TestSuite
             node.children.isNotEmpty() -> NodeStereotype.CompositeWorker
             name.startsOrEndsWithAnyOf("service", "client", "library", "lib") -> NodeStereotype.ServiceLibrary
-            name.startsOrEndsWith("error") -> NodeStereotype.ErrorHandler
+            name.startsOrEndsWithAnyOf("error", "err") -> NodeStereotype.ErrorHandler
             name.startsOrEndsWith("test") -> NodeStereotype.Test
             incomingCount > 0 && outgoingCount > 0 -> NodeStereotype.Transformer
             incomingCount == 0 && outgoingCount > 0 -> NodeStereotype.Generator
