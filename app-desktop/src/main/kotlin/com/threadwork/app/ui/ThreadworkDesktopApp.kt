@@ -6255,6 +6255,12 @@ private class InspectorPanel(
     private data class NameSuggestion(
         val token: String,
         val explanation: String,
+        val isGroupHeader: Boolean = false,
+    )
+
+    private data class NameSuggestionGroup(
+        val title: String,
+        val suggestions: List<NameSuggestion>,
     )
 
     private val knownLanguageIds = languageIds
@@ -6300,12 +6306,59 @@ private class InspectorPanel(
         NameSuggestion("error_", "error handler"),
         NameSuggestion("test_", "test"),
     )
-    private val nameSuggestions = namePrefixes + (
-        CompilerTemplateRoles.overrideNodeNames.keys +
-            listOf("@Compiler", "@ProjectFile", "@StaticFile")
-        ).distinct().sorted().map { token ->
-            NameSuggestion(token, "compiler override")
-        }
+    private val nameSuggestionGroups = listOf(
+        NameSuggestionGroup("Prefixes", namePrefixes),
+        NameSuggestionGroup("Universal", phaseSuggestions("Node", "fallback")),
+        NameSuggestionGroup(
+            "Entity kinds",
+            listOf(
+                phaseSuggestions("Processor", "processor"),
+                phaseSuggestions("Link", "link"),
+                phaseSuggestions("Group", "group"),
+                phaseSuggestions("Type", "type"),
+                phaseSuggestions("Note", "note"),
+            ).flatten(),
+        ),
+        NameSuggestionGroup("Composites", phaseSuggestions("Composite", "composite")),
+        NameSuggestionGroup(
+            "Stereotypes",
+            NodeStereotype.entries.filterNot { stereotype ->
+                stereotype in setOf(
+                    NodeStereotype.Node,
+                    NodeStereotype.Link,
+                    NodeStereotype.Type,
+                    NodeStereotype.StaticFile,
+                    NodeStereotype.CompilerTemplate,
+                )
+            }.flatMap { stereotype ->
+                phaseSuggestions(stereotype.name, humanize(stereotype.name))
+            },
+        ),
+        NameSuggestionGroup(
+            "Layouts",
+            listOf(
+                NameSuggestion("@CompositeSingleFile", "single-file composite layout"),
+                NameSuggestion("@CompositeDirectFileSystem", "direct file-system composite layout"),
+                NameSuggestion("@CompositeClassifiedFileSystem", "classified file-system composite layout"),
+                NameSuggestion("@CompositeSourceSet", "source-set composite layout"),
+                NameSuggestion("@CompositeFileBased", "file-based composite layout"),
+            ),
+        ),
+        NameSuggestionGroup(
+            "Auxiliary",
+            listOf(
+                NameSuggestion("@Compiler", "compiler root"),
+                NameSuggestion("@ProjectFile", "project file template"),
+                NameSuggestion("@StaticFile", "static file template"),
+                NameSuggestion("@CompilerTemplate", "compiler-template node"),
+                NameSuggestion("@ChildImport", "child import rendering"),
+                NameSuggestion("@RuntimeSupport", "runtime support rendering"),
+                NameSuggestion("@PrimaryFilePath", "primary generated file path"),
+                NameSuggestion("@StaticFilePath", "static generated file path"),
+                NameSuggestion("@ProjectName", "project name rendering"),
+            ),
+        ),
+    )
     private val nameCompletionModel = DefaultListModel<NameSuggestion>()
     private val nameCompletionList = JList<NameSuggestion>(nameCompletionModel).apply {
         visibleRowCount = 10
@@ -6321,9 +6374,15 @@ private class InspectorPanel(
             ): Component {
                 val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
                 val suggestion = value as? NameSuggestion
-                component.text = suggestion?.let {
-                    "<html><b>${escapeHtml(it.token)}</b>&nbsp;&nbsp;<font color=\"#777777\">(${escapeHtml(it.explanation)})</font></html>"
-                }.orEmpty()
+                if (suggestion?.isGroupHeader == true) {
+                    component.text = "<html><b>${escapeHtml(suggestion.token)}</b></html>"
+                    component.font = component.font.deriveFont(Font.BOLD)
+                } else {
+                    component.font = component.font.deriveFont(Font.PLAIN)
+                    component.text = suggestion?.let {
+                        "<html><b>${escapeHtml(it.token)}</b>&nbsp;&nbsp;<font color=\"#777777\">(${escapeHtml(it.explanation)})</font></html>"
+                    }.orEmpty()
+                }
                 return component
             }
         }
@@ -6580,13 +6639,11 @@ private class InspectorPanel(
                 if (!nameCompletionPopup.isVisible) return
                 when (e.keyCode) {
                     KeyEvent.VK_UP -> {
-                        nameCompletionList.selectedIndex = (nameCompletionList.selectedIndex - 1).coerceAtLeast(0)
-                        nameCompletionList.ensureIndexIsVisible(nameCompletionList.selectedIndex)
+                        moveNameCompletionSelection(-1)
                         e.consume()
                     }
                     KeyEvent.VK_DOWN -> {
-                        nameCompletionList.selectedIndex = (nameCompletionList.selectedIndex + 1).coerceAtMost(nameCompletionModel.size() - 1)
-                        nameCompletionList.ensureIndexIsVisible(nameCompletionList.selectedIndex)
+                        moveNameCompletionSelection(1)
                         e.consume()
                     }
                     KeyEvent.VK_ENTER, KeyEvent.VK_TAB -> {
@@ -6612,27 +6669,67 @@ private class InspectorPanel(
         })
     }
 
+    private fun phaseSuggestions(prefix: String, description: String): List<NameSuggestion> = listOf(
+        NameSuggestion("@${prefix}HoistedDeclaration", "$description hoisted declarations"),
+        NameSuggestion("@${prefix}ForwardDeclaration", "$description forward declarations"),
+        NameSuggestion("@${prefix}Declaration", "$description declarations"),
+        NameSuggestion("@${prefix}Instantiation", "$description instantiation"),
+    )
+
+    private fun humanize(value: String): String =
+        value.replace(Regex("([a-z])([A-Z])"), "$1 $2").lowercase()
+
+    private fun matchingNameSuggestions(prefix: String): List<NameSuggestion> =
+        nameSuggestionGroups.flatMap { group ->
+            val matches = group.suggestions.filter {
+                prefix.isBlank() || it.token.startsWith(prefix, ignoreCase = true)
+            }
+            if (matches.isEmpty()) {
+                emptyList()
+            } else {
+                listOf(NameSuggestion(group.title, "", isGroupHeader = true)) + matches
+            }
+        }
+
+    private fun moveNameCompletionSelection(direction: Int) {
+        val selectableIndices = (0 until nameCompletionModel.size())
+            .filter { nameCompletionModel.getElementAt(it).isGroupHeader.not() }
+        if (selectableIndices.isEmpty()) return
+        val currentPosition = selectableIndices.indexOf(nameCompletionList.selectedIndex)
+        val nextPosition = when {
+            currentPosition < 0 -> if (direction > 0) 0 else selectableIndices.lastIndex
+            else -> (currentPosition + direction).coerceIn(0, selectableIndices.lastIndex)
+        }
+        nameCompletionList.selectedIndex = selectableIndices[nextPosition]
+        nameCompletionList.ensureIndexIsVisible(nameCompletionList.selectedIndex)
+    }
+
     private fun updateNameCompletions() {
         if (binding || !nameField.isFocusOwner) {
             hideNameCompletions()
             return
         }
         val prefix = nameField.text.trim()
-        val matches = nameSuggestions.filter { prefix.isBlank() || it.token.startsWith(prefix, ignoreCase = true) }
+        val matches = matchingNameSuggestions(prefix)
         if (matches.isEmpty()) {
             hideNameCompletions()
             return
         }
         nameCompletionModel.clear()
         matches.forEach(nameCompletionModel::addElement)
-        nameCompletionList.selectedIndex = 0
+        nameCompletionList.selectedIndex = (0 until nameCompletionModel.size())
+            .firstOrNull { !nameCompletionModel.getElementAt(it).isGroupHeader }
+            ?: -1
         if (!nameCompletionPopup.isVisible) {
             nameCompletionPopup.show(nameField, 0, nameField.height)
         }
     }
 
     private fun applyNameCompletion() {
-        val value = nameCompletionList.selectedValue?.token ?: return
+        val value = nameCompletionList.selectedValue
+            ?.takeUnless { it.isGroupHeader }
+            ?.token
+            ?: return
         nameField.text = value
         nameField.caretPosition = value.length
         hideNameCompletions()
