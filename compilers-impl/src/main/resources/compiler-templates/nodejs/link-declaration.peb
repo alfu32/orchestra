@@ -33,6 +33,7 @@ const {{ link.aPortSymbol }} = [];
 /** @type {Array<{% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}*{% endif %}>} */
 const {{ link.bPortSymbol }} = [];
 
+{{ transportProvenanceComment }}
 function {{ link.transportSymbol }}(a, b) {
   if (a.length > 0) {
     b.push(a.shift());

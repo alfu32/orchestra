@@ -4,19 +4,23 @@ enum {
     THREADWORK_ERROR = 1
 };
 
+/** @brief Set to zero when the runtime stops accepting new generator work. */
 volatile sig_atomic_t threadwork_running = 1;
+/** @brief Number of packets completed by modeled data transports. */
 unsigned long long threadwork_transit = 0ULL;
 
 static unsigned long long threadwork_shutdown_previous_transit = 0ULL;
 static unsigned int threadwork_shutdown_idle_ticks = 0U;
 static unsigned int threadwork_shutdown_remaining_ticks = 0U;
 
+/** @brief Convert SIGINT and SIGTERM into a graceful Threadwork shutdown request. */
 static void threadwork_shutdown_signal_handler(int signal_number)
 {
     (void)signal_number;
     threadwork_running = 0;
 }
 
+/** @brief Install the signal handlers used by the generated runner. */
 int threadwork_install_shutdown_signal_handlers(void)
 {
     if (signal(SIGINT, threadwork_shutdown_signal_handler) == SIG_ERR) {
@@ -28,11 +32,13 @@ int threadwork_install_shutdown_signal_handlers(void)
     return THREADWORK_OK;
 }
 
+/** @brief Stop generators while allowing already queued packets to drain. */
 void threadwork_shutdown_request(void)
 {
     threadwork_running = 0;
 }
 
+/** @brief Start the bounded idle window used to drain residual network traffic. */
 void threadwork_network_shutdown_begin(unsigned int idle_ticks)
 {
     printf(
@@ -45,6 +51,7 @@ void threadwork_network_shutdown_begin(unsigned int idle_ticks)
     threadwork_shutdown_remaining_ticks = idle_ticks;
 }
 
+/** @brief Return non-zero while transport activity or the idle drain window remains. */
 int threadwork_network_has_recent_transit(void)
 {
     printf(
@@ -75,39 +82,46 @@ int threadwork_network_has_recent_transit(void)
     return 1;
 }
 
+/** @brief One copied packet stored in a modeled buffer queue. */
 typedef struct threadwork_packet {
     void *data;
     size_t size;
     struct threadwork_packet *next;
 } threadwork_packet;
 
+/** @brief FIFO chain used by endpoint and buffer storage. */
 typedef struct threadwork_queue {
     threadwork_packet *head;
     threadwork_packet *tail;
 } threadwork_queue;
 
+/** @brief Generic array value used by generated packet structures. */
 typedef struct ThreadworkArray {
     void **items;
     size_t length;
     size_t capacity;
 } ThreadworkArray;
 
+/** @brief Typed FIFO endpoint; element_size identifies the modeled packet type. */
 typedef struct threadwork_buffer {
     threadwork_queue queue;
     size_t element_size;
 } threadwork_buffer;
 
+/** @brief Named runtime endpoint storage. */
 typedef struct threadwork_endpoint {
     char *name;
     threadwork_queue queue;
     struct threadwork_endpoint *next;
 } threadwork_endpoint;
 
+/** @brief Runtime state shared by generated node functions. */
 typedef struct threadwork_context {
     threadwork_endpoint *inputs;
     threadwork_endpoint *outputs;
 } threadwork_context;
 
+/** @brief Name/value pair used to materialize a source capability. */
 typedef struct threadwork_build_parameter {
     const char *name;
     const char *value;
@@ -254,6 +268,7 @@ static void threadwork_packet_destroy(threadwork_packet *packet)
     }
 }
 
+/** @brief Move at most one packet from a source buffer to a target buffer. */
 static int threadwork_buffer_transport(threadwork_buffer *source, threadwork_buffer *target)
 {
     threadwork_packet *packet;
@@ -279,6 +294,7 @@ static int threadwork_buffer_transport(threadwork_buffer *source, threadwork_buf
     return THREADWORK_OK;
 }
 
+/** @brief Copy one packet into a typed buffer. */
 int threadwork_buffer_push(threadwork_buffer *buffer, const void *data, size_t size)
 {
     threadwork_packet *packet;
@@ -306,6 +322,7 @@ int threadwork_buffer_push(threadwork_buffer *buffer, const void *data, size_t s
     return THREADWORK_OK;
 }
 
+/** @brief Remove one packet from a typed buffer into caller-owned storage. */
 int threadwork_buffer_pop(threadwork_buffer *buffer, void *destination, size_t size)
 {
     threadwork_packet *packet;
@@ -326,6 +343,7 @@ int threadwork_buffer_pop(threadwork_buffer *buffer, void *destination, size_t s
     return THREADWORK_OK;
 }
 
+/** @brief Generated-node convenience operation for pushing one modeled packet. */
 int push(void *target, void *package)
 {
     threadwork_buffer *buffer = (threadwork_buffer *)target;
@@ -336,6 +354,7 @@ int push(void *target, void *package)
     return threadwork_buffer_push(buffer, package, buffer->element_size);
 }
 
+/** @brief Generated-node convenience operation for popping one modeled packet. */
 int pop(void *target, void *package)
 {
     threadwork_buffer *buffer = (threadwork_buffer *)target;
@@ -346,6 +365,7 @@ int pop(void *target, void *package)
     return threadwork_buffer_pop(buffer, package, buffer->element_size);
 }
 
+/** @brief Count packets currently waiting in a modeled buffer. */
 size_t threadwork_buffer_count(const threadwork_buffer *buffer)
 {
     const threadwork_packet *packet;
@@ -378,6 +398,7 @@ static void threadwork_endpoint_list_destroy(threadwork_endpoint *head)
     }
 }
 
+/** @brief Initialize runtime endpoint state before generated initialization. */
 int threadwork_context_init(threadwork_context *context)
 {
     if (context == NULL) {
@@ -388,6 +409,7 @@ int threadwork_context_init(threadwork_context *context)
     return THREADWORK_OK;
 }
 
+/** @brief Release runtime endpoint state after the generated network drains. */
 void threadwork_context_destroy(threadwork_context *context)
 {
     if (context == NULL) {
@@ -399,6 +421,7 @@ void threadwork_context_destroy(threadwork_context *context)
     context->outputs = NULL;
 }
 
+/** @brief Write a packet to a named output endpoint. */
 int threadwork_output_write(
     threadwork_context *context,
     const char *endpoint_name,
@@ -437,6 +460,7 @@ int threadwork_output_write(
     return THREADWORK_OK;
 }
 
+/** @brief Read one packet from a named input endpoint. */
 int threadwork_input_read(
     threadwork_context *context,
     const char *endpoint_name,
@@ -472,6 +496,7 @@ int threadwork_input_read(
     return THREADWORK_OK;
 }
 
+/** @brief Transfer one packet between named runtime endpoints. */
 int threadwork_transport(
     threadwork_context *context,
     const char *link_reference,

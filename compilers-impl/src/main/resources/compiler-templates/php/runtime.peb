@@ -8,21 +8,25 @@ if (!isset($GLOBALS['threadwork_running'])) {
 }
 
 if (!function_exists('createRuntimeContext')) {
+/** @brief Create the shared context passed to generated PHP nodes. */
 function createRuntimeContext(): array
 {
     return ['imports' => []];
 }
 
+/** @brief Stop generators while already queued packets continue to drain. */
 function threadwork_shutdown_request(): void
 {
     $GLOBALS['threadwork_running'] = false;
 }
 
+/** @brief Increment the count of packets completed by modeled transports. */
 function threadwork_record_transit(): void
 {
     $GLOBALS['threadwork_transit']++;
 }
 
+/** @brief Start the bounded idle window used to drain residual network traffic. */
 function threadwork_network_shutdown_begin(int $idleTicks): void
 {
     $GLOBALS['threadwork_shutdown_previous_transit'] = $GLOBALS['threadwork_transit'];
@@ -30,6 +34,7 @@ function threadwork_network_shutdown_begin(int $idleTicks): void
     $GLOBALS['threadwork_shutdown_remaining_ticks'] = $idleTicks;
 }
 
+/** @brief Return true while transport activity or the idle drain window remains. */
 function threadwork_network_has_recent_transit(): bool
 {
     printf(
@@ -48,6 +53,7 @@ function threadwork_network_has_recent_transit(): bool
     return true;
 }
 
+/** @brief Install SIGINT and SIGTERM handlers when PCNTL is available. */
 function threadwork_install_shutdown_handlers(): void
 {
     if (!function_exists('pcntl_signal')) return;

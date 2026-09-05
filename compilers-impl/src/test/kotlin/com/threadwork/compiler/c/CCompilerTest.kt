@@ -26,6 +26,26 @@ import kotlin.test.assertTrue
 
 class CCompilerTest {
     @Test
+    fun `generated functions and transports carry adjacent documentation comments`() {
+        val repository = cProject()
+        val root = repository.getDocument().rootNodeId
+        val source = repository.createNode(root, "source", NodeKind.Processor)
+        val sink = repository.createNode(root, "sink", NodeKind.Processor)
+        repository.addPort(source.id, NodePort("out", "out", PortDirection.Output))
+        repository.addPort(sink.id, NodePort("in", "in", PortDirection.Input))
+        repository.createLink(root, "packet", source.id, "out", sink.id, "in")
+
+        val generated = assertNotNull(CCompiler().compile(repository.getDocument()).generatedProject)
+            .files.single()
+            .content
+
+        assertTrue(Regex("(?s)/\\*\\* Threadwork entity.*?@phase init.*?\\*/\\nstatic int tw_init_").containsMatchIn(generated))
+        assertTrue(Regex("(?s)/\\*\\* Threadwork entity.*?@phase run.*?\\*/\\nstatic int tw_run_").containsMatchIn(generated))
+        assertTrue(Regex("(?s)/\\*\\* Threadwork transport.*?@packet_type.*?\\*/\\nstatic int transport_").containsMatchIn(generated))
+        assertFalse(generated.contains("@node_id:"))
+    }
+
+    @Test
     fun `C single-file generation maps editable source lines back to their node`() {
         val repository = cProject()
         val root = repository.getDocument().rootNodeId

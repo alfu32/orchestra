@@ -27,6 +27,7 @@ ${{ link.aPortSymbol }} = [];
 /** @var array<int, {% if link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}mixed{% endif %}> ${{ link.bPortSymbol }} */
 ${{ link.bPortSymbol }} = [];
 
+{{ transportProvenanceComment }}
 function {{ link.transportSymbol }}(array &$a, array &$b): void
 {
     if (count($a) > 0) {

@@ -704,6 +704,10 @@ abstract class TemplateSetCompiler : StructuredCompiler() {
             "safePackageName" to safePackageName(context.projectName),
             "projectIdentifier" to safeIdentifier(context.projectName),
             "nodeProvenanceComment" to nodeProvenanceComment(document, node),
+            "initializerProvenanceComment" to nodeProvenanceComment(document, node, "init"),
+            "runProvenanceComment" to nodeProvenanceComment(document, node, "run"),
+            "linkProvenanceComment" to node.takeIf(Node::isLink)?.let { linkProvenanceComment(document, it) }.orEmpty(),
+            "transportProvenanceComment" to node.takeIf(Node::isLink)?.let { linkTransportProvenanceComment(document, it) }.orEmpty(),
         ) + linkContext(document, node, context.compiledArtifacts)
     }
 
@@ -1068,13 +1072,14 @@ private fun linkContext(
             "escapedSourceReferenceSingleQuoted" to sourceReference.escapeSingleQuoted(),
             "escapedTargetReferenceSingleQuoted" to targetReference.escapeSingleQuoted(),
             "provenanceComment" to linkProvenanceComment(document, node),
+            "transportProvenanceComment" to linkTransportProvenanceComment(document, node),
         ),
         "sourceNode" to sourceNode?.let { nodeView(document, it) },
         "targetNode" to targetNode?.let { nodeView(document, it) },
     )
 }
 
-private fun nodeProvenanceComment(document: ThreadworkDocument, node: Node): String {
+private fun nodeProvenanceComment(document: ThreadworkDocument, node: Node, phase: String? = null): String {
     val technology = effectiveTechnology(document, node)
     val stereotype = stereotypeForTemplateContext(document, node)
     val using = node.incomingLinks
@@ -1105,19 +1110,20 @@ private fun nodeProvenanceComment(document: ThreadworkDocument, node: Node): Str
         emptyList()
     }
     return buildString {
-        appendLine("/* Threadwork entity")
-        appendLine(" * node_id: ${commentValue(node.id.value)}")
-        appendLine(" * name: ${commentValue(node.name)}")
-        appendLine(" * responsible: ${commentValue(document.effectiveResponsible(node.id))}")
-        appendLine(" * changed: ${commentValue(node.modified.date)}")
-        appendLine(" * stereotype: ${commentValue(stereotype.name)}")
-        appendLine(" * language: ${commentValue(technology.languageId)}")
-        appendLine(" * technology: ${commentValue(technology.technologyId)}")
-        appendLine(" * using: ${using.ifEmpty { listOf("none") }.joinToString(", ") { commentValue(it) }}")
+        appendLine("/** Threadwork entity")
+        appendLine(" * @node_id ${commentValue(node.id.value)}")
+        appendLine(" * @name ${commentValue(node.name)}")
+        appendLine(" * @responsible ${commentValue(document.effectiveResponsible(node.id))}")
+        appendLine(" * @changed ${commentValue(node.modified.date)}")
+        appendLine(" * @stereotype ${commentValue(stereotype.name)}")
+        appendLine(" * @language ${commentValue(technology.languageId)}")
+        appendLine(" * @technology ${commentValue(technology.technologyId)}")
+        appendLine(" * @using ${using.ifEmpty { listOf("none") }.joinToString(", ") { commentValue(it) }}")
+        phase?.let { appendLine(" * @phase ${commentValue(it)}") }
         if (node.kind == NodeKind.Type || stereotype == NodeStereotype.ServiceLibrary) {
-            appendLine(" * used-by: ${usedBy.ifEmpty { listOf("none") }.joinToString(", ") { commentValue(it) }}")
+            appendLine(" * @used-by ${usedBy.ifEmpty { listOf("none") }.joinToString(", ") { commentValue(it) }}")
         }
-        appendLine(" */")
+        append(" */")
     }
 }
 
@@ -1137,13 +1143,39 @@ private fun linkProvenanceComment(document: ThreadworkDocument, node: Node): Str
         LinkStereotype.ErrorPipe -> "data transport"
     }
     return buildString {
-        appendLine("/* Threadwork link")
-        appendLine(" * node_id: ${commentValue(node.id.value)}")
-        appendLine(" * name: ${commentValue(node.name)}")
-        appendLine(" * traversal: [${(listOf(source) + boundaries + target).joinToString(", ") { commentValue(it) }}]")
-        appendLine(" * kind: ${commentValue(node.kind.name)}")
-        appendLine(" * type: $type")
-        appendLine(" */")
+        appendLine("/** Threadwork link")
+        appendLine(" * @node_id ${commentValue(node.id.value)}")
+        appendLine(" * @name ${commentValue(node.name)}")
+        appendLine(" * @traversal [${(listOf(source) + boundaries + target).joinToString(", ") { commentValue(it) }}]")
+        appendLine(" * @kind ${commentValue(node.kind.name)}")
+        appendLine(" * @type ${commentValue(type)}")
+        append(" */")
+    }
+}
+
+private fun linkTransportProvenanceComment(document: ThreadworkDocument, node: Node): String {
+    val link = node.link ?: return ""
+    val typeNode = link.typeDefinitionId.takeIf(String::isNotBlank)?.let(document::getElementById)
+    val packetType = document.linkTypeDisplayName(node).ifBlank { "untyped" }
+    val packetFields = typeNode?.typeDefinition?.fields.orEmpty()
+        .joinToString(", ") { field ->
+            "${commentValue(field.name)}: ${commentValue(document.typeDisplayName(field.typeId))}"
+        }
+        .ifBlank {
+            if (link.payloadDefinition.isBlank()) "none" else "custom payload definition"
+        }
+    val source = document.getElementById(link.sourceNodeId)?.name ?: link.sourceNodeId.value
+    val target = document.getElementById(link.targetNodeId)?.name ?: link.targetNodeId.value
+    return buildString {
+        appendLine("/** Threadwork transport")
+        appendLine(" * @node_id ${commentValue(node.id.value)}")
+        appendLine(" * @name ${commentValue(node.name)}")
+        appendLine(" * @source ${commentValue(source)}")
+        appendLine(" * @target ${commentValue(target)}")
+        appendLine(" * @packet_type ${commentValue(packetType)}")
+        appendLine(" * @packet_fields ${commentValue(packetFields)}")
+        appendLine(" * @transport_kind ${commentValue(link.transportKind)}")
+        append(" */")
     }
 }
 

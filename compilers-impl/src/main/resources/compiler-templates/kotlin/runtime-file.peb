@@ -1,5 +1,6 @@
 {# Project runtime context and shutdown-aware transport accounting. #}package generated
 
+/** Shared context passed to generated Kotlin nodes. */
 class RuntimeContext {
     val imports: MutableMap<String, Any?> = mutableMapOf()
 }
@@ -12,24 +13,29 @@ private var threadworkShutdownPreviousTransit = 0UL
 private var threadworkShutdownIdleTicks = 0U
 private var threadworkShutdownRemainingTicks = 0U
 
+/** Install a JVM shutdown hook that stops generator ingress. */
 fun threadworkInstallShutdownHook() {
     Runtime.getRuntime().addShutdownHook(Thread { threadworkRunning = false })
 }
 
+/** Stop generators while already queued packets continue to drain. */
 fun threadworkShutdownRequest() {
     threadworkRunning = false
 }
 
+/** Increment the count of packets completed by modeled transports. */
 fun threadworkRecordTransit() {
     threadworkTransit++
 }
 
+/** Start the bounded idle window used to drain residual network traffic. */
 fun threadworkNetworkShutdownBegin(idleTicks: UInt) {
     threadworkShutdownPreviousTransit = threadworkTransit
     threadworkShutdownIdleTicks = idleTicks
     threadworkShutdownRemainingTicks = idleTicks
 }
 
+/** Return true while transport activity or the idle drain window remains. */
 fun threadworkNetworkHasRecentTransit(): Boolean {
     if (threadworkTransit != threadworkShutdownPreviousTransit) {
         threadworkShutdownPreviousTransit = threadworkTransit

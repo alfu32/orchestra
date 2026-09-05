@@ -1,5 +1,5 @@
 {# Defines a composite: own setup, child setup, own execution, child execution, then link transport. #}
-{{ nodeProvenanceComment }}
+{{ initializerProvenanceComment }}
 static int tw_{{ initializerSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}{% if not link.isLibraryCapability %}, {% if link.isSourceCapability %}{{ link.capabilityTypeSymbol }} *{% elseif link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.argumentSymbol }}{% endif %}{% endfor %})
 {
     (void)context;
@@ -10,6 +10,7 @@ static int tw_{{ initializerSymbol }}(threadwork_context *context{% for link in 
 {% endif %}{% endfor %}    return THREADWORK_OK;
 }
 
+{{ runProvenanceComment }}
 static int tw_{{ runSymbol }}(threadwork_context *context{% for link in incomingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, threadwork_buffer *{{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}{% if not link.isLibraryCapability %}, {% if link.isSourceCapability %}{{ link.capabilityTypeSymbol }} *{% elseif link.sourceNodeTypeSymbol is not empty %}{{ link.sourceNodeTypeSymbol }}{% else %}void *{% endif %} {{ link.argumentSymbol }}{% endif %}{% endfor %})
 {
     (void)context;

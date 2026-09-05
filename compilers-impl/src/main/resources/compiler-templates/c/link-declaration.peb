@@ -28,6 +28,7 @@ static threadwork_buffer {{ link.bPortSymbol }} = {
     .element_size = sizeof({% if link.typeSymbol == "string" %}char *{% elseif link.typeSymbol == "number" %}double{% elseif link.typeSymbol == "date" %}int64_t{% elseif link.typeSymbol == "array" %}ThreadworkArray{% elseif link.typeSymbol is not empty %}{{ link.typeSymbol }}{% else %}void *{% endif %})
 };
 
+{{ transportProvenanceComment }}
 static int {{ link.transportSymbol }}(threadwork_buffer *a, threadwork_buffer *b)
 {
     return threadwork_buffer_transport(a, b);

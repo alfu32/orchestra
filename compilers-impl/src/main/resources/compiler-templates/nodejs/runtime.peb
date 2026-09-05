@@ -8,34 +8,41 @@ const threadworkRuntime = globalThis[threadworkRuntimeKey] ??= {
   shutdownRemainingTicks: 0,
 };
 
+/** Create the shared context passed to generated Node.js nodes. */
 function createRuntimeContext() {
   return { imports: Object.create(null) };
 }
 
+/** Stop generators on SIGINT/SIGTERM while queued packets continue to drain. */
 function threadworkInstallShutdownHandlers() {
   const requestShutdown = () => { threadworkRuntime.running = false; };
   process.once("SIGINT", requestShutdown);
   process.once("SIGTERM", requestShutdown);
 }
 
+/** Stop generators while already queued packets continue to drain. */
 function threadworkShutdownRequest() {
   threadworkRuntime.running = false;
 }
 
+/** Return whether generator ingress is still open. */
 function threadworkIsRunning() {
   return threadworkRuntime.running;
 }
 
+/** Increment the count of packets completed by modeled transports. */
 function threadworkRecordTransit() {
   threadworkRuntime.transit += 1;
 }
 
+/** Start the bounded idle window used to drain residual network traffic. */
 function threadworkNetworkShutdownBegin(idleTicks) {
   threadworkRuntime.shutdownPreviousTransit = threadworkRuntime.transit;
   threadworkRuntime.shutdownIdleTicks = idleTicks;
   threadworkRuntime.shutdownRemainingTicks = idleTicks;
 }
 
+/** Return true while transport activity or the idle drain window remains. */
 function threadworkNetworkHasRecentTransit() {
   if (threadworkRuntime.transit !== threadworkRuntime.shutdownPreviousTransit) {
     threadworkRuntime.shutdownPreviousTransit = threadworkRuntime.transit;

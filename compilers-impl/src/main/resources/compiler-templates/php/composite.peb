@@ -1,5 +1,5 @@
 {# A composite initializes descendants once, then executes and transports on each frame. #}
-{{ nodeProvenanceComment }}
+{{ initializerProvenanceComment }}
 function {{ initializerSymbol }}(array &$context{% for link in incomingDataLinks %}, array &${{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, array &${{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}{% if not link.isLibraryCapability %}, mixed ${{ link.argumentSymbol }}{% endif %}{% endfor %}): void
 {
 {% for child in childArtifacts %}{% for link in child.dependencyInjectionLinks %}{% if not link.isLibraryCapability %}    global ${{ link.dependencySymbol }};
@@ -10,6 +10,7 @@ function {{ initializerSymbol }}(array &$context{% for link in incomingDataLinks
 {% endif %}{% for child in childArtifacts %}{% if child.declaration is not empty and not child.isCapabilityOnlyProvider and child.node.kind.name != "Note" and child.node.kind.name != "Type" %}    {{ child.initializerSymbol }}($context{% for link in child.incomingDataLinks %}, ${{ link.bPortSymbol }}{% endfor %}{% for link in child.outgoingDataLinks %}, ${{ link.aPortSymbol }}{% endfor %}{% for link in child.dependencyInjectionLinks %}{% if not link.isLibraryCapability %}, ${{ link.dependencySymbol }}{% endif %}{% endfor %});
 {% endif %}{% endfor %}}
 
+{{ runProvenanceComment }}
 function {{ runSymbol }}(array &$context{% for link in incomingDataLinks %}, array &${{ link.argumentSymbol }}{% endfor %}{% for link in outgoingDataLinks %}, array &${{ link.argumentSymbol }}{% endfor %}{% for link in dependencyInjectionLinks %}{% if not link.isLibraryCapability %}, mixed ${{ link.argumentSymbol }}{% endif %}{% endfor %}): void
 {
 {% for child in childArtifacts %}{% for link in child.dependencyInjectionLinks %}{% if not link.isLibraryCapability %}    global ${{ link.dependencySymbol }};
