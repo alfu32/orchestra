@@ -42,6 +42,7 @@ enum class DesignerColorKey(
     TextPrimary("Primary text", Color(0x222222), Color(0xf2f2f2)),
     TextSecondary("Secondary text", Color(0x555555), Color(0xcacaca)),
     TextMuted("Muted text", Color(0x666666), Color(0x9fa3aa)),
+    OverrideDetailText("Override detail text", Color(0x000000), Color(0xc7c7c7)),
     LinkDefault("Data link", Color(0x222222), Color(0xf0f0f0)),
     LinkLibrary("Library link", Color(0x3333cc), Color(0x7887ff)),
     LinkError("Error link", Color(0xcc3333), Color(0xff7777)),

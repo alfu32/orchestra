@@ -4570,12 +4570,17 @@ class GraphCanvas(
     private fun svgNodeName(svg: StringBuilder, node: Node, x: Int, baseline: Int, size: Int) {
         val name = node.name
         val detail = node.nameDetail.trim()
-        val override = isCompilerOverride(node)
+        val override = isOverrideNode(node)
         svgText(svg, name, x, baseline, size, "#222222")
         if (detail.isBlank()) return
         val renderedDetail = if (override) "($detail)" else detail
         val detailX = x + if (name.isBlank()) 0 else monospaceTextWidth("$name ", size.toFloat(), 0)
-        svgText(svg, renderedDetail, detailX, baseline, size, if (override) "#000000" else "#666666")
+        val color = if (override) {
+            ThreadworkAppearance.colorToHex(activePalette[DesignerColorKey.OverrideDetailText])
+        } else {
+            ThreadworkAppearance.colorToHex(activePalette[DesignerColorKey.TextMuted])
+        }
+        svgText(svg, renderedDetail, detailX, baseline, size, color)
     }
 
     private fun svgText(svg: StringBuilder, text: String, x: Int, y: Int, size: Int, fill: String) {
@@ -4825,7 +4830,7 @@ class GraphCanvas(
         val name = node.name.trim()
         val detail = node.nameDetail.trim()
         if (detail.isBlank()) return name
-        val renderedDetail = if (isCompilerOverride(node)) {
+        val renderedDetail = if (isOverrideNode(node)) {
             "($detail)"
         } else {
             detail
@@ -4839,21 +4844,21 @@ class GraphCanvas(
         g2.color = activePalette[DesignerColorKey.TextPrimary]
         g2.drawString(name, x, baseline)
         if (detail.isBlank()) return
-        val renderedDetail = if (isCompilerOverride(node)) {
+        val renderedDetail = if (isOverrideNode(node)) {
             "($detail)"
         } else {
             detail
         }
         val detailX = x + if (name.isBlank()) 0 else g2.fontMetrics.stringWidth("$name ")
-        g2.color = if (isCompilerOverride(node)) {
-            Color.BLACK
+        g2.color = if (isOverrideNode(node)) {
+            activePalette[DesignerColorKey.OverrideDetailText]
         } else {
             activePalette[DesignerColorKey.TextMuted]
         }
         g2.drawString(renderedDetail, detailX, baseline)
     }
 
-    private fun isCompilerOverride(node: Node): Boolean =
+    private fun isOverrideNode(node: Node): Boolean =
         nodeStereotype(node) in setOf(NodeStereotype.CompilerTemplate, NodeStereotype.StaticFile)
 
     private fun drawDiagnosticBadge(g2: Graphics2D, node: Node) {
